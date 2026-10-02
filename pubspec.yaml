@@ -1,0 +1,32 @@
+name: jump_runner
+description: A 2D horizontal scrolling courier runner game built with Flutter and Flame
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flame: ^1.11.0
+  flame_audio: ^2.11.0
+  flutter_svg: ^2.0.9
+  shared_preferences: ^2.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/courier/
+    - assets/images/environment/
+    - assets/images/hazards/
+    - assets/images/pickups/
+    - assets/audio/sfx/
+    - assets/audio/music/
+    - assets/LICENSE_KENNEY.txt
