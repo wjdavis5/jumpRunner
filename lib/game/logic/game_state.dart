@@ -36,7 +36,7 @@ class MilestoneEvent {
 /// - Hazards decrement 1 package life.
 /// - Reaching 0 packages triggers GameOver.
 /// - Every 500m milestone restores 1 lost package; if already at 3 packages, awards $50 tip bonus.
-class GameState {
+class GameState extends ChangeNotifier {
   static const int defaultMaxPackages = 3;
   static const double milestoneIntervalMeters = 500.0;
   static const int milestoneBonusTips = 50;
@@ -57,24 +57,27 @@ class GameState {
 
   /// Begins or resets an active courier run.
   void startRun() {
-    packages = maxPackages;
+    packages = defaultMaxPackages;
     tips = 0;
     distanceMeters = 0.0;
     _lastMilestoneIndex = 0;
     status = GameStatus.running;
+    notifyListeners();
   }
 
   /// Adds collected tips to current run bank.
   void addTip(int amount) {
     if (status != GameStatus.running) return;
     tips += amount;
+    notifyListeners();
   }
 
   /// Manually restores a package from a pickup box.
   bool restorePackage() {
-    if (packages < maxPackages) {
+    if (packages < defaultMaxPackages) {
       packages++;
       onPackageRestored?.call();
+      notifyListeners();
       return true;
     }
     return false;
@@ -93,8 +96,10 @@ class GameState {
       packages = 0;
       status = GameStatus.gameOver;
       onGameOver?.call();
+      notifyListeners();
       return false;
     }
+    notifyListeners();
     return true;
   }
 
@@ -130,5 +135,6 @@ class GameState {
         }
       }
     }
+    notifyListeners();
   }
 }

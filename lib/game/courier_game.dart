@@ -4,22 +4,28 @@ import 'package:flame/game.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import 'audio_controller.dart';
 import 'components/courier_player.dart';
 import 'components/obstacle_component.dart';
 import 'components/parallax_city.dart';
 import 'components/pickup_component.dart';
+import 'logic/game_state.dart';
 import 'logic/world_chunk_manager.dart';
 
 /// Main Flame game loop for Courier Dash.
 ///
 /// Features a fixed 16:9 virtual resolution of 960x540 with letterboxing,
 /// collision detection, continuous parallax city scrolling, procedural obstacle/pickup spawning,
-/// and responsive courier jumping controls.
+/// low-latency audio integration, and responsive courier jumping controls.
 class CourierGame extends FlameGame
     with HasCollisionDetection, TapCallbacks, KeyboardEvents {
   CourierGame({
+    GameState? gameState,
+    GameAudioController? audioController,
     WorldChunkManager? chunkManager,
-  })  : chunkManager = chunkManager ?? WorldChunkManager(),
+  })  : gameState = gameState ?? GameState(),
+        audio = audioController ?? GameAudioController(),
+        chunkManager = chunkManager ?? WorldChunkManager(),
         super(
           camera: CameraComponent.withFixedResolution(
             width: virtualResolution.x,
@@ -33,13 +39,14 @@ class CourierGame extends FlameGame
   /// Ground surface baseline Y coordinate in virtual coordinates.
   static const double groundY = 460.0;
 
+  final GameState gameState;
+  final GameAudioController audio;
   final WorldChunkManager chunkManager;
 
   late final ParallaxCityComponent parallaxCity;
   late final CourierPlayer player;
 
   double currentSpeed = 200.0;
-  double distanceMeters = 0.0;
   double nextChunkX = 960.0;
 
   bool isRunning = true;
@@ -47,8 +54,7 @@ class CourierGame extends FlameGame
   final List<ObstacleComponent> activeObstacles = [];
   final List<PickupComponent> activePickups = [];
 
-  ValueChanged<PickupType>? onPickupCollected;
-  VoidCallback? onHazardHit;
+  VoidCallback? onRunConcluded;
 
   @override
   Future<void> onLoad() async {
@@ -59,9 +65,22 @@ class CourierGame extends FlameGame
 
     player = CourierPlayer(
       groundY: groundY,
-      onDamage: () => onHazardHit?.call(),
+      onJump: () => audio.playJump(),
+      onDamage: () {
+        audio.playFumble();
+        gameState.applyHazardDamage();
+      },
     );
     world.add(player);
+
+    gameState.onMilestone = (event) {
+      audio.playMilestone();
+    };
+
+    gameState.onGameOver = () {
+      isRunning = false;
+      onRunConcluded?.call();
+    };
 
     // Seed initial terrain chunk
     _spawnChunk();
@@ -90,7 +109,7 @@ class CourierGame extends FlameGame
         position: Vector2(p.x, p.y),
         onCollected: (type) {
           activePickups.removeWhere((item) => item.isCollected);
-          onPickupCollected?.call(type);
+          _handlePickup(type);
         },
       );
       activePickups.add(pickComp);
@@ -100,16 +119,64 @@ class CourierGame extends FlameGame
     nextChunkX += 960.0;
   }
 
+  void _handlePickup(PickupType type) {
+    switch (type) {
+      case PickupType.coin:
+        gameState.addTip(1);
+        audio.playCoin();
+        break;
+      case PickupType.coin5:
+        gameState.addTip(5);
+        audio.playCoin();
+        break;
+      case PickupType.energyDrink:
+        audio.playCoin();
+        break;
+      case PickupType.packageRestore:
+        gameState.restorePackage();
+        audio.playMilestone();
+        break;
+    }
+  }
+
+  /// Resets the runner for the next shift.
+  void restartRun() {
+    for (final o in activeObstacles) {
+      o.removeFromParent();
+    }
+    for (final p in activePickups) {
+      p.removeFromParent();
+    }
+    activeObstacles.clear();
+    activePickups.clear();
+
+    chunkManager.reset();
+    nextChunkX = 960.0;
+    currentSpeed = 200.0;
+
+    gameState.startRun();
+    player.position = Vector2(120.0, groundY - player.size.y);
+    player.simulator.currentY = groundY;
+    player.simulator.verticalVelocity = 0.0;
+    player.simulator.isGrounded = true;
+    player.state = CourierState.running;
+
+    isRunning = true;
+    _spawnChunk();
+    audio.startMusic();
+  }
+
   @override
   void update(double dt) {
     super.update(dt);
-    if (!isRunning) return;
+    if (!isRunning || gameState.status != GameStatus.running) return;
 
     // 1. Calculate dynamic scroll speed based on distance
-    currentSpeed = chunkManager.calculateSpeed(distanceMeters);
+    currentSpeed = chunkManager.calculateSpeed(gameState.distanceMeters);
 
-    // 2. Advance meter progress (200 px/s ≈ 10 m/s for arcade feel: 20 px = 1 meter)
-    distanceMeters += (currentSpeed * dt) / 20.0;
+    // 2. Advance meter progress (20 px = 1 meter)
+    final distanceDelta = (currentSpeed * dt) / 20.0;
+    gameState.updateDistance(gameState.distanceMeters + distanceDelta);
 
     // 3. Update parallax city velocity
     parallaxCity.speedMultiplier = currentSpeed / 200.0;
@@ -138,7 +205,9 @@ class CourierGame extends FlameGame
   @override
   void onTapDown(TapDownEvent event) {
     super.onTapDown(event);
-    if (isRunning) player.jump();
+    if (isRunning && gameState.status == GameStatus.running) {
+      player.jump();
+    }
   }
 
   @override
@@ -164,7 +233,9 @@ class CourierGame extends FlameGame
 
     if (isJumpKey) {
       if (event is KeyDownEvent) {
-        if (isRunning) player.jump();
+        if (isRunning && gameState.status == GameStatus.running) {
+          player.jump();
+        }
         return KeyEventResult.handled;
       } else if (event is KeyUpEvent) {
         player.stopJump();
