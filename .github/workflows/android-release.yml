@@ -1,0 +1,61 @@
+name: Android Release
+
+# Builds release APK and Android App Bundle (.aab).
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+
+env:
+  FLUTTER_CHANNEL: stable
+
+jobs:
+  build-android:
+    name: Build Android APK & App Bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Analyze & Test
+        run: |
+          flutter analyze --fatal-infos
+          flutter test
+
+      - name: Build Android APK
+        run: flutter build apk --release
+
+      - name: Build Android App Bundle
+        run: flutter build appbundle --release
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: courier-dash-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload AAB Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: courier-dash-bundle
+          path: build/app/outputs/bundle/release/app-release.aab

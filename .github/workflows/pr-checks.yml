@@ -1,0 +1,59 @@
+name: PR Checks
+
+# Automated continuous integration checks for pull requests.
+# Validates static analysis, unit test suite, and release compilation.
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: pr-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_CHANNEL: stable
+
+jobs:
+  analyze-and-test:
+    name: Analyze & Automated Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Static Analysis
+        run: flutter analyze --fatal-infos
+
+      - name: Unit & Component Tests
+        run: flutter test
+
+      - name: Build Web Release
+        run: flutter build web --release
+
+  build-ios:
+    name: Build iOS (Unsigned)
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build iOS App
+        run: flutter build ios --release --no-codesign
