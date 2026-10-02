@@ -1,0 +1,54 @@
+# Fastlane configuration for Courier Dash iOS distribution.
+
+default_platform(:ios)
+
+APP_IDENTIFIER = "com.wjdavis5.jump_runner".freeze
+
+platform :ios do
+  desc "Run local analysis and unit tests"
+  lane :test do
+    sh("flutter", "analyze", "--fatal-infos")
+    sh("flutter", "test")
+  end
+
+  desc "Upload new build to TestFlight"
+  lane :beta do
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_content: ENV.fetch("ASC_PRIVATE_KEY"),
+      in_house: false,
+    )
+
+    pilot(
+      api_key: api_key,
+      app_identifier: APP_IDENTIFIER,
+      skip_waiting_for_build_processing: true,
+    )
+  end
+
+  desc "Submit current build to App Store for review"
+  lane :submit do
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_content: ENV.fetch("ASC_PRIVATE_KEY"),
+      in_house: false,
+    )
+
+    version = ENV.fetch("DELIVER_APP_VERSION")
+    build_number = ENV.fetch("DELIVER_BUILD_NUMBER")
+
+    deliver(
+      api_key: api_key,
+      app_identifier: APP_IDENTIFIER,
+      app_version: version,
+      build_number: build_number,
+      submit_for_review: true,
+      skip_metadata: true,
+      skip_screenshots: true,
+      skip_binary_upload: true,
+      force: true,
+    )
+  end
+end
