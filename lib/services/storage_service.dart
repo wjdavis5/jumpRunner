@@ -14,6 +14,7 @@ class LocalStorageService {
   static const String _keySoundMuted = 'courier_sound_muted';
   static const String _keyUnlockedSkins = 'courier_unlocked_skins';
   static const String _keyEquippedSkin = 'courier_equipped_skin';
+  static const String _keyCompletedContracts = 'courier_completed_contracts';
 
   SharedPreferences? _prefs;
 
@@ -27,6 +28,9 @@ class LocalStorageService {
 
   /// Total career tips collected in dollars ($).
   int get careerTips => _prefs?.getInt(_keyCareerTips) ?? 0;
+
+  /// Lifetime delivery contracts completed by the courier.
+  int get completedContracts => _prefs?.getInt(_keyCompletedContracts) ?? 0;
 
   /// Whether audio is muted by player preference.
   bool get isSoundMuted => _prefs?.getBool(_keySoundMuted) ?? false;
@@ -91,5 +95,12 @@ class LocalStorageService {
       return true;
     }
     return false;
+  }
+
+  /// Increments total completed shift delivery contracts.
+  Future<void> recordCompletedContracts(int count) async {
+    final prefs = _prefs;
+    if (prefs == null || count <= 0) return;
+    await prefs.setInt(_keyCompletedContracts, completedContracts + count);
   }
 }

@@ -1,5 +1,8 @@
 import 'package:flutter/foundation.dart';
 
+import '../models/shift_contract.dart';
+import 'contract_manager.dart';
+
 /// Status of the current run lifecycle.
 enum GameStatus {
   idle,
@@ -62,14 +65,28 @@ class StuntEvent {
 /// - Every 500m milestone restores 1 lost package; if already at 3 packages, awards $50 tip bonus.
 /// - Near-miss jumps over hazards reward bonus tips and ramp up a stunt combo multiplier (up to 2.5x).
 class GameState extends ChangeNotifier {
+  GameState({ContractManager? contractManager})
+      : contractManager = contractManager ?? ContractManager() {
+    this.contractManager.onContractCompleted = (contract) {
+      activeContractCelebration = contract;
+      contractCelebrationTimer = contractBannerDuration;
+      onContractCompleted?.call(contract);
+      notifyListeners();
+    };
+  }
+
   static const int defaultMaxPackages = 3;
   static const double milestoneIntervalMeters = 500.0;
   static const int milestoneBonusTips = 50;
 
   static const double defaultEnergyDrinkDuration = 5.0;
   static const double milestoneBannerDuration = 3.0;
+  static const double contractBannerDuration = 3.0;
   static const double stuntComboDuration = 4.0;
   static const int baseStuntTip = 5;
+
+  final ContractManager contractManager;
+  int damageTakenCount = 0;
 
   int get maxPackages => defaultMaxPackages;
 
@@ -93,6 +110,16 @@ class GameState extends ChangeNotifier {
   /// True when the milestone celebration banner should be displayed.
   bool get isMilestoneBannerVisible => activeMilestone != null && milestoneBannerTimer > 0;
 
+  /// The active completed contract being celebrated by the UI banner.
+  ShiftContract? activeContractCelebration;
+
+  /// Remaining display duration in seconds for the contract celebration banner.
+  double contractCelebrationTimer = 0.0;
+
+  /// True when the contract celebration banner should be displayed.
+  bool get isContractCelebrationVisible =>
+      activeContractCelebration != null && contractCelebrationTimer > 0;
+
   /// Current consecutive near-miss stunt streak.
   int stuntStreak = 0;
 
@@ -115,6 +142,7 @@ class GameState extends ChangeNotifier {
 
   ValueChanged<MilestoneEvent>? onMilestone;
   ValueChanged<StuntEvent>? onStunt;
+  ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
   VoidCallback? onDamageTaken;
@@ -125,12 +153,16 @@ class GameState extends ChangeNotifier {
     tips = 0;
     distanceMeters = 0.0;
     _lastMilestoneIndex = 0;
+    damageTakenCount = 0;
     energyDrinkTimer = 0.0;
     activeMilestone = null;
     milestoneBannerTimer = 0.0;
+    activeContractCelebration = null;
+    contractCelebrationTimer = 0.0;
     stuntStreak = 0;
     stuntStreakTimer = 0.0;
     status = GameStatus.running;
+    contractManager.reset();
     notifyListeners();
   }
 
@@ -155,6 +187,7 @@ class GameState extends ChangeNotifier {
     if (status != GameStatus.running) return;
     // Refresh or extend buff up to a 10s maximum cap
     energyDrinkTimer = (energyDrinkTimer + duration).clamp(0.0, 10.0);
+    contractManager.onEnergyBoostActivated();
     notifyListeners();
   }
 
@@ -176,6 +209,18 @@ class GameState extends ChangeNotifier {
       if (milestoneBannerTimer <= 0) {
         milestoneBannerTimer = 0.0;
         activeMilestone = null;
+      }
+      notifyListeners();
+    }
+  }
+
+  /// Updates the contract celebration banner countdown timer.
+  void updateContractTimer(double dt) {
+    if (contractCelebrationTimer > 0) {
+      contractCelebrationTimer -= dt;
+      if (contractCelebrationTimer <= 0) {
+        contractCelebrationTimer = 0.0;
+        activeContractCelebration = null;
       }
       notifyListeners();
     }
@@ -204,6 +249,8 @@ class GameState extends ChangeNotifier {
     final awarded = isEnergyBoostActive ? earnedTips * 2 : earnedTips;
     tips += awarded;
 
+    contractManager.onStuntPerformed();
+
     final event = StuntEvent(
       streak: stuntStreak,
       multiplier: stuntMultiplier,
@@ -221,6 +268,7 @@ class GameState extends ChangeNotifier {
     if (status != GameStatus.running) return;
     final earned = isEnergyBoostActive ? amount * 2 : amount;
     tips += earned;
+    contractManager.onTipCollected(amount);
     notifyListeners();
   }
 
@@ -245,6 +293,8 @@ class GameState extends ChangeNotifier {
     packages--;
     stuntStreak = 0;
     stuntStreakTimer = 0.0;
+    damageTakenCount++;
+    contractManager.onDamageTaken();
     onDamageTaken?.call();
 
     if (packages <= 0) {
@@ -262,6 +312,7 @@ class GameState extends ChangeNotifier {
   void updateDistance(double newDistance) {
     if (status != GameStatus.running) return;
     distanceMeters = newDistance;
+    contractManager.onDistanceProgress(distanceMeters, damageCount: damageTakenCount);
 
     final currentMilestone = (distanceMeters ~/ milestoneIntervalMeters);
     if (currentMilestone > _lastMilestoneIndex) {

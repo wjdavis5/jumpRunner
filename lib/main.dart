@@ -83,11 +83,17 @@ class _CourierDashAppState extends State<CourierDashApp> {
   Future<void> _handleRunConcluded() async {
     _lastDistance = _gameState.distanceMeters.floor();
     _lastTips = _gameState.tips;
+    final bonusTips = _gameState.contractManager.totalBonusTips;
 
     _isNewRecord = await widget.storageService.recordRun(
       distance: _lastDistance,
-      tips: _lastTips,
+      tips: _lastTips + bonusTips,
     );
+
+    final completed = _gameState.contractManager.completedCount;
+    if (completed > 0) {
+      await widget.storageService.recordCompletedContracts(completed);
+    }
 
     if (mounted) {
       setState(() {});
@@ -213,6 +219,8 @@ class _CourierDashAppState extends State<CourierDashApp> {
                   tips: _lastTips,
                   isNewRecord: _isNewRecord,
                   careerTips: widget.storageService.careerTips,
+                  completedContracts: _gameState.contractManager.completedCount,
+                  contractBonusTips: _gameState.contractManager.totalBonusTips,
                   onRestart: _restartGame,
                 ),
           },
