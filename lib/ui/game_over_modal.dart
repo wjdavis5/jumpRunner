@@ -11,6 +11,7 @@ class GameOverModal extends StatelessWidget {
     required this.onRestart,
     this.completedContracts = 0,
     this.contractBonusTips = 0,
+    this.deliveriesCompleted = 0,
   });
 
   final int distance;
@@ -19,6 +20,7 @@ class GameOverModal extends StatelessWidget {
   final int careerTips;
   final int completedContracts;
   final int contractBonusTips;
+  final int deliveriesCompleted;
   final VoidCallback onRestart;
 
   @override
@@ -100,6 +102,37 @@ class GameOverModal extends StatelessWidget {
                         '$completedContracts CONTRACT${completedContracts > 1 ? 'S' : ''} (+\$$contractBonusTips BONUS)',
                         style: const TextStyle(
                           color: Color(0xFF2ECC71),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            if (deliveriesCompleted > 0)
+              Container(
+                key: const Key('game_over_deliveries_badge'),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1C40F).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFF1C40F), width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.inventory_2, color: Color(0xFFF1C40F), size: 16),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '$deliveriesCompleted DOORSTEP DROP${deliveriesCompleted > 1 ? 'S' : ''} FULFILLED',
+                        style: const TextStyle(
+                          color: Color(0xFFF1C40F),
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                           letterSpacing: 0.5,

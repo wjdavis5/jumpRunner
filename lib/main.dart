@@ -301,6 +301,7 @@ class _CourierDashAppState extends State<CourierDashApp> {
                   careerTips: widget.storageService.careerTips,
                   completedContracts: _gameState.contractManager.completedCount,
                   contractBonusTips: _gameState.contractManager.totalBonusTips,
+                  deliveriesCompleted: _gameState.deliveriesInRun,
                   onRestart: _restartGame,
                 ),
           },
