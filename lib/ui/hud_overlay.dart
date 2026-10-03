@@ -18,24 +18,132 @@ class HUDOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Left: Carried Package Lives (3 boxes)
-            _buildPackageLives(),
+      child: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Left: Carried Package Lives (3 boxes)
+                _buildPackageLives(),
 
-            const Spacer(),
+                const Spacer(),
 
-            // Center: Distance & Next Milestone
-            _buildDistanceCounter(),
+                // Center: Distance & Next Milestone
+                _buildDistanceCounter(),
 
-            const Spacer(),
+                const Spacer(),
 
-            // Right: Tips Earned & Mute Toggle
-            _buildTipsAndMute(),
-          ],
+                // Right: Tips Earned & Mute Toggle
+                _buildTipsAndMute(),
+              ],
+            ),
+          ),
+          if (gameState.isMilestoneBannerVisible && gameState.activeMilestone != null)
+            Positioned(
+              top: 72.0,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: _buildMilestoneBanner(gameState.activeMilestone!),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMilestoneBanner(MilestoneEvent milestone) {
+    return IgnorePointer(
+      child: AnimatedOpacity(
+        opacity: gameState.isMilestoneBannerVisible ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 300),
+        child: Container(
+          key: const Key('milestone_celebration_banner'),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xEE1E272C),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: const Color(0xFFF1C40F),
+              width: 2.0,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFF1C40F).withValues(alpha: 0.5),
+                blurRadius: 18,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.emoji_events,
+                color: Color(0xFFF1C40F),
+                size: 32,
+              ),
+              const SizedBox(width: 12),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'SHIFT #${milestone.milestoneIndex} COMPLETED! (${milestone.distanceMeters.toInt()}m)',
+                    style: const TextStyle(
+                      color: Color(0xFFF1C40F),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  if (milestone.restoredPackage)
+                    const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.inventory_2,
+                          size: 16,
+                          color: Color(0xFFE67E22),
+                        ),
+                        SizedBox(width: 6),
+                        Text(
+                          'PACKAGE RESTORED! (+1 Delivery Box)',
+                          style: TextStyle(
+                            color: Color(0xFF85C1E9),
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.monetization_on,
+                          size: 16,
+                          color: Color(0xFFF1C40F),
+                        ),
+                        SizedBox(width: 6),
+                        Text(
+                          'FLAWLESS SHIFT BONUS: +\$${milestone.bonusTips} TIPS!',
+                          style: const TextStyle(
+                            color: Color(0xFF2ECC71),
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

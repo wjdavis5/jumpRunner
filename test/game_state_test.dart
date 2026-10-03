@@ -124,5 +124,29 @@ void main() {
       expect(state.isEnergyBoostActive, isFalse);
       expect(state.energyDrinkTimer, equals(0.0));
     });
+
+    test('Milestone celebration banner triggers on milestone and auto-expires (R7)', () {
+      final state = GameState()..startRun();
+      expect(state.isMilestoneBannerVisible, isFalse);
+      expect(state.activeMilestone, isNull);
+
+      // Reaching 500m milestone
+      state.updateDistance(500.0);
+      expect(state.isMilestoneBannerVisible, isTrue);
+      expect(state.activeMilestone, isNotNull);
+      expect(state.activeMilestone!.milestoneIndex, equals(1));
+      expect(state.milestoneBannerTimer, equals(3.0));
+
+      // Timer tick down
+      state.updateMilestoneTimer(1.5);
+      expect(state.milestoneBannerTimer, equals(1.5));
+      expect(state.isMilestoneBannerVisible, isTrue);
+
+      // Expiration
+      state.updateMilestoneTimer(2.0);
+      expect(state.milestoneBannerTimer, equals(0.0));
+      expect(state.activeMilestone, isNull);
+      expect(state.isMilestoneBannerVisible, isFalse);
+    });
   });
 }

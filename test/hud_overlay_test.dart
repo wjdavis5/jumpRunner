@@ -44,6 +44,47 @@ void main() {
       expect(find.byIcon(Icons.bolt), findsOneWidget);
     });
 
+    testWidgets('HUDOverlay renders milestone celebration banner on shift completion (R7)', (tester) async {
+      final state = GameState()..startRun();
+      state.applyHazardDamage(); // packages 3 -> 2
+      expect(find.byKey(const Key('milestone_celebration_banner')), findsNothing);
+
+      // Trigger 500m milestone with package restoration
+      state.updateDistance(500.0);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: HUDOverlay(gameState: state),
+          ),
+        ),
+      );
+
+      expect(find.byKey(const Key('milestone_celebration_banner')), findsOneWidget);
+      expect(find.text('SHIFT #1 COMPLETED! (500m)'), findsOneWidget);
+      expect(find.text('PACKAGE RESTORED! (+1 Delivery Box)'), findsOneWidget);
+      expect(find.byIcon(Icons.emoji_events), findsOneWidget);
+    });
+
+    testWidgets('HUDOverlay renders flawless tip bonus milestone banner (R7)', (tester) async {
+      final state = GameState()..startRun(); // full 3 packages
+
+      // Trigger 500m milestone with flawless tip bonus
+      state.updateDistance(500.0);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: HUDOverlay(gameState: state),
+          ),
+        ),
+      );
+
+      expect(find.byKey(const Key('milestone_celebration_banner')), findsOneWidget);
+      expect(find.text('SHIFT #1 COMPLETED! (500m)'), findsOneWidget);
+      expect(find.text(r'FLAWLESS SHIFT BONUS: +$50 TIPS!'), findsOneWidget);
+    });
+
     testWidgets('GameOverModal renders stats and triggers restart callback', (tester) async {
       bool restarted = false;
 
