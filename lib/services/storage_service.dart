@@ -19,6 +19,7 @@ class LocalStorageService {
   static const String _keyLastCompletedDaily = 'courier_last_completed_daily';
   static const String _keyDailyStars = 'courier_daily_stars';
   static const String _keyBoosterPrefix = 'courier_booster_';
+  static const String _keyLifetimeDeliveries = 'courier_lifetime_deliveries';
 
   SharedPreferences? _prefs;
 
@@ -55,6 +56,16 @@ class LocalStorageService {
 
   /// Cumulative daily shift completion stars earned by the courier.
   int get dailyStars => _prefs?.getInt(_keyDailyStars) ?? 0;
+
+  /// Total customer doorstep deliveries completed across career shifts.
+  int get lifetimeDeliveries => _prefs?.getInt(_keyLifetimeDeliveries) ?? 0;
+
+  /// Records doorstep deliveries fulfilled, updating cumulative career deliveries.
+  Future<void> recordDeliveries(int count) async {
+    final prefs = _prefs;
+    if (prefs == null || count <= 0) return;
+    await prefs.setInt(_keyLifetimeDeliveries, lifetimeDeliveries + count);
+  }
 
   /// Returns true if the daily shift for [dateString] has already been completed.
   bool isDailyShiftCompleted(String dateString) => lastCompletedDaily == dateString;

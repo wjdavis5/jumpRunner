@@ -57,6 +57,36 @@ class StuntEvent {
   final double clearance;
 }
 
+/// Delivery event dispatched when successfully fulfilling a customer doorstep drop-off.
+class DeliveryEvent {
+  const DeliveryEvent({
+    required this.ratingStars,
+    required this.baseTips,
+    required this.totalTips,
+    required this.streak,
+    required this.multiplier,
+    required this.didRestockPackage,
+  });
+
+  /// Customer rating stars awarded based on cargo condition (3 to 5 stars).
+  final int ratingStars;
+
+  /// Base tip value before streak or buff multipliers ($15, $25, or $35).
+  final int baseTips;
+
+  /// Total tip amount awarded after all active multipliers.
+  final int totalTips;
+
+  /// Current consecutive delivery streak count.
+  final int streak;
+
+  /// Active delivery streak multiplier (1.0x to 2.5x).
+  final double multiplier;
+
+  /// Whether a 3x streak successfully restored a lost package.
+  final bool didRestockPackage;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -160,10 +190,25 @@ class GameState extends ChangeNotifier {
     return 2.5;
   }
 
+  /// Total customer doorstep deliveries successfully fulfilled in current run.
+  int deliveriesInRun = 0;
+
+  /// Current consecutive doorstep delivery streak without taking hazard damage.
+  int deliveryStreak = 0;
+
+  /// Calculates the active delivery streak multiplier (1.0x to 2.5x).
+  double get deliveryMultiplier {
+    if (deliveryStreak <= 1) return 1.0;
+    if (deliveryStreak == 2) return 1.5;
+    if (deliveryStreak == 3) return 2.0;
+    return 2.5;
+  }
+
   int _lastMilestoneIndex = 0;
 
   ValueChanged<MilestoneEvent>? onMilestone;
   ValueChanged<StuntEvent>? onStunt;
+  ValueChanged<DeliveryEvent>? onDeliveryCompleted;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -189,6 +234,8 @@ class GameState extends ChangeNotifier {
     contractCelebrationTimer = 0.0;
     stuntStreak = 0;
     stuntStreakTimer = 0.0;
+    deliveriesInRun = 0;
+    deliveryStreak = 0;
     status = GameStatus.running;
     contractManager.reset();
 
@@ -352,9 +399,63 @@ class GameState extends ChangeNotifier {
     return false;
   }
 
+  /// Records a successful doorstep delivery fulfillment at a drop-off zone.
+  ///
+  /// Awards rating stars (3-5 stars) according to intact cargo packages,
+  /// scales tips by delivery streak multiplier and speed, and restocks a package
+  /// on reaching a 3x clean delivery streak.
+  DeliveryEvent? recordDoorstepDelivery({double speedMultiplier = 1.0}) {
+    if (status != GameStatus.running) return null;
+
+    deliveriesInRun++;
+    deliveryStreak++;
+
+    // Calculate rating based on carried packages
+    final int ratingStars;
+    final int baseTip;
+    if (packages >= maxPackages) {
+      ratingStars = 5;
+      baseTip = 35;
+    } else if (packages >= 2) {
+      ratingStars = 4;
+      baseTip = 25;
+    } else {
+      ratingStars = 3;
+      baseTip = 15;
+    }
+
+    final mult = deliveryMultiplier;
+    final speedScaled = (baseTip * mult * speedMultiplier).round();
+    final awarded = isEnergyBoostActive ? speedScaled * 2 : speedScaled;
+    tips += awarded;
+
+    // Perk: 3x clean streak restores a package if damaged
+    bool didRestock = false;
+    if (deliveryStreak == 3 && packages < maxPackages) {
+      packages++;
+      didRestock = true;
+      onPackageRestored?.call();
+    }
+
+    contractManager.onTipCollected(awarded);
+
+    final event = DeliveryEvent(
+      ratingStars: ratingStars,
+      baseTips: baseTip,
+      totalTips: awarded,
+      streak: deliveryStreak,
+      multiplier: mult,
+      didRestockPackage: didRestock,
+    );
+
+    onDeliveryCompleted?.call(event);
+    notifyListeners();
+    return event;
+  }
+
   /// Applies damage from a hazard collision.
   ///
-  /// Resets active stunt streaks and multiplier on impact.
+  /// Resets active stunt streaks, delivery streak, and multiplier on impact.
   /// Returns `true` if player survived with remaining packages; `false` on game over.
   bool applyHazardDamage() {
     if (status != GameStatus.running) return false;
@@ -362,6 +463,7 @@ class GameState extends ChangeNotifier {
     packages--;
     stuntStreak = 0;
     stuntStreakTimer = 0.0;
+    deliveryStreak = 0;
     damageTakenCount++;
     contractManager.onDamageTaken();
     onDamageTaken?.call();

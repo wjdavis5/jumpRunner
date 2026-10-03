@@ -409,6 +409,42 @@ class HUDOverlay extends StatelessWidget {
             ),
           ),
         ],
+        if (gameState.deliveryStreak > 1) ...[
+          const SizedBox(height: 6),
+          Container(
+            key: const Key('delivery_streak_badge'),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFF39C12), Color(0xFFF1C40F)],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFF1C40F).withValues(alpha: 0.55),
+                  blurRadius: 8,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.star, color: Colors.black, size: 16),
+                const SizedBox(width: 4),
+                Text(
+                  'DELIVERY STREAK ${gameState.deliveryMultiplier}x (${gameState.deliveryStreak})',
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }

@@ -65,20 +65,37 @@ class RampData {
   final double launchImpulse;
 }
 
+/// Data model for a residential doorstep delivery drop-off zone.
+class DropZoneData {
+  const DropZoneData({
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+}
+
 /// A generated chunk slice containing obstacles, collectible pickups,
-/// and optional elevated aerial routes.
+/// optional elevated aerial routes, and customer doorstep drop zones.
 class ChunkData {
   const ChunkData({
     required this.obstacles,
     required this.pickups,
     this.scaffoldings = const [],
     this.ramps = const [],
+    this.dropZones = const [],
   });
 
   final List<ObstacleData> obstacles;
   final List<PickupData> pickups;
   final List<ScaffoldingData> scaffoldings;
   final List<RampData> ramps;
+  final List<DropZoneData> dropZones;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -269,11 +286,34 @@ class WorldChunkManager {
       );
     }
 
+    final List<DropZoneData> dropZones = [];
+
+    // Customer Doorstep Delivery Drop-off Zones (after 70m, on ground sidewalk outside scaffolding)
+    if (distanceMeters >= 70.0 && _random.nextDouble() < 0.45 && scaffoldings.isEmpty) {
+      final candidateX = startX + 180.0 + (_random.nextDouble() * (chunkWidth - 360.0));
+      const zoneWidth = 68.0;
+      final isClearFromObstacles = obstacles.every(
+        (o) => (candidateX + zoneWidth < o.x - 70.0) || (candidateX > o.x + o.width + 70.0),
+      );
+
+      if (isClearFromObstacles) {
+        dropZones.add(
+          DropZoneData(
+            x: candidateX,
+            y: groundY - 70.0,
+            width: zoneWidth,
+            height: 70.0,
+          ),
+        );
+      }
+    }
+
     return ChunkData(
       obstacles: obstacles,
       pickups: pickups,
       scaffoldings: scaffoldings,
       ramps: ramps,
+      dropZones: dropZones,
     );
   }
 }

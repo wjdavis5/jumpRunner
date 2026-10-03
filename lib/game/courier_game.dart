@@ -8,6 +8,7 @@ import 'audio_controller.dart';
 import '../services/storage_service.dart';
 import 'components/courier_player.dart';
 import 'components/delivery_drone_component.dart';
+import 'components/drop_zone_component.dart';
 import 'components/floating_text_component.dart';
 import 'components/obstacle_component.dart';
 import 'components/parallax_city.dart';
@@ -112,6 +113,7 @@ class CourierGame extends FlameGame
   final List<PickupComponent> activePickups = [];
   final List<ScaffoldingComponent> activeScaffolding = [];
   final List<RampComponent> activeRamps = [];
+  final List<DropZoneComponent> activeDropZones = [];
   double cameraTargetY = 270.0;
 
   VoidCallback? onRunConcluded;
@@ -299,6 +301,16 @@ class CourierGame extends FlameGame
       world.add(rampComp);
     }
 
+    for (final dz in chunk.dropZones) {
+      final dzComp = DropZoneComponent(
+        position: Vector2(dz.x, dz.y),
+        size: Vector2(dz.width, dz.height),
+        groundY: groundY,
+      );
+      activeDropZones.add(dzComp);
+      world.add(dzComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -389,8 +401,15 @@ class CourierGame extends FlameGame
     for (final r in world.children.whereType<RampComponent>().toList()) {
       r.removeFromParent();
     }
+    for (final dz in activeDropZones.toList()) {
+      dz.removeFromParent();
+    }
+    for (final dz in world.children.whereType<DropZoneComponent>().toList()) {
+      dz.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
+    activeDropZones.clear();
     cameraTargetY = virtualResolution.y / 2;
     player.resetTargetSurfaceY();
     _footstepTimer = 0.0;
@@ -558,6 +577,9 @@ class CourierGame extends FlameGame
     for (final r in activeRamps) {
       r.position.x -= scrollDelta;
     }
+    for (final dz in activeDropZones) {
+      dz.position.x -= scrollDelta;
+    }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
     }
@@ -633,6 +655,48 @@ class CourierGame extends FlameGame
       player.resetTargetSurfaceY();
     }
 
+    // 4f. Evaluate Customer Doorstep Delivery Drop-offs
+    for (final dz in activeDropZones) {
+      if (!dz.hasDelivered && dz.checkCollisionWith(player)) {
+        dz.hasDelivered = true;
+        final event = gameState.recordDoorstepDelivery(
+          speedMultiplier: currentSpeed / 200.0,
+        );
+        if (event != null) {
+          audio.playCoin();
+          triggerScreenShake(0.15);
+          spawnSparkles(
+            Vector2(dz.position.x + (dz.size.x / 2), dz.position.y + dz.size.y - 10.0),
+            color: const Color(0xFFF1C40F),
+            count: 14,
+          );
+
+          final stars = '★' * event.ratingStars;
+          final streakMsg = event.streak > 1 ? '${event.streak}x STREAK ' : '';
+          addEffect(
+            FloatingTextComponent(
+              text: '$stars $streakMsg+\$${event.totalTips}',
+              position: Vector2(player.position.x - 10.0, player.position.y - 35.0),
+              color: const Color(0xFFF1C40F),
+            ),
+          );
+
+          if (event.didRestockPackage) {
+            audio.playMilestone();
+            addEffect(
+              FloatingTextComponent(
+                text: '3x STREAK RESTOCK! +1 PKG',
+                position: Vector2(player.position.x - 10.0, player.position.y - 55.0),
+                color: const Color(0xFF2ECC71),
+              ),
+            );
+          }
+
+          storage?.recordDeliveries(1);
+        }
+      }
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -687,6 +751,13 @@ class CourierGame extends FlameGame
     activeRamps.removeWhere((r) {
       if (r.shouldRecycle || r.isRemoved) {
         if (r.isMounted) r.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeDropZones.removeWhere((dz) {
+      if (dz.shouldRecycle || dz.isRemoved) {
+        if (dz.isMounted) dz.removeFromParent();
         return true;
       }
       return false;
