@@ -10,6 +10,7 @@ import 'components/courier_player.dart';
 import 'components/delivery_drone_component.dart';
 import 'components/drop_zone_component.dart';
 import 'components/floating_text_component.dart';
+import 'components/grind_rail_component.dart';
 import 'components/obstacle_component.dart';
 import 'components/parallax_city.dart';
 import 'components/particle_effect.dart';
@@ -114,7 +115,9 @@ class CourierGame extends FlameGame
   final List<ScaffoldingComponent> activeScaffolding = [];
   final List<RampComponent> activeRamps = [];
   final List<DropZoneComponent> activeDropZones = [];
+  final List<GrindRailComponent> activeGrindRails = [];
   double cameraTargetY = 270.0;
+  double _grindSparkTimer = 0.0;
 
   VoidCallback? onRunConcluded;
   VoidCallback? onPauseRequested;
@@ -206,6 +209,7 @@ class CourierGame extends FlameGame
         triggerScreenShake(0.65);
         gameState.applyHazardDamage();
       },
+      onRailOllie: _handleRailOllie,
     );
     world.add(player);
 
@@ -311,6 +315,16 @@ class CourierGame extends FlameGame
       world.add(dzComp);
     }
 
+    for (final gr in chunk.grindRails) {
+      final grComp = GrindRailComponent(
+        position: Vector2(gr.x, gr.y),
+        size: Vector2(gr.width, gr.height),
+        groundY: groundY,
+      );
+      activeGrindRails.add(grComp);
+      world.add(grComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -407,12 +421,21 @@ class CourierGame extends FlameGame
     for (final dz in world.children.whereType<DropZoneComponent>().toList()) {
       dz.removeFromParent();
     }
+    for (final gr in activeGrindRails.toList()) {
+      gr.removeFromParent();
+    }
+    for (final gr in world.children.whereType<GrindRailComponent>().toList()) {
+      gr.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
+    activeGrindRails.clear();
     cameraTargetY = virtualResolution.y / 2;
+    player.endGrinding();
     player.resetTargetSurfaceY();
     _footstepTimer = 0.0;
+    _grindSparkTimer = 0.0;
     _wetHazardsCleared = 0;
 
     for (final m in world.children.whereType<PersonalRecordMarkerComponent>().toList()) {
@@ -503,8 +526,9 @@ class CourierGame extends FlameGame
       }
     }
 
-    // 1. Calculate dynamic scroll speed based on distance (with energy boost)
-    final speedMultiplier = gameState.isEnergyBoostActive ? 1.2 : 1.0;
+    // 1. Calculate dynamic scroll speed based on distance (with energy boost and grind surge)
+    final speedMultiplier = (gameState.isEnergyBoostActive ? 1.2 : 1.0) *
+        (player.isGrinding ? 1.20 : 1.0);
     currentSpeed = chunkManager.calculateSpeed(gameState.distanceMeters) * speedMultiplier;
     audio.updateSpeed(currentSpeed);
 
@@ -550,7 +574,7 @@ class CourierGame extends FlameGame
 
     // 3b. Update camera trauma shake, velocity framing zoom, and vertical aerial tracking
     cameraJuice.update(dt, currentSpeed: currentSpeed);
-    final targetCameraY = player.isElevated
+    final targetCameraY = (player.isElevated || player.isGrinding)
         ? (virtualResolution.y / 2) - 35.0
         : (virtualResolution.y / 2);
     cameraTargetY += (targetCameraY - cameraTargetY) * (3.0 * dt).clamp(0.0, 1.0);
@@ -579,6 +603,9 @@ class CourierGame extends FlameGame
     }
     for (final dz in activeDropZones) {
       dz.position.x -= scrollDelta;
+    }
+    for (final gr in activeGrindRails) {
+      gr.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -649,13 +676,69 @@ class CourierGame extends FlameGame
       }
     }
 
-    if (supportingScaffolding != null) {
+    // 4f. Evaluate Grind Rail Surface Attachment, Sparks, and Dismount
+    GrindRailComponent? supportingRail;
+    for (final gr in activeGrindRails) {
+      if (gr.checkCollisionWith(player) ||
+          (player.isGrinding && courierFootX >= gr.position.x && courierFootX <= gr.position.x + gr.size.x)) {
+        supportingRail = gr;
+        break;
+      }
+    }
+
+    if (supportingRail != null) {
+      if (!player.isGrinding) {
+        player.startGrinding(supportingRail.surfaceY);
+        audio.playCoin();
+        triggerScreenShake(0.15);
+        spawnSparkles(
+          Vector2(courierFootX, supportingRail.surfaceY),
+          color: const Color(0xFFF1C40F),
+          count: 10,
+        );
+      } else {
+        player.grindDistance += distanceDelta;
+        _grindSparkTimer += dt;
+        if (_grindSparkTimer >= 0.05) {
+          _grindSparkTimer = 0.0;
+          spawnSparkles(
+            Vector2(player.position.x + 10.0, supportingRail.surfaceY - 2.0),
+            color: const Color(0xFFFF9F43),
+            count: 3,
+          );
+        }
+      }
+    } else if (player.isGrinding) {
+      // Clean dismount off rail trailing edge!
+      final meters = player.grindDistance;
+      player.endGrinding();
+      player.resetTargetSurfaceY();
+      _grindSparkTimer = 0.0;
+
+      final event = gameState.recordRailClear(grindDistanceMeters: meters);
+      if (event != null) {
+        audio.playCoin();
+        triggerScreenShake(0.15);
+        addEffect(
+          FloatingTextComponent(
+            text: 'RAIL CLEAR! +\$${event.bonusTips}',
+            position: Vector2(player.position.x - 10.0, player.position.y - 30.0),
+            color: const Color(0xFFF1C40F),
+          ),
+        );
+        spawnSparkles(
+          Vector2(courierFootX, groundY - 30.0),
+          color: const Color(0xFF00E5FF),
+          count: 8,
+        );
+      }
+    } else if (supportingScaffolding != null) {
       player.setTargetSurfaceY(supportingScaffolding.surfaceY);
     } else {
       player.resetTargetSurfaceY();
     }
 
-    // 4f. Evaluate Customer Doorstep Delivery Drop-offs
+    // 4g. Evaluate Customer Doorstep Delivery Drop-offs
     for (final dz in activeDropZones) {
       if (!dz.hasDelivered && dz.checkCollisionWith(player)) {
         dz.hasDelivered = true;
@@ -762,6 +845,13 @@ class CourierGame extends FlameGame
       }
       return false;
     });
+    activeGrindRails.removeWhere((gr) {
+      if (gr.shouldRecycle || gr.isRemoved) {
+        if (gr.isMounted) gr.removeFromParent();
+        return true;
+      }
+      return false;
+    });
     if (activePrMarker != null && activePrMarker!.shouldRecycle) {
       if (activePrMarker!.isMounted) {
         activePrMarker!.removeFromParent();
@@ -812,6 +902,33 @@ class CourierGame extends FlameGame
       _wetHazardsCleared++;
     }
     _evaluateAchievements();
+  }
+
+  void _handleRailOllie() {
+    final event = gameState.recordRailOllie(
+      grindDistanceMeters: player.grindDistance,
+    );
+    if (event != null) {
+      audio.playMilestone();
+      triggerScreenShake(0.3);
+
+      spawnSparkles(
+        Vector2(player.position.x + (player.size.x / 2), player.position.y + player.size.y),
+        color: const Color(0xFFFF9F43),
+        count: 14,
+      );
+
+      final multiplierStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+      addEffect(
+        FloatingTextComponent(
+          text: 'RAIL OLLIE! $multiplierStr+\$${event.totalTips}',
+          position: Vector2(player.position.x - 10.0, player.position.y - 35.0),
+          color: const Color(0xFF00E5FF),
+        ),
+      );
+
+      _evaluateAchievements();
+    }
   }
 
   void _evaluateAchievements() {
