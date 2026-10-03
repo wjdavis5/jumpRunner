@@ -13,6 +13,7 @@ class JumpPhysicsSimulator {
     this.maxHoldTime = 0.250,
     this.groundY = 460.0,
   }) {
+    targetSurfaceY = groundY;
     currentY = groundY;
   }
 
@@ -30,6 +31,12 @@ class JumpPhysicsSimulator {
 
   /// Baseline ground surface Y coordinate in screen coordinates.
   final double groundY;
+
+  /// Current surface Y coordinate where the courier can land (defaults to groundY).
+  late double targetSurfaceY;
+
+  /// Returns the current active surface baseline coordinate.
+  double get currentSurfaceY => targetSurfaceY;
 
   /// Current Y coordinate of the avatar in screen coordinates.
   double currentY = 0.0;
@@ -49,6 +56,29 @@ class JumpPhysicsSimulator {
   /// Height in pixels above the ground plane (0.0 when grounded).
   double get heightAboveGround =>
       (groundY - currentY).clamp(0.0, double.infinity);
+
+  /// Sets an elevated surface Y coordinate (e.g. scaffolding platform).
+  void setSurfaceY(double y) {
+    targetSurfaceY = y;
+    if (currentY < targetSurfaceY && isGrounded) {
+      // Surface beneath avatar dropped (e.g. walked off scaffolding edge)
+      isGrounded = false;
+      verticalVelocity = 0.0;
+    }
+  }
+
+  /// Resets target surface baseline to the default ground floor.
+  void resetSurfaceY() {
+    setSurfaceY(groundY);
+  }
+
+  /// Launches the avatar upward with an external velocity impulse (e.g. construction ramp).
+  void launch(double impulse) {
+    isGrounded = false;
+    isHolding = false;
+    holdTimer = 0.0;
+    verticalVelocity = impulse;
+  }
 
   /// Initiates a jump from the ground.
   ///
@@ -90,12 +120,20 @@ class JumpPhysicsSimulator {
     // In screen coordinates, positive vertical velocity moves avatar upward (decreasing Y)
     currentY -= verticalVelocity * dt;
 
-    if (currentY >= groundY) {
+    if (verticalVelocity <= 0 && currentY >= targetSurfaceY) {
+      currentY = targetSurfaceY;
+      verticalVelocity = 0.0;
+      isGrounded = true;
+      isHolding = false;
+      holdTimer = 0.0;
+    } else if (currentY >= groundY) {
+      // Safety net: absolute ground floor
       currentY = groundY;
       verticalVelocity = 0.0;
       isGrounded = true;
       isHolding = false;
       holdTimer = 0.0;
+      targetSurfaceY = groundY;
     }
   }
 

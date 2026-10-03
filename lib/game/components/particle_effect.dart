@@ -215,6 +215,9 @@ class ParticleEffectComponent extends PositionComponent {
 
   final List<GameParticle> particles;
 
+  /// Whether all particles in this effect have completed their lifecycle.
+  bool get isFinished => particles.every((p) => !p.isAlive);
+
   @override
   void update(double dt) {
     super.update(dt);
@@ -232,7 +235,7 @@ class ParticleEffectComponent extends PositionComponent {
       }
     }
 
-    if (!hasLiving && isMounted) {
+    if (!hasLiving && isMounted && (parent?.isMounted ?? false)) {
       removeFromParent();
     }
   }

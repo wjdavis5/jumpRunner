@@ -15,6 +15,8 @@ import 'components/particle_effect.dart';
 import 'components/pickup_component.dart';
 import 'components/pr_marker_component.dart';
 import 'components/rain_component.dart';
+import 'components/ramp_component.dart';
+import 'components/scaffolding_component.dart';
 import 'logic/achievement_manager.dart';
 import 'logic/camera_juice_controller.dart';
 import 'logic/game_state.dart';
@@ -108,6 +110,9 @@ class CourierGame extends FlameGame
 
   final List<ObstacleComponent> activeObstacles = [];
   final List<PickupComponent> activePickups = [];
+  final List<ScaffoldingComponent> activeScaffolding = [];
+  final List<RampComponent> activeRamps = [];
+  double cameraTargetY = 270.0;
 
   VoidCallback? onRunConcluded;
   VoidCallback? onPauseRequested;
@@ -117,29 +122,52 @@ class CourierGame extends FlameGame
     cameraJuice.addTrauma(trauma);
   }
 
+  bool _isUpdatingTree = false;
+  final List<Component> _pendingEffects = [];
+
+  /// Safely adds transient visual effects and indicators to the world,
+  /// queuing them if called during component tree traversal in headless environments.
+  void addEffect(Component effect) {
+    if (_isUpdatingTree && !world.isMounted) {
+      _pendingEffects.add(effect);
+    } else {
+      world.add(effect);
+    }
+  }
+
+  void _flushPendingEffects() {
+    if (_pendingEffects.isNotEmpty) {
+      final effects = _pendingEffects.toList();
+      _pendingEffects.clear();
+      for (final e in effects) {
+        world.add(e);
+      }
+    }
+  }
+
   /// Spawns footstep or landing sidewalk dust puffs.
   void spawnDust(Vector2 pos, {int count = 6}) {
-    world.add(ParticleEffectComponent.dust(position: pos, count: count));
+    addEffect(ParticleEffectComponent.dust(position: pos, count: count));
   }
 
   /// Spawns footstep, landing, or jump water splashes when wet/raining.
   void spawnSplash(Vector2 pos, {int count = 8}) {
-    world.add(ParticleEffectComponent.splash(position: pos, count: count));
+    addEffect(ParticleEffectComponent.splash(position: pos, count: count));
   }
 
   /// Spawns pickup collection sparkle bursts.
   void spawnSparkles(Vector2 pos, {Color color = const Color(0xFFF1C40F), int count = 12}) {
-    world.add(ParticleEffectComponent.sparkles(position: pos, color: color, count: count));
+    addEffect(ParticleEffectComponent.sparkles(position: pos, color: color, count: count));
   }
 
   /// Spawns celebratory shift milestone confetti fireworks.
   void spawnConfetti(Vector2 pos, {int count = 35}) {
-    world.add(ParticleEffectComponent.confetti(position: pos, count: count));
+    addEffect(ParticleEffectComponent.confetti(position: pos, count: count));
   }
 
   /// Spawns hazard impact and package fumble debris.
   void spawnImpact(Vector2 pos, {int count = 14}) {
-    world.add(ParticleEffectComponent.impact(position: pos, count: count));
+    addEffect(ParticleEffectComponent.impact(position: pos, count: count));
   }
 
   @override
@@ -251,6 +279,26 @@ class CourierGame extends FlameGame
       world.add(pickComp);
     }
 
+    for (final s in chunk.scaffoldings) {
+      final scComp = ScaffoldingComponent(
+        position: Vector2(s.x, s.y),
+        size: Vector2(s.width, s.height),
+        groundY: groundY,
+      );
+      activeScaffolding.add(scComp);
+      world.add(scComp);
+    }
+
+    for (final r in chunk.ramps) {
+      final rampComp = RampComponent(
+        position: Vector2(r.x, r.y),
+        size: Vector2(r.width, r.height),
+        launchImpulse: r.launchImpulse,
+      );
+      activeRamps.add(rampComp);
+      world.add(rampComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -329,6 +377,22 @@ class CourierGame extends FlameGame
     }
     activeObstacles.clear();
     activePickups.clear();
+    for (final s in activeScaffolding.toList()) {
+      s.removeFromParent();
+    }
+    for (final r in activeRamps.toList()) {
+      r.removeFromParent();
+    }
+    for (final s in world.children.whereType<ScaffoldingComponent>().toList()) {
+      s.removeFromParent();
+    }
+    for (final r in world.children.whereType<RampComponent>().toList()) {
+      r.removeFromParent();
+    }
+    activeScaffolding.clear();
+    activeRamps.clear();
+    cameraTargetY = virtualResolution.y / 2;
+    player.resetTargetSurfaceY();
     _footstepTimer = 0.0;
     _wetHazardsCleared = 0;
 
@@ -381,7 +445,13 @@ class CourierGame extends FlameGame
 
   @override
   void update(double dt) {
-    super.update(dt);
+    _isUpdatingTree = true;
+    try {
+      super.update(dt);
+    } finally {
+      _isUpdatingTree = false;
+    }
+    _flushPendingEffects();
     if (!isRunning || gameState.status != GameStatus.running) return;
 
     // 0. Update active energy drink buff, drone assist, celebration, and stunt combo timers
@@ -459,14 +529,20 @@ class CourierGame extends FlameGame
       weatherController.rainIntensity,
     );
 
-    // 3b. Update camera trauma shake and velocity framing zoom
+    // 3b. Update camera trauma shake, velocity framing zoom, and vertical aerial tracking
     cameraJuice.update(dt, currentSpeed: currentSpeed);
-    final baseCenter = Vector2(virtualResolution.x / 2, virtualResolution.y / 2);
-    camera.viewfinder.position = baseCenter + cameraJuice.shakeOffset;
+    final targetCameraY = player.isElevated
+        ? (virtualResolution.y / 2) - 35.0
+        : (virtualResolution.y / 2);
+    cameraTargetY += (targetCameraY - cameraTargetY) * (3.0 * dt).clamp(0.0, 1.0);
+    camera.viewfinder.position = Vector2(
+      (virtualResolution.x / 2) + cameraJuice.shakeOffset.x,
+      cameraTargetY + cameraJuice.shakeOffset.y,
+    );
     camera.viewfinder.zoom = cameraJuice.currentZoom;
     camera.viewfinder.angle = cameraJuice.shakeAngle;
 
-    // 4. Scroll active hazards, pickups, and PR marker leftward
+    // 4. Scroll active hazards, pickups, scaffolding, ramps, and PR marker leftward
     final scrollDelta = currentSpeed * dt;
     nextChunkX -= scrollDelta;
 
@@ -475,6 +551,12 @@ class CourierGame extends FlameGame
     }
     for (final p in activePickups) {
       p.position.x -= scrollDelta;
+    }
+    for (final s in activeScaffolding) {
+      s.position.x -= scrollDelta;
+    }
+    for (final r in activeRamps) {
+      r.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -496,7 +578,7 @@ class CourierGame extends FlameGame
       hasRecordedDailyShiftSuccess = true;
       audio.playMilestone();
       triggerScreenShake(0.4);
-      world.add(
+      addEffect(
         FloatingTextComponent(
           text: 'DAILY SHIFT COMPLETED! +\$${gameState.activeDailyShift!.completionBonusTips}',
           position: Vector2(player.position.x - 20, player.position.y - 40),
@@ -508,6 +590,47 @@ class CourierGame extends FlameGame
         dateString: gameState.activeDailyShift!.dateString,
         bonusTips: gameState.activeDailyShift!.completionBonusTips,
       );
+    }
+
+    // 4d. Evaluate Ramp Launch Catapult
+    for (final r in activeRamps) {
+      if (!r.hasLaunched && r.checkCollisionWith(player)) {
+        r.hasLaunched = true;
+        player.launchFromRamp(impulse: r.launchImpulse);
+        audio.playJump();
+        triggerScreenShake(0.2);
+        spawnSparkles(
+          Vector2(r.position.x + (r.size.x / 2), r.position.y),
+          color: const Color(0xFFF1C40F),
+          count: 12,
+        );
+        addEffect(
+          FloatingTextComponent(
+            text: 'RAMP BOOST!',
+            position: Vector2(player.position.x - 10, player.position.y - 30),
+            color: const Color(0xFFFF9F43),
+          ),
+        );
+      }
+    }
+
+    // 4e. Evaluate Elevated Scaffolding Support under Player Footprint
+    final courierFootX = player.position.x + (player.size.x / 2);
+    final courierFootY = player.simulator.currentY;
+    ScaffoldingComponent? supportingScaffolding;
+    for (final s in activeScaffolding) {
+      if (courierFootX >= s.position.x && courierFootX <= s.position.x + s.size.x) {
+        if (courierFootY <= s.surfaceY + 16.0) {
+          supportingScaffolding = s;
+          break;
+        }
+      }
+    }
+
+    if (supportingScaffolding != null) {
+      player.setTargetSurfaceY(supportingScaffolding.surfaceY);
+    } else {
+      player.resetTargetSurfaceY();
     }
 
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
@@ -554,17 +677,43 @@ class CourierGame extends FlameGame
     // 6. Clean up recycled items
     activeObstacles.removeWhere((o) => o.shouldRecycle || !o.isMounted);
     activePickups.removeWhere((p) => p.shouldRecycle || p.isCollected || !p.isMounted);
+    activeScaffolding.removeWhere((s) {
+      if (s.shouldRecycle || s.isRemoved) {
+        if (s.isMounted) s.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeRamps.removeWhere((r) {
+      if (r.shouldRecycle || r.isRemoved) {
+        if (r.isMounted) r.removeFromParent();
+        return true;
+      }
+      return false;
+    });
     if (activePrMarker != null && activePrMarker!.shouldRecycle) {
       if (activePrMarker!.isMounted) {
         activePrMarker!.removeFromParent();
       }
       activePrMarker = null;
     }
+    for (final fx in world.children.whereType<ParticleEffectComponent>().toList()) {
+      if (fx.isFinished) {
+        fx.removeFromParent();
+      }
+    }
+    for (final ft in world.children.whereType<FloatingTextComponent>().toList()) {
+      if (ft.isFinished) {
+        ft.removeFromParent();
+      }
+    }
 
     // 7. Spawn next procedural chunk when horizon approaches
     if (nextChunkX <= virtualResolution.x + 480.0) {
       _spawnChunk();
     }
+
+    _flushPendingEffects();
   }
 
   void _handleNearMiss(ObstacleComponent obstacle, double clearance) {
@@ -573,7 +722,7 @@ class CourierGame extends FlameGame
 
     // Floating score popup above courier
     final multiplierStr = gameState.stuntMultiplier > 1.0 ? '${gameState.stuntMultiplier}x ' : '';
-    world.add(
+    addEffect(
       FloatingTextComponent(
         text: 'STUNT! $multiplierStr+\$${(5 * gameState.stuntMultiplier).round()}',
         position: Vector2(player.position.x + 4.0, player.position.y - 20.0),
@@ -609,7 +758,7 @@ class CourierGame extends FlameGame
     triggerScreenShake(0.35);
 
     // Floating celebratory banner above courier
-    world.add(
+    addEffect(
       FloatingTextComponent(
         text: 'NEW RECORD! ${marker.prDistance}m BEATEN!',
         position: Vector2(player.position.x - 10, player.position.y - 30),

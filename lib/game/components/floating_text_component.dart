@@ -22,12 +22,15 @@ class FloatingTextComponent extends PositionComponent {
   final double driftVelocity;
   double _elapsed = 0.0;
 
+  /// Whether this floating indicator has completed its display duration.
+  bool get isFinished => _elapsed >= duration;
+
   @override
   void update(double dt) {
     super.update(dt);
     _elapsed += dt;
     position.y += driftVelocity * dt;
-    if (_elapsed >= duration && isMounted) {
+    if (_elapsed >= duration && isMounted && (parent?.isMounted ?? false)) {
       removeFromParent();
     }
   }
