@@ -8,6 +8,7 @@ import 'audio_controller.dart';
 import 'components/courier_player.dart';
 import 'components/obstacle_component.dart';
 import 'components/parallax_city.dart';
+import 'components/particle_effect.dart';
 import 'components/pickup_component.dart';
 import 'logic/game_state.dart';
 import 'logic/world_chunk_manager.dart';
@@ -50,12 +51,33 @@ class CourierGame extends FlameGame
   double nextChunkX = 960.0;
 
   bool isRunning = true;
+  double _footstepTimer = 0.0;
 
   final List<ObstacleComponent> activeObstacles = [];
   final List<PickupComponent> activePickups = [];
 
   VoidCallback? onRunConcluded;
   VoidCallback? onPauseRequested;
+
+  /// Spawns footstep or landing sidewalk dust puffs.
+  void spawnDust(Vector2 pos, {int count = 6}) {
+    world.add(ParticleEffectComponent.dust(position: pos, count: count));
+  }
+
+  /// Spawns pickup collection sparkle bursts.
+  void spawnSparkles(Vector2 pos, {Color color = const Color(0xFFF1C40F), int count = 12}) {
+    world.add(ParticleEffectComponent.sparkles(position: pos, color: color, count: count));
+  }
+
+  /// Spawns celebratory shift milestone confetti fireworks.
+  void spawnConfetti(Vector2 pos, {int count = 35}) {
+    world.add(ParticleEffectComponent.confetti(position: pos, count: count));
+  }
+
+  /// Spawns hazard impact and package fumble debris.
+  void spawnImpact(Vector2 pos, {int count = 14}) {
+    world.add(ParticleEffectComponent.impact(position: pos, count: count));
+  }
 
   @override
   Future<void> onLoad() async {
@@ -66,9 +88,16 @@ class CourierGame extends FlameGame
 
     player = CourierPlayer(
       groundY: groundY,
-      onJump: () => audio.playJump(),
+      onJump: () {
+        audio.playJump();
+        spawnDust(Vector2(player.position.x + 16, groundY - 2), count: 5);
+      },
+      onLand: () {
+        spawnDust(Vector2(player.position.x + 20, groundY - 2), count: 8);
+      },
       onDamage: () {
         audio.playFumble();
+        spawnImpact(player.position + (player.size / 2));
         gameState.applyHazardDamage();
       },
     );
@@ -76,6 +105,8 @@ class CourierGame extends FlameGame
 
     gameState.onMilestone = (event) {
       audio.playMilestone();
+      spawnConfetti(Vector2(virtualResolution.x / 2, 100));
+      spawnConfetti(Vector2(player.position.x + 40, groundY - 120), count: 20);
     };
 
     gameState.onGameOver = () {
@@ -105,12 +136,14 @@ class CourierGame extends FlameGame
     }
 
     for (final p in chunk.pickups) {
-      final pickComp = PickupComponent(
+      late final PickupComponent pickComp;
+      pickComp = PickupComponent(
         type: p.type,
         position: Vector2(p.x, p.y),
         onCollected: (type) {
+          final collectionPos = pickComp.position + (pickComp.size / 2);
           activePickups.removeWhere((item) => item.isCollected);
-          _handlePickup(type);
+          _handlePickup(type, collectionPos);
         },
       );
       activePickups.add(pickComp);
@@ -120,7 +153,24 @@ class CourierGame extends FlameGame
     nextChunkX += 960.0;
   }
 
-  void _handlePickup(PickupType type) {
+  void _handlePickup(PickupType type, [Vector2? pos]) {
+    if (pos != null) {
+      final Color sparkColor;
+      switch (type) {
+        case PickupType.coin:
+        case PickupType.coin5:
+          sparkColor = const Color(0xFFF1C40F);
+          break;
+        case PickupType.energyDrink:
+          sparkColor = const Color(0xFF2ECC71);
+          break;
+        case PickupType.packageRestore:
+          sparkColor = const Color(0xFFE67E22);
+          break;
+      }
+      spawnSparkles(pos, color: sparkColor);
+    }
+
     switch (type) {
       case PickupType.coin:
         gameState.addTip(1);
@@ -143,14 +193,18 @@ class CourierGame extends FlameGame
 
   /// Resets the runner for the next shift.
   void restartRun() {
-    for (final o in activeObstacles) {
+    for (final o in activeObstacles.toList()) {
       o.removeFromParent();
     }
-    for (final p in activePickups) {
+    for (final p in activePickups.toList()) {
       p.removeFromParent();
+    }
+    for (final c in world.children.whereType<ParticleEffectComponent>().toList()) {
+      c.removeFromParent();
     }
     activeObstacles.clear();
     activePickups.clear();
+    _footstepTimer = 0.0;
 
     chunkManager.reset();
     nextChunkX = 960.0;
@@ -178,6 +232,15 @@ class CourierGame extends FlameGame
     gameState.updateEnergyTimer(dt);
     gameState.updateMilestoneTimer(dt);
     player.isBoosted = gameState.isEnergyBoostActive;
+
+    // Footstep dust puffs while running along sidewalk
+    if (player.simulator.isGrounded && player.state == CourierState.running) {
+      _footstepTimer += dt;
+      if (_footstepTimer >= 0.28) {
+        _footstepTimer = 0.0;
+        spawnDust(Vector2(player.position.x + 8.0, groundY - 2.0), count: 3);
+      }
+    }
 
     // 1. Calculate dynamic scroll speed based on distance (with energy boost)
     final speedMultiplier = gameState.isEnergyBoostActive ? 1.2 : 1.0;
