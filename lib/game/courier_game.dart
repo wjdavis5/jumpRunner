@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'audio_controller.dart';
 import '../services/storage_service.dart';
 import 'components/courier_player.dart';
+import 'components/delivery_drone_component.dart';
 import 'components/floating_text_component.dart';
 import 'components/obstacle_component.dart';
 import 'components/parallax_city.dart';
@@ -83,6 +84,7 @@ class CourierGame extends FlameGame
   PersonalRecordMarkerComponent? activePrMarker;
   bool hasSpawnedPrMarker = false;
   bool hasSurpassedPr = false;
+  DeliveryDroneComponent? deliveryDrone;
 
   int _wetHazardsCleared = 0;
 
@@ -249,6 +251,9 @@ class CourierGame extends FlameGame
         case PickupType.packageRestore:
           sparkColor = const Color(0xFFE67E22);
           break;
+        case PickupType.drone:
+          sparkColor = const Color(0xFF00E5FF);
+          break;
       }
       spawnSparkles(pos, color: sparkColor);
     }
@@ -269,6 +274,17 @@ class CourierGame extends FlameGame
       case PickupType.packageRestore:
         gameState.restorePackage();
         audio.playMilestone();
+        break;
+      case PickupType.drone:
+        gameState.activateDrone();
+        audio.playMilestone();
+        world.add(
+          FloatingTextComponent(
+            text: 'DRONE DEPLOYED!',
+            position: Vector2(player.position.x - 10, player.position.y - 30),
+            color: const Color(0xFF00E5FF),
+          ),
+        );
         break;
     }
   }
@@ -299,6 +315,14 @@ class CourierGame extends FlameGame
     hasSpawnedPrMarker = false;
     hasSurpassedPr = false;
     personalRecordDistance = storage?.highDistance ?? personalRecordDistance;
+
+    if (deliveryDrone != null && deliveryDrone!.isMounted) {
+      deliveryDrone!.removeFromParent();
+    }
+    deliveryDrone = null;
+    for (final d in world.children.whereType<DeliveryDroneComponent>().toList()) {
+      d.removeFromParent();
+    }
 
     chunkManager.reset();
     weatherController.reset();
@@ -331,12 +355,22 @@ class CourierGame extends FlameGame
     super.update(dt);
     if (!isRunning || gameState.status != GameStatus.running) return;
 
-    // 0. Update active energy drink buff, celebration, and stunt combo timers
+    // 0. Update active energy drink buff, drone assist, celebration, and stunt combo timers
     gameState.updateEnergyTimer(dt);
+    gameState.updateDroneTimer(dt);
     gameState.updateMilestoneTimer(dt);
     gameState.updateContractTimer(dt);
     gameState.updateStuntTimer(dt);
     player.isBoosted = gameState.isEnergyBoostActive;
+
+    // 0b. Spawn / mount companion delivery drone if active
+    if (gameState.isDroneActive && (deliveryDrone == null || !deliveryDrone!.isMounted)) {
+      deliveryDrone = DeliveryDroneComponent(
+        game: this,
+        position: Vector2(player.position.x + 30.0, player.position.y - 45.0),
+      );
+      world.add(deliveryDrone!);
+    }
 
     // Footstep dust or puddle splash puffs while running along sidewalk
     if (player.simulator.isGrounded && player.state == CourierState.running) {

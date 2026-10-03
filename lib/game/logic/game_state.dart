@@ -80,6 +80,7 @@ class GameState extends ChangeNotifier {
   static const int milestoneBonusTips = 50;
 
   static const double defaultEnergyDrinkDuration = 5.0;
+  static const double defaultDroneDuration = 8.0;
   static const double milestoneBannerDuration = 3.0;
   static const double contractBannerDuration = 3.0;
   static const double stuntComboDuration = 4.0;
@@ -100,6 +101,12 @@ class GameState extends ChangeNotifier {
 
   /// Returns true if the courier is currently energized by an energy drink.
   bool get isEnergyBoostActive => energyDrinkTimer > 0;
+
+  /// Remaining duration in seconds for the Companion Delivery Drone buff.
+  double droneTimer = 0.0;
+
+  /// Returns true if the Companion Delivery Drone is currently active and assisting.
+  bool get isDroneActive => droneTimer > 0;
 
   /// The active milestone event being celebrated by the UI banner.
   MilestoneEvent? activeMilestone;
@@ -155,6 +162,7 @@ class GameState extends ChangeNotifier {
     _lastMilestoneIndex = 0;
     damageTakenCount = 0;
     energyDrinkTimer = 0.0;
+    droneTimer = 0.0;
     activeMilestone = null;
     milestoneBannerTimer = 0.0;
     activeContractCelebration = null;
@@ -197,6 +205,25 @@ class GameState extends ChangeNotifier {
       energyDrinkTimer -= dt;
       if (energyDrinkTimer <= 0) {
         energyDrinkTimer = 0.0;
+      }
+      notifyListeners();
+    }
+  }
+
+  /// Activates or extends the Companion Delivery Drone buff.
+  void activateDrone([double duration = defaultDroneDuration]) {
+    if (status != GameStatus.running) return;
+    // Refresh or extend buff up to a 16s maximum cap
+    droneTimer = (droneTimer + duration).clamp(0.0, 16.0);
+    notifyListeners();
+  }
+
+  /// Updates the drone buff countdown timer.
+  void updateDroneTimer(double dt) {
+    if (droneTimer > 0) {
+      droneTimer -= dt;
+      if (droneTimer <= 0) {
+        droneTimer = 0.0;
       }
       notifyListeners();
     }
