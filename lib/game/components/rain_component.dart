@@ -98,11 +98,12 @@ class RainComponent extends PositionComponent {
 
     // 1. Soft atmospheric mist haze wash during heavier precipitation
     if (rainIntensity > 0.15) {
+      const bleed = 60.0;
       final mistPaint = Paint()
         ..color = const Color(0xFF4A6572).withValues(
           alpha: (0.12 * rainIntensity).clamp(0.0, 1.0),
         );
-      canvas.drawRect(Rect.fromLTWH(0, 0, w, groundY), mistPaint);
+      canvas.drawRect(Rect.fromLTWH(-bleed, -bleed, w + bleed * 2, groundY + bleed), mistPaint);
     }
 
     // 2. Active diagonal rain streak rendering

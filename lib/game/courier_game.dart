@@ -12,6 +12,7 @@ import 'components/parallax_city.dart';
 import 'components/particle_effect.dart';
 import 'components/pickup_component.dart';
 import 'components/rain_component.dart';
+import 'logic/camera_juice_controller.dart';
 import 'logic/game_state.dart';
 import 'logic/weather_controller.dart';
 import 'logic/world_chunk_manager.dart';
@@ -29,17 +30,20 @@ class CourierGame extends FlameGame
     GameAudioController? audioController,
     WorldChunkManager? chunkManager,
     WeatherController? weatherController,
+    CameraJuiceController? cameraJuiceController,
     CourierSkin? initialSkin,
   })  : gameState = gameState ?? GameState(),
         audio = audioController ?? GameAudioController(),
         chunkManager = chunkManager ?? WorldChunkManager(),
         weatherController = weatherController ?? WeatherController(),
+        cameraJuice = cameraJuiceController ?? CameraJuiceController(),
         activeSkin = initialSkin ?? CourierSkin.standard,
         super(
           camera: CameraComponent.withFixedResolution(
             width: virtualResolution.x,
             height: virtualResolution.y,
-          )..viewfinder.anchor = Anchor.topLeft,
+          )..viewfinder.anchor = Anchor.center
+           ..viewfinder.position = Vector2(virtualResolution.x / 2, virtualResolution.y / 2),
         );
 
   CourierSkin activeSkin;
@@ -62,6 +66,7 @@ class CourierGame extends FlameGame
   final GameAudioController audio;
   final WorldChunkManager chunkManager;
   final WeatherController weatherController;
+  final CameraJuiceController cameraJuice;
 
   late final ParallaxCityComponent parallaxCity;
   late final RainComponent rainComponent;
@@ -78,6 +83,11 @@ class CourierGame extends FlameGame
 
   VoidCallback? onRunConcluded;
   VoidCallback? onPauseRequested;
+
+  /// Triggers impact screen trauma shake.
+  void triggerScreenShake([double trauma = 0.65]) {
+    cameraJuice.addTrauma(trauma);
+  }
 
   /// Spawns footstep or landing sidewalk dust puffs.
   void spawnDust(Vector2 pos, {int count = 6}) {
@@ -135,6 +145,7 @@ class CourierGame extends FlameGame
       onDamage: () {
         audio.playFumble();
         spawnImpact(player.position + (player.size / 2));
+        triggerScreenShake(0.65);
         gameState.applyHazardDamage();
       },
     );
@@ -148,6 +159,10 @@ class CourierGame extends FlameGame
 
     gameState.onGameOver = () {
       isRunning = false;
+      cameraJuice.reset();
+      camera.viewfinder.position = Vector2(virtualResolution.x / 2, virtualResolution.y / 2);
+      camera.viewfinder.zoom = 1.0;
+      camera.viewfinder.angle = 0.0;
       onRunConcluded?.call();
     };
 
@@ -249,6 +264,11 @@ class CourierGame extends FlameGame
     chunkManager.reset();
     weatherController.reset();
     rainComponent.rainIntensity = 0.0;
+    cameraJuice.reset();
+    final baseCenter = Vector2(virtualResolution.x / 2, virtualResolution.y / 2);
+    camera.viewfinder.position = baseCenter;
+    camera.viewfinder.zoom = 1.0;
+    camera.viewfinder.angle = 0.0;
     nextChunkX = 960.0;
     currentSpeed = 200.0;
     parallaxCity.updateLighting(0.0, 0.0, 0.0);
@@ -311,6 +331,13 @@ class CourierGame extends FlameGame
       dt,
       weatherController.rainIntensity,
     );
+
+    // 3b. Update camera trauma shake and velocity framing zoom
+    cameraJuice.update(dt, currentSpeed: currentSpeed);
+    final baseCenter = Vector2(virtualResolution.x / 2, virtualResolution.y / 2);
+    camera.viewfinder.position = baseCenter + cameraJuice.shakeOffset;
+    camera.viewfinder.zoom = cameraJuice.currentZoom;
+    camera.viewfinder.angle = cameraJuice.shakeAngle;
 
     // 4. Scroll active hazards and pickups leftward
     final scrollDelta = currentSpeed * dt;
