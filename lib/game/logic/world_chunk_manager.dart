@@ -124,9 +124,12 @@ class WorldChunkManager {
       _lastObstacleEndX = obstacle.x + obstacle.width;
 
       // Reward jump: Place a coin or pickup above the hazard in jump arc
-      final arcPickupType = (_random.nextDouble() < 0.2)
-          ? PickupType.energyDrink
-          : (_random.nextDouble() < 0.3 ? PickupType.coin5 : PickupType.coin);
+      final roll = _random.nextDouble();
+      final arcPickupType = (roll < 0.10 && distanceMeters >= 150.0)
+          ? PickupType.drone
+          : (roll < 0.28)
+              ? PickupType.energyDrink
+              : (_random.nextDouble() < 0.3 ? PickupType.coin5 : PickupType.coin);
       pickups.add(
         PickupData(
           type: arcPickupType,

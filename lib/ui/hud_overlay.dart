@@ -333,6 +333,42 @@ class HUDOverlay extends StatelessWidget {
             ),
           ),
         ],
+        if (gameState.isDroneActive) ...[
+          const SizedBox(height: 6),
+          Container(
+            key: const Key('drone_assist_badge'),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF00B4DB), Color(0xFF00E5FF)],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF00E5FF).withValues(alpha: 0.6),
+                  blurRadius: 8,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.flight, color: Colors.black, size: 16),
+                const SizedBox(width: 4),
+                Text(
+                  'DRONE HARVEST ${gameState.droneTimer.toStringAsFixed(1)}s',
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         if (gameState.isComboActive) ...[
           const SizedBox(height: 6),
           Container(

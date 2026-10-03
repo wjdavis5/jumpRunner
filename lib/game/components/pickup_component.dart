@@ -12,6 +12,7 @@ enum PickupType {
   coin5,
   energyDrink,
   packageRestore,
+  drone,
 }
 
 /// A collectible pickup component featuring floating sine-wave bobbing animation.
@@ -42,7 +43,7 @@ class PickupComponent extends PositionComponent with CollisionCallbacks {
 
   late final RectangleHitbox hitbox;
 
-  static String spritePathForType(PickupType type) {
+  static String? spritePathForType(PickupType type) {
     switch (type) {
       case PickupType.coin:
       case PickupType.coin5:
@@ -51,6 +52,8 @@ class PickupComponent extends PositionComponent with CollisionCallbacks {
         return 'pickups/energy_drink.png';
       case PickupType.packageRestore:
         return 'pickups/package_box.png';
+      case PickupType.drone:
+        return null;
     }
   }
 
@@ -58,9 +61,14 @@ class PickupComponent extends PositionComponent with CollisionCallbacks {
   Future<void> onLoad() async {
     await super.onLoad();
 
-    try {
-      sprite = await Sprite.load(spritePathForType(type));
-    } catch (_) {
+    final path = spritePathForType(type);
+    if (path != null) {
+      try {
+        sprite = await Sprite.load(path);
+      } catch (_) {
+        sprite = null;
+      }
+    } else {
       sprite = null;
     }
 
@@ -127,7 +135,49 @@ class PickupComponent extends PositionComponent with CollisionCallbacks {
       case PickupType.packageRestore:
         _renderPackageRestore(canvas);
         break;
+      case PickupType.drone:
+        _renderDronePickup(canvas);
+        break;
     }
+  }
+
+  void _renderDronePickup(Canvas canvas) {
+    final casePaint = Paint()..color = const Color(0xFF1C2833);
+    final borderPaint = Paint()
+      ..color = const Color(0xFF00E5FF)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    final glowPaint = Paint()..color = const Color(0xFF00E5FF);
+
+    // Crate container
+    final rect = Rect.fromLTWH(2, 2, size.x - 4, size.y - 4);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(4)),
+      casePaint,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(4)),
+      borderPaint,
+    );
+
+    final center = Offset(size.x / 2, size.y / 2);
+
+    // Quad rotor mounts (corner discs)
+    canvas.drawCircle(Offset(center.dx - 6, center.dy - 6), 2.5, glowPaint);
+    canvas.drawCircle(Offset(center.dx + 6, center.dy - 6), 2.5, glowPaint);
+    canvas.drawCircle(Offset(center.dx - 6, center.dy + 6), 2.5, glowPaint);
+    canvas.drawCircle(Offset(center.dx + 6, center.dy + 6), 2.5, glowPaint);
+
+    // Connecting struts
+    final strutPaint = Paint()
+      ..color = const Color(0xFF00E5FF).withAlpha(160)
+      ..strokeWidth = 1.2;
+    canvas.drawLine(Offset(center.dx - 6, center.dy - 6), Offset(center.dx + 6, center.dy + 6), strutPaint);
+    canvas.drawLine(Offset(center.dx + 6, center.dy - 6), Offset(center.dx - 6, center.dy + 6), strutPaint);
+
+    // Central cyber drone scanner eye
+    canvas.drawCircle(center, 3.5, glowPaint);
+    canvas.drawCircle(center, 1.5, Paint()..color = Colors.white);
   }
 
   void _renderCoin(Canvas canvas, Color coinColor, String label) {
