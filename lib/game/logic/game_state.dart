@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../models/daily_shift.dart';
 import '../models/shift_contract.dart';
 import 'contract_manager.dart';
 
@@ -89,7 +90,14 @@ class GameState extends ChangeNotifier {
   final ContractManager contractManager;
   int damageTakenCount = 0;
 
-  int get maxPackages => defaultMaxPackages;
+  /// Active Daily Gig Shift challenge for this run, if started in Daily Shift mode.
+  DailyShift? activeDailyShift;
+  bool get isDailyShiftActive => activeDailyShift != null;
+  bool hasCompletedDailyShiftInRun = false;
+
+  int get maxPackages => (activeDailyShift?.modifier == DailyModifier.fragileFreight)
+      ? 1
+      : defaultMaxPackages;
 
   int packages = defaultMaxPackages;
   int tips = 0;
@@ -155,8 +163,10 @@ class GameState extends ChangeNotifier {
   VoidCallback? onDamageTaken;
 
   /// Begins or resets an active courier run.
-  void startRun() {
-    packages = defaultMaxPackages;
+  void startRun({DailyShift? dailyShift}) {
+    activeDailyShift = dailyShift;
+    hasCompletedDailyShiftInRun = false;
+    packages = maxPackages;
     tips = 0;
     distanceMeters = 0.0;
     _lastMilestoneIndex = 0;
@@ -193,8 +203,11 @@ class GameState extends ChangeNotifier {
   /// Activates or extends the Cold Brew Energy Drink buff.
   void activateEnergyDrink([double duration = defaultEnergyDrinkDuration]) {
     if (status != GameStatus.running) return;
+    final effectiveDuration = (activeDailyShift?.modifier == DailyModifier.nightDash)
+        ? duration * 1.5
+        : duration;
     // Refresh or extend buff up to a 10s maximum cap
-    energyDrinkTimer = (energyDrinkTimer + duration).clamp(0.0, 10.0);
+    energyDrinkTimer = (energyDrinkTimer + effectiveDuration).clamp(0.0, 10.0);
     contractManager.onEnergyBoostActivated();
     notifyListeners();
   }
@@ -272,8 +285,11 @@ class GameState extends ChangeNotifier {
     stuntStreak++;
     stuntStreakTimer = stuntComboDuration;
 
-    final earnedTips = (baseStuntTip * stuntMultiplier).round();
-    final awarded = isEnergyBoostActive ? earnedTips * 2 : earnedTips;
+    final baseAward = (baseStuntTip * stuntMultiplier).round();
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? baseAward * 2
+        : baseAward;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
     tips += awarded;
 
     contractManager.onStuntPerformed();
@@ -290,10 +306,17 @@ class GameState extends ChangeNotifier {
 
   /// Adds collected tips to current run bank.
   ///
-  /// Awards double tips while [isEnergyBoostActive] is true.
+  /// Awards double tips while [isEnergyBoostActive] is true, and stacks with daily shift multipliers.
   void addTip(int amount) {
     if (status != GameStatus.running) return;
-    final earned = isEnergyBoostActive ? amount * 2 : amount;
+    int modifierMultiplier = 1;
+    if (activeDailyShift?.modifier == DailyModifier.rainyRush) {
+      modifierMultiplier = 2;
+    } else if (activeDailyShift?.modifier == DailyModifier.fragileFreight) {
+      modifierMultiplier = 3;
+    }
+    final adjusted = amount * modifierMultiplier;
+    final earned = isEnergyBoostActive ? adjusted * 2 : adjusted;
     tips += earned;
     contractManager.onTipCollected(amount);
     notifyListeners();
@@ -364,6 +387,15 @@ class GameState extends ChangeNotifier {
         onMilestone?.call(event);
       }
     }
+
+    // Evaluate daily shift goal
+    if (isDailyShiftActive &&
+        !hasCompletedDailyShiftInRun &&
+        distanceMeters >= activeDailyShift!.targetDistanceMeters) {
+      hasCompletedDailyShiftInRun = true;
+      tips += activeDailyShift!.completionBonusTips;
+    }
+
     notifyListeners();
   }
 }

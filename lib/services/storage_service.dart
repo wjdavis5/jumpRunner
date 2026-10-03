@@ -16,6 +16,8 @@ class LocalStorageService {
   static const String _keyEquippedSkin = 'courier_equipped_skin';
   static const String _keyCompletedContracts = 'courier_completed_contracts';
   static const String _keyUnlockedAchievements = 'courier_unlocked_achievements';
+  static const String _keyLastCompletedDaily = 'courier_last_completed_daily';
+  static const String _keyDailyStars = 'courier_daily_stars';
 
   SharedPreferences? _prefs;
 
@@ -46,6 +48,33 @@ class LocalStorageService {
 
   /// Identifier of the currently equipped vanity courier outfit.
   String get equippedSkin => _prefs?.getString(_keyEquippedSkin) ?? 'standard';
+
+  /// YYYY-MM-DD string of the most recently completed daily shift.
+  String? get lastCompletedDaily => _prefs?.getString(_keyLastCompletedDaily);
+
+  /// Cumulative daily shift completion stars earned by the courier.
+  int get dailyStars => _prefs?.getInt(_keyDailyStars) ?? 0;
+
+  /// Returns true if the daily shift for [dateString] has already been completed.
+  bool isDailyShiftCompleted(String dateString) => lastCompletedDaily == dateString;
+
+  /// Completes the daily shift for [dateString], awarding bonus tips and a daily star.
+  ///
+  /// Returns `true` if successfully recorded, or `false` if already completed today.
+  Future<bool> completeDailyShift({
+    required String dateString,
+    required int bonusTips,
+  }) async {
+    final prefs = _prefs;
+    if (prefs == null) return false;
+    if (isDailyShiftCompleted(dateString)) return false;
+
+    await prefs.setString(_keyLastCompletedDaily, dateString);
+    await prefs.setInt(_keyDailyStars, dailyStars + 1);
+    final newCareerTips = careerTips + math.max<int>(0, bonusTips);
+    await prefs.setInt(_keyCareerTips, newCareerTips);
+    return true;
+  }
 
   /// Records completed run stats, updating personal best distance and cumulative career tips.
   ///

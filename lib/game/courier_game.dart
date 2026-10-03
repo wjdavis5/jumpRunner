@@ -21,6 +21,7 @@ import 'logic/game_state.dart';
 import 'logic/weather_controller.dart';
 import 'logic/world_chunk_manager.dart';
 import 'models/courier_skin.dart';
+import 'models/daily_shift.dart';
 
 /// Main Flame game loop for Courier Dash.
 ///
@@ -39,6 +40,7 @@ class CourierGame extends FlameGame
     LocalStorageService? storageService,
     int? personalRecordDistance,
     CourierSkin? initialSkin,
+    this.dailyShift,
   })  : gameState = gameState ?? GameState(),
         audio = audioController ?? GameAudioController(),
         chunkManager = chunkManager ?? WorldChunkManager(),
@@ -79,11 +81,13 @@ class CourierGame extends FlameGame
   final CameraJuiceController cameraJuice;
   final AchievementManager achievementManager;
   final LocalStorageService? storage;
+  final DailyShift? dailyShift;
 
   int personalRecordDistance;
   PersonalRecordMarkerComponent? activePrMarker;
   bool hasSpawnedPrMarker = false;
   bool hasSurpassedPr = false;
+  bool hasRecordedDailyShiftSuccess = false;
   DeliveryDroneComponent? deliveryDrone;
 
   int _wetHazardsCleared = 0;
@@ -196,6 +200,14 @@ class CourierGame extends FlameGame
       camera.viewfinder.angle = 0.0;
       onRunConcluded?.call();
     };
+
+    if (dailyShift != null) {
+      gameState.startRun(dailyShift: dailyShift);
+      if (dailyShift!.modifier == DailyModifier.rainyRush) {
+        weatherController.rainIntensity = 0.8;
+        rainComponent.rainIntensity = 0.8;
+      }
+    }
 
     // Seed initial terrain chunk
     _spawnChunk();
@@ -337,7 +349,12 @@ class CourierGame extends FlameGame
     currentSpeed = 200.0;
     parallaxCity.updateLighting(0.0, 0.0, 0.0);
 
-    gameState.startRun();
+    hasRecordedDailyShiftSuccess = false;
+    gameState.startRun(dailyShift: dailyShift);
+    if (dailyShift?.modifier == DailyModifier.rainyRush) {
+      weatherController.rainIntensity = 0.8;
+      rainComponent.rainIntensity = 0.8;
+    }
     player.position = Vector2(120.0, groundY - player.size.y);
     player.simulator.currentY = groundY;
     player.simulator.verticalVelocity = 0.0;
@@ -458,6 +475,27 @@ class CourierGame extends FlameGame
         hasSurpassedPr = true;
         _handlePersonalRecordSurpassed(activePrMarker!);
       }
+    }
+
+    // 4c. Evaluate Daily Shift Goal Celebration
+    if (gameState.isDailyShiftActive &&
+        gameState.hasCompletedDailyShiftInRun &&
+        !hasRecordedDailyShiftSuccess) {
+      hasRecordedDailyShiftSuccess = true;
+      audio.playMilestone();
+      triggerScreenShake(0.4);
+      world.add(
+        FloatingTextComponent(
+          text: 'DAILY SHIFT COMPLETED! +\$${gameState.activeDailyShift!.completionBonusTips}',
+          position: Vector2(player.position.x - 20, player.position.y - 40),
+          color: const Color(0xFFF1C40F),
+        ),
+      );
+      spawnConfetti(Vector2(virtualResolution.x / 2, 80), count: 30);
+      storage?.completeDailyShift(
+        dateString: gameState.activeDailyShift!.dateString,
+        bonusTips: gameState.activeDailyShift!.completionBonusTips,
+      );
     }
 
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
