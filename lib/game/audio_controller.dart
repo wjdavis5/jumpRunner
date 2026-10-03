@@ -9,6 +9,8 @@ abstract class AudioPlayerInterface {
   Future<void> playSfx(String file, {double volume = 1.0});
   Future<void> startBgm(String file, {double volume = 0.7});
   Future<void> stopBgm();
+  Future<void> setBgmVolume(double volume);
+  Future<void> setPlaybackRate(double rate);
 }
 
 /// Production audio backend delegating to FlameAudio.
@@ -41,12 +43,31 @@ class FlameAudioBackend implements AudioPlayerInterface {
       debugPrint('[Audio] Bgm stop error: $e');
     }
   }
+
+  @override
+  Future<void> setBgmVolume(double volume) async {
+    try {
+      await FlameAudio.bgm.audioPlayer.setVolume(volume);
+    } catch (e) {
+      debugPrint('[Audio] Bgm volume error: $e');
+    }
+  }
+
+  @override
+  Future<void> setPlaybackRate(double rate) async {
+    try {
+      await FlameAudio.bgm.audioPlayer.setPlaybackRate(rate);
+    } catch (e) {
+      debugPrint('[Audio] Bgm playback rate error: $e');
+    }
+  }
 }
 
 /// Central audio manager for Courier Dash.
 ///
 /// Coordinates low-latency sound effect triggers (jump, coin, fumble, milestone),
-/// looping background music, asset preloading, and user mute persistence.
+/// looping background music, asset preloading, adaptive tempo scaling,
+/// milestone ducking, and user mute persistence.
 class GameAudioController {
   GameAudioController({
     AudioPlayerInterface? backend,
@@ -61,8 +82,17 @@ class GameAudioController {
   final AudioPlayerInterface _backend;
   final LocalStorageService? _storage;
 
+  static const double defaultBgmVolume = 0.7;
+  static const double duckedBgmVolume = 0.3;
+  static const double milestoneDuckedBgmVolume = 0.25;
+
   bool isMuted = false;
   bool isMusicActive = false;
+  bool isPaused = false;
+  bool isMilestoneDucking = false;
+
+  double currentBgmVolume = defaultBgmVolume;
+  double currentPlaybackRate = 1.0;
 
   final List<String> attemptedPlays = [];
 
@@ -86,6 +116,62 @@ class GameAudioController {
     } catch (_) {}
   }
 
+  /// Sets the background music volume (0.0 to 1.0).
+  Future<void> setBgmVolume(double volume) async {
+    currentBgmVolume = volume.clamp(0.0, 1.0);
+    if (!isMuted && isMusicActive) {
+      await _backend.setBgmVolume(currentBgmVolume);
+    }
+  }
+
+  /// Sets the background music playback rate (0.5 to 2.0).
+  Future<void> setPlaybackRate(double rate) async {
+    currentPlaybackRate = rate.clamp(0.5, 2.0);
+    if (!isMuted && isMusicActive) {
+      await _backend.setPlaybackRate(currentPlaybackRate);
+    }
+  }
+
+  /// Dynamically scales background music tempo based on courier running speed.
+  Future<void> updateSpeed(double gameSpeed, {double baseSpeed = 200.0}) async {
+    final targetRate = (1.0 + ((gameSpeed - baseSpeed) / baseSpeed) * 0.15).clamp(1.0, 1.25);
+    if ((targetRate - currentPlaybackRate).abs() >= 0.02) {
+      await setPlaybackRate(targetRate);
+    }
+  }
+
+  /// Ducks background music volume down to [duckedBgmVolume] during game pause.
+  Future<void> pauseDucking() async {
+    isPaused = true;
+    await setBgmVolume(duckedBgmVolume);
+  }
+
+  /// Restores background music volume to [defaultBgmVolume] on game resume.
+  Future<void> resumeDucking() async {
+    isPaused = false;
+    if (!isMilestoneDucking) {
+      await setBgmVolume(defaultBgmVolume);
+    } else {
+      await setBgmVolume(milestoneDuckedBgmVolume);
+    }
+  }
+
+  /// Temporarily ducks background music volume during celebratory milestone fanfares.
+  Future<void> duckForMilestone({
+    Duration duration = const Duration(milliseconds: 1400),
+  }) async {
+    if (isMuted || !isMusicActive) return;
+    isMilestoneDucking = true;
+    await setBgmVolume(milestoneDuckedBgmVolume);
+
+    Future.delayed(duration, () async {
+      isMilestoneDucking = false;
+      if (!isPaused && isMusicActive && !isMuted) {
+        await setBgmVolume(defaultBgmVolume);
+      }
+    });
+  }
+
   /// Toggles mute state and saves preference to local storage.
   Future<void> toggleMute() async {
     isMuted = !isMuted;
@@ -94,7 +180,13 @@ class GameAudioController {
     if (isMuted) {
       await _backend.stopBgm();
     } else if (isMusicActive) {
-      await _backend.startBgm(musicBgm, volume: 0.6);
+      final vol = isPaused
+          ? duckedBgmVolume
+          : (isMilestoneDucking ? milestoneDuckedBgmVolume : currentBgmVolume);
+      await _backend.startBgm(musicBgm, volume: vol);
+      if (currentPlaybackRate != 1.0) {
+        await _backend.setPlaybackRate(currentPlaybackRate);
+      }
     }
   }
 
@@ -119,18 +211,25 @@ class GameAudioController {
     await _backend.playSfx(sfxFumble, volume: 0.9);
   }
 
-  /// Plays celebratory milestone completion jingle.
-  Future<void> playMilestone() async {
+  /// Plays celebratory milestone completion jingle and ducks background music.
+  Future<void> playMilestone({
+    Duration duckDuration = const Duration(milliseconds: 1400),
+  }) async {
     if (isMuted) return;
     attemptedPlays.add(sfxMilestone);
+    duckForMilestone(duration: duckDuration);
     await _backend.playSfx(sfxMilestone, volume: 1.0);
   }
 
   /// Starts looping background music track.
-  Future<void> startMusic() async {
+  Future<void> startMusic({double? volume}) async {
     isMusicActive = true;
+    currentBgmVolume = volume ?? (isPaused ? duckedBgmVolume : defaultBgmVolume);
     if (isMuted) return;
-    await _backend.startBgm(musicBgm, volume: 0.6);
+    await _backend.startBgm(musicBgm, volume: currentBgmVolume);
+    if (currentPlaybackRate != 1.0) {
+      await _backend.setPlaybackRate(currentPlaybackRate);
+    }
   }
 
   /// Stops background music track.

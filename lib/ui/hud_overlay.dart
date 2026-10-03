@@ -131,7 +131,7 @@ class HUDOverlay extends StatelessWidget {
                           size: 16,
                           color: Color(0xFFF1C40F),
                         ),
-                        SizedBox(width: 6),
+                        const SizedBox(width: 6),
                         Text(
                           'FLAWLESS SHIFT BONUS: +\$${milestone.bonusTips} TIPS!',
                           style: const TextStyle(
