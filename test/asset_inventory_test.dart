@@ -71,6 +71,7 @@ void main() {
         'assets/audio/sfx/coin.ogg',
         'assets/audio/sfx/fumble.ogg',
         'assets/audio/sfx/milestone.ogg',
+        'assets/audio/sfx/rain_ambience.ogg',
         'assets/audio/music/courier_groove.ogg',
       ];
 
