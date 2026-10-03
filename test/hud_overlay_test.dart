@@ -85,6 +85,26 @@ void main() {
       expect(find.text(r'FLAWLESS SHIFT BONUS: +$50 TIPS!'), findsOneWidget);
     });
 
+    testWidgets('HUDOverlay renders pause button and triggers onPause callback', (tester) async {
+      final state = GameState()..startRun();
+      bool pauseTriggered = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: HUDOverlay(
+              gameState: state,
+              onPause: () => pauseTriggered = true,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byKey(const Key('pause_button')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('pause_button')));
+      expect(pauseTriggered, isTrue);
+    });
+
     testWidgets('GameOverModal renders stats and triggers restart callback', (tester) async {
       bool restarted = false;
 

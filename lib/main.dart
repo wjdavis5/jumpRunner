@@ -8,6 +8,7 @@ import 'game/logic/game_state.dart';
 import 'services/storage_service.dart';
 import 'ui/game_over_modal.dart';
 import 'ui/hud_overlay.dart';
+import 'ui/pause_menu_modal.dart';
 import 'ui/title_screen.dart';
 
 /// The orientations this app supports (landscape only).
@@ -72,6 +73,7 @@ class _CourierDashAppState extends State<CourierDashApp> {
     );
 
     _game.onRunConcluded = _handleRunConcluded;
+    _game.onPauseRequested = _togglePause;
   }
 
   Future<void> _handleRunConcluded() async {
@@ -99,6 +101,36 @@ class _CourierDashAppState extends State<CourierDashApp> {
   void _restartGame() {
     _game.overlays.remove('GameOver');
     _game.restartRun();
+  }
+
+  void _pauseGame() {
+    if (_gameState.status == GameStatus.running) {
+      _gameState.pauseRun();
+      _game.overlays.add('PauseMenu');
+    }
+  }
+
+  void _resumeGame() {
+    if (_gameState.status == GameStatus.paused) {
+      _gameState.resumeRun();
+      _game.overlays.remove('PauseMenu');
+    }
+  }
+
+  void _togglePause() {
+    if (_gameState.status == GameStatus.running) {
+      _pauseGame();
+    } else if (_gameState.status == GameStatus.paused) {
+      _resumeGame();
+    }
+  }
+
+  void _quitToTitle() {
+    _game.overlays.remove('PauseMenu');
+    _game.overlays.remove('HUD');
+    _gameState.status = GameStatus.idle;
+    _game.isRunning = false;
+    _game.overlays.add('TitleScreen');
   }
 
   void _toggleMute() {
@@ -131,7 +163,13 @@ class _CourierDashAppState extends State<CourierDashApp> {
                     gameState: _gameState,
                     isMuted: widget.audioController.isMuted,
                     onToggleMute: _toggleMute,
+                    onPause: _togglePause,
                   ),
+                ),
+            'PauseMenu': (context, game) => PauseMenuModal(
+                  gameState: _gameState,
+                  onResume: _resumeGame,
+                  onQuit: _quitToTitle,
                 ),
             'GameOver': (context, game) => GameOverModal(
                   distance: _lastDistance,

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 enum GameStatus {
   idle,
   running,
+  paused,
   gameOver,
 }
 
@@ -84,6 +85,22 @@ class GameState extends ChangeNotifier {
     milestoneBannerTimer = 0.0;
     status = GameStatus.running;
     notifyListeners();
+  }
+
+  /// Pauses an active courier run.
+  void pauseRun() {
+    if (status == GameStatus.running) {
+      status = GameStatus.paused;
+      notifyListeners();
+    }
+  }
+
+  /// Resumes a paused courier run.
+  void resumeRun() {
+    if (status == GameStatus.paused) {
+      status = GameStatus.running;
+      notifyListeners();
+    }
   }
 
   /// Activates or extends the Cold Brew Energy Drink buff.

@@ -55,6 +55,7 @@ class CourierGame extends FlameGame
   final List<PickupComponent> activePickups = [];
 
   VoidCallback? onRunConcluded;
+  VoidCallback? onPauseRequested;
 
   @override
   Future<void> onLoad() async {
@@ -254,6 +255,14 @@ class CourierGame extends FlameGame
     KeyEvent event,
     Set<LogicalKeyboardKey> keysPressed,
   ) {
+    final isPauseKey = event.logicalKey == LogicalKeyboardKey.keyP ||
+        event.logicalKey == LogicalKeyboardKey.escape;
+
+    if (isPauseKey && event is KeyDownEvent) {
+      onPauseRequested?.call();
+      return KeyEventResult.handled;
+    }
+
     final isJumpKey = event.logicalKey == LogicalKeyboardKey.space ||
         event.logicalKey == LogicalKeyboardKey.arrowUp ||
         event.logicalKey == LogicalKeyboardKey.keyW;

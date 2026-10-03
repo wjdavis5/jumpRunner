@@ -148,5 +148,32 @@ void main() {
       expect(state.activeMilestone, isNull);
       expect(state.isMilestoneBannerVisible, isFalse);
     });
+
+    test('pauseRun and resumeRun lifecycle freeze state modifications', () {
+      final state = GameState()..startRun();
+      expect(state.status, equals(GameStatus.running));
+
+      // Pause run
+      state.pauseRun();
+      expect(state.status, equals(GameStatus.paused));
+
+      // In paused state, modifications are ignored
+      state.addTip(10);
+      expect(state.tips, equals(0));
+
+      final survived = state.applyHazardDamage();
+      expect(survived, isFalse);
+      expect(state.packages, equals(3));
+
+      state.updateDistance(100.0);
+      expect(state.distanceMeters, equals(0.0));
+
+      // Resume run
+      state.resumeRun();
+      expect(state.status, equals(GameStatus.running));
+
+      state.addTip(10);
+      expect(state.tips, equals(10));
+    });
   });
 }
