@@ -33,15 +33,52 @@ class PickupData {
   final double y;
 }
 
-/// A generated chunk slice containing obstacles and collectible pickups.
+/// Data model for an elevated scaffolding platform.
+class ScaffoldingData {
+  const ScaffoldingData({
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+}
+
+/// Data model for a construction launch ramp.
+class RampData {
+  const RampData({
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+    this.launchImpulse = 520.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+  final double launchImpulse;
+}
+
+/// A generated chunk slice containing obstacles, collectible pickups,
+/// and optional elevated aerial routes.
 class ChunkData {
   const ChunkData({
     required this.obstacles,
     required this.pickups,
+    this.scaffoldings = const [],
+    this.ramps = const [],
   });
 
   final List<ObstacleData> obstacles;
   final List<PickupData> pickups;
+  final List<ScaffoldingData> scaffoldings;
+  final List<RampData> ramps;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -90,11 +127,70 @@ class WorldChunkManager {
   }) {
     final obstacles = <ObstacleData>[];
     final pickups = <PickupData>[];
+    final scaffoldings = <ScaffoldingData>[];
+    final ramps = <RampData>[];
 
     final minClearance = calculateMinClearance(speed);
     final naturalStart = startX + 60.0 + _random.nextDouble() * 40.0;
     double cursorX = math.max(naturalStart, _lastObstacleEndX + minClearance + 1.0);
     final endX = startX + chunkWidth - 80.0;
+
+    // Aerial Scaffolding Route: Spawns periodically after the first 150 meters
+    final spawnAerial = (distanceMeters >= 150.0) && (_random.nextDouble() < 0.28);
+    if (spawnAerial && (endX - cursorX) >= 420.0) {
+      const rampWidth = 74.0;
+      const rampHeight = 36.0;
+      final rampX = cursorX;
+      final rampY = groundY - rampHeight;
+      ramps.add(RampData(
+        x: rampX,
+        y: rampY,
+        width: rampWidth,
+        height: rampHeight,
+      ));
+
+      final scaffoldingX = rampX + rampWidth + 10.0;
+      final scaffoldingY = groundY - 120.0;
+      final scaffoldingWidth = math.min(480.0, endX - scaffoldingX);
+
+      if (scaffoldingWidth >= 200.0) {
+        scaffoldings.add(ScaffoldingData(
+          x: scaffoldingX,
+          y: scaffoldingY,
+          width: scaffoldingWidth,
+          height: 12.0,
+        ));
+
+        // High-altitude gold rush along the scaffolding deck
+        final coinCount = (scaffoldingWidth / 75.0).floor().clamp(2, 5);
+        for (int i = 0; i < coinCount; i++) {
+          final px = scaffoldingX + 35.0 + (i * 70.0);
+          final pType = (i == (coinCount ~/ 2) && _random.nextDouble() < 0.4)
+              ? PickupType.energyDrink
+              : (_random.nextDouble() < 0.35 ? PickupType.coin5 : PickupType.coin);
+          pickups.add(PickupData(
+            type: pType,
+            x: px,
+            y: scaffoldingY - 32.0,
+          ));
+        }
+
+        // Place a street-level obstacle underneath the scaffolding
+        final groundType = ObstacleType.values[_random.nextInt(3)]; // scooter, dog, hydrant
+        final gSize = ObstacleComponent.defaultSizeForType(groundType);
+        final gX = scaffoldingX + (scaffoldingWidth / 2) - (gSize.x / 2);
+        obstacles.add(ObstacleData(
+          type: groundType,
+          x: gX,
+          y: groundY - gSize.y,
+          width: gSize.x,
+          height: gSize.y,
+        ));
+
+        _lastObstacleEndX = scaffoldingX + scaffoldingWidth;
+        cursorX = _lastObstacleEndX + minClearance + 1.0;
+      }
+    }
 
     // Introduce dynamic hazards (skate messenger, pigeon flock) at distance/speed milestones
     final availableTypes = (distanceMeters >= 800.0 || speed >= 340.0)
@@ -173,6 +269,11 @@ class WorldChunkManager {
       );
     }
 
-    return ChunkData(obstacles: obstacles, pickups: pickups);
+    return ChunkData(
+      obstacles: obstacles,
+      pickups: pickups,
+      scaffoldings: scaffoldings,
+      ramps: ramps,
+    );
   }
 }

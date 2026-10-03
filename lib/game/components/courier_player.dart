@@ -110,6 +110,26 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
     return false;
   }
 
+  /// Launches the courier into an aerial trajectory from a ramp.
+  void launchFromRamp({double impulse = 420.0}) {
+    simulator.launch(impulse);
+    state = CourierState.jumping;
+    onJump?.call();
+  }
+
+  /// Sets an elevated landing surface (e.g. scaffolding walkway).
+  void setTargetSurfaceY(double y) {
+    simulator.setSurfaceY(y);
+  }
+
+  /// Resets landing surface back to the ground sidewalk.
+  void resetTargetSurfaceY() {
+    simulator.resetSurfaceY();
+  }
+
+  /// Whether the courier is currently elevated above street level.
+  bool get isElevated => simulator.currentSurfaceY < groundY;
+
   /// Releases jump hold to shorten trajectory.
   void stopJump() {
     simulator.stopJump();
