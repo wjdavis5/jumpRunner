@@ -86,6 +86,7 @@ class WorldChunkManager {
     double chunkWidth = 960.0,
     required double speed,
     double groundY = 460.0,
+    double distanceMeters = 0.0,
   }) {
     final obstacles = <ObstacleData>[];
     final pickups = <PickupData>[];
@@ -95,10 +96,20 @@ class WorldChunkManager {
     double cursorX = math.max(naturalStart, _lastObstacleEndX + minClearance);
     final endX = startX + chunkWidth - 80.0;
 
+    // Introduce dynamic hazards (skate messenger, pigeon flock) at distance/speed milestones
+    final availableTypes = (distanceMeters >= 800.0 || speed >= 340.0)
+        ? ObstacleType.values
+        : const [
+            ObstacleType.scooter,
+            ObstacleType.dog,
+            ObstacleType.hydrant,
+            ObstacleType.van,
+          ];
+
     // Pick 1 to 2 obstacle placements per chunk to avoid cluttered bottlenecks
     while (cursorX < endX) {
-      final typeIndex = _random.nextInt(ObstacleType.values.length);
-      final type = ObstacleType.values[typeIndex];
+      final typeIndex = _random.nextInt(availableTypes.length);
+      final type = availableTypes[typeIndex];
       final size = ObstacleComponent.defaultSizeForType(type);
 
       final obstacleY = groundY - size.y;
@@ -124,8 +135,9 @@ class WorldChunkManager {
         ),
       );
 
-      // Advance cursor past obstacle + guaranteed clearance
-      cursorX += size.x + minClearance + (_random.nextDouble() * 120.0);
+      // Advance cursor past obstacle + guaranteed clearance (granting extra buffer for oncoming skate messengers)
+      final extraClearance = (type == ObstacleType.skateMessenger) ? 60.0 : 0.0;
+      cursorX += size.x + minClearance + extraClearance + (_random.nextDouble() * 120.0);
     }
 
     // Place extra trail coins in the gaps if no hazard is nearby

@@ -175,6 +175,7 @@ class CourierGame extends FlameGame
       startX: nextChunkX,
       speed: currentSpeed,
       groundY: groundY,
+      distanceMeters: gameState.distanceMeters,
     );
 
     for (final o in chunk.obstacles) {
