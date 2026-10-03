@@ -11,7 +11,9 @@ import 'components/obstacle_component.dart';
 import 'components/parallax_city.dart';
 import 'components/particle_effect.dart';
 import 'components/pickup_component.dart';
+import 'components/rain_component.dart';
 import 'logic/game_state.dart';
+import 'logic/weather_controller.dart';
 import 'logic/world_chunk_manager.dart';
 import 'models/courier_skin.dart';
 
@@ -26,10 +28,12 @@ class CourierGame extends FlameGame
     GameState? gameState,
     GameAudioController? audioController,
     WorldChunkManager? chunkManager,
+    WeatherController? weatherController,
     CourierSkin? initialSkin,
   })  : gameState = gameState ?? GameState(),
         audio = audioController ?? GameAudioController(),
         chunkManager = chunkManager ?? WorldChunkManager(),
+        weatherController = weatherController ?? WeatherController(),
         activeSkin = initialSkin ?? CourierSkin.standard,
         super(
           camera: CameraComponent.withFixedResolution(
@@ -57,8 +61,10 @@ class CourierGame extends FlameGame
   final GameState gameState;
   final GameAudioController audio;
   final WorldChunkManager chunkManager;
+  final WeatherController weatherController;
 
   late final ParallaxCityComponent parallaxCity;
+  late final RainComponent rainComponent;
   late final CourierPlayer player;
 
   double currentSpeed = 200.0;
@@ -76,6 +82,11 @@ class CourierGame extends FlameGame
   /// Spawns footstep or landing sidewalk dust puffs.
   void spawnDust(Vector2 pos, {int count = 6}) {
     world.add(ParticleEffectComponent.dust(position: pos, count: count));
+  }
+
+  /// Spawns footstep, landing, or jump water splashes when wet/raining.
+  void spawnSplash(Vector2 pos, {int count = 8}) {
+    world.add(ParticleEffectComponent.splash(position: pos, count: count));
   }
 
   /// Spawns pickup collection sparkle bursts.
@@ -100,15 +111,26 @@ class CourierGame extends FlameGame
     parallaxCity = ParallaxCityComponent(size: virtualResolution);
     world.add(parallaxCity);
 
+    rainComponent = RainComponent(size: virtualResolution);
+    world.add(rainComponent);
+
     player = CourierPlayer(
       groundY: groundY,
       skin: activeSkin,
       onJump: () {
         audio.playJump();
-        spawnDust(Vector2(player.position.x + 16, groundY - 2), count: 5);
+        if (weatherController.isRaining) {
+          spawnSplash(Vector2(player.position.x + 16, groundY - 1), count: 6);
+        } else {
+          spawnDust(Vector2(player.position.x + 16, groundY - 2), count: 5);
+        }
       },
       onLand: () {
-        spawnDust(Vector2(player.position.x + 20, groundY - 2), count: 8);
+        if (weatherController.isRaining) {
+          spawnSplash(Vector2(player.position.x + 20, groundY - 1), count: 10);
+        } else {
+          spawnDust(Vector2(player.position.x + 20, groundY - 2), count: 8);
+        }
       },
       onDamage: () {
         audio.playFumble();
@@ -225,9 +247,11 @@ class CourierGame extends FlameGame
     _footstepTimer = 0.0;
 
     chunkManager.reset();
+    weatherController.reset();
+    rainComponent.rainIntensity = 0.0;
     nextChunkX = 960.0;
     currentSpeed = 200.0;
-    parallaxCity.updateLighting(0.0, 0.0);
+    parallaxCity.updateLighting(0.0, 0.0, 0.0);
 
     gameState.startRun();
     player.position = Vector2(120.0, groundY - player.size.y);
@@ -253,12 +277,16 @@ class CourierGame extends FlameGame
     gameState.updateStuntTimer(dt);
     player.isBoosted = gameState.isEnergyBoostActive;
 
-    // Footstep dust puffs while running along sidewalk
+    // Footstep dust or puddle splash puffs while running along sidewalk
     if (player.simulator.isGrounded && player.state == CourierState.running) {
       _footstepTimer += dt;
       if (_footstepTimer >= 0.28) {
         _footstepTimer = 0.0;
-        spawnDust(Vector2(player.position.x + 8.0, groundY - 2.0), count: 3);
+        if (weatherController.isRaining) {
+          spawnSplash(Vector2(player.position.x + 8.0, groundY - 1.0), count: 4);
+        } else {
+          spawnDust(Vector2(player.position.x + 8.0, groundY - 2.0), count: 3);
+        }
       }
     }
 
@@ -271,9 +299,18 @@ class CourierGame extends FlameGame
     final distanceDelta = (currentSpeed * dt) / 20.0;
     gameState.updateDistance(gameState.distanceMeters + distanceDelta);
 
+    // 2b. Advance dynamic weather simulation
+    weatherController.update(gameState.distanceMeters);
+    rainComponent.rainIntensity = weatherController.rainIntensity;
+    rainComponent.horizontalScrollSpeed = currentSpeed;
+
     // 3. Update parallax city velocity & dynamic environment lighting
     parallaxCity.speedMultiplier = currentSpeed / 200.0;
-    parallaxCity.updateLighting(gameState.distanceMeters, dt);
+    parallaxCity.updateLighting(
+      gameState.distanceMeters,
+      dt,
+      weatherController.rainIntensity,
+    );
 
     // 4. Scroll active hazards and pickups leftward
     final scrollDelta = currentSpeed * dt;
