@@ -13,6 +13,7 @@ import 'components/particle_effect.dart';
 import 'components/pickup_component.dart';
 import 'logic/game_state.dart';
 import 'logic/world_chunk_manager.dart';
+import 'models/courier_skin.dart';
 
 /// Main Flame game loop for Courier Dash.
 ///
@@ -25,15 +26,27 @@ class CourierGame extends FlameGame
     GameState? gameState,
     GameAudioController? audioController,
     WorldChunkManager? chunkManager,
+    CourierSkin? initialSkin,
   })  : gameState = gameState ?? GameState(),
         audio = audioController ?? GameAudioController(),
         chunkManager = chunkManager ?? WorldChunkManager(),
+        activeSkin = initialSkin ?? CourierSkin.standard,
         super(
           camera: CameraComponent.withFixedResolution(
             width: virtualResolution.x,
             height: virtualResolution.y,
           )..viewfinder.anchor = Anchor.topLeft,
         );
+
+  CourierSkin activeSkin;
+
+  /// Updates player cosmetic skin and runtime palette.
+  void setPlayerSkin(CourierSkin skin) {
+    activeSkin = skin;
+    if (isLoaded) {
+      player.setSkin(skin);
+    }
+  }
 
   /// Fixed virtual canvas resolution (16:9 widescreen).
   static final Vector2 virtualResolution = Vector2(960, 540);
@@ -89,6 +102,7 @@ class CourierGame extends FlameGame
 
     player = CourierPlayer(
       groundY: groundY,
+      skin: activeSkin,
       onJump: () {
         audio.playJump();
         spawnDust(Vector2(player.position.x + 16, groundY - 2), count: 5);

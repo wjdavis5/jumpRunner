@@ -5,9 +5,11 @@ import 'package:flutter/services.dart';
 import 'game/audio_controller.dart';
 import 'game/courier_game.dart';
 import 'game/logic/game_state.dart';
+import 'game/models/courier_skin.dart';
 import 'services/storage_service.dart';
 import 'ui/game_over_modal.dart';
 import 'ui/hud_overlay.dart';
+import 'ui/locker_modal.dart';
 import 'ui/pause_menu_modal.dart';
 import 'ui/title_screen.dart';
 
@@ -67,9 +69,11 @@ class _CourierDashAppState extends State<CourierDashApp> {
   void initState() {
     super.initState();
     _gameState = GameState();
+    final equippedSkin = CourierSkin.findById(widget.storageService.equippedSkin);
     _game = CourierGame(
       gameState: _gameState,
       audioController: widget.audioController,
+      initialSkin: equippedSkin,
     );
 
     _game.onRunConcluded = _handleRunConcluded;
@@ -141,6 +145,27 @@ class _CourierDashAppState extends State<CourierDashApp> {
     setState(() {});
   }
 
+  void _openLocker() {
+    _game.overlays.add('LockerModal');
+  }
+
+  void _closeLocker() {
+    _game.overlays.remove('LockerModal');
+  }
+
+  Future<void> _handleEquipSkin(String skinId) async {
+    await widget.storageService.equipSkin(skinId);
+    _game.setPlayerSkin(CourierSkin.findById(skinId));
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _handleUnlockSkin(String skinId, int price) async {
+    final success = await widget.storageService.unlockSkin(skinId, price);
+    if (success) {
+      await _handleEquipSkin(skinId);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -158,7 +183,16 @@ class _CourierDashAppState extends State<CourierDashApp> {
                   careerTips: widget.storageService.careerTips,
                   isMuted: widget.audioController.isMuted,
                   onToggleMute: _toggleMute,
+                  onOpenLocker: _openLocker,
                   onStartGame: _startGame,
+                ),
+            'LockerModal': (context, game) => LockerModal(
+                  careerTips: widget.storageService.careerTips,
+                  unlockedSkins: widget.storageService.unlockedSkins,
+                  equippedSkin: widget.storageService.equippedSkin,
+                  onEquipSkin: _handleEquipSkin,
+                  onUnlockSkin: _handleUnlockSkin,
+                  onClose: _closeLocker,
                 ),
             'HUD': (context, game) => AnimatedBuilder(
                   animation: _gameState,
