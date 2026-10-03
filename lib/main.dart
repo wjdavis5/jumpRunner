@@ -4,9 +4,11 @@ import 'package:flutter/services.dart';
 
 import 'game/audio_controller.dart';
 import 'game/courier_game.dart';
+import 'game/logic/achievement_manager.dart';
 import 'game/logic/game_state.dart';
 import 'game/models/courier_skin.dart';
 import 'services/storage_service.dart';
+import 'ui/achievements_modal.dart';
 import 'ui/game_over_modal.dart';
 import 'ui/hud_overlay.dart';
 import 'ui/locker_modal.dart';
@@ -73,6 +75,7 @@ class _CourierDashAppState extends State<CourierDashApp> {
     _game = CourierGame(
       gameState: _gameState,
       audioController: widget.audioController,
+      achievementManager: AchievementManager(storageService: widget.storageService),
       initialSkin: equippedSkin,
     );
 
@@ -94,6 +97,14 @@ class _CourierDashAppState extends State<CourierDashApp> {
     if (completed > 0) {
       await widget.storageService.recordCompletedContracts(completed);
     }
+
+    // Evaluate lifetime achievements (contract specialist, big tipper)
+    await _game.achievementManager.evaluateProgress(
+      distanceMeters: _lastDistance.toDouble(),
+      stuntCombo: _gameState.stuntMultiplier.round(),
+      lifetimeContracts: widget.storageService.completedContracts,
+      lifetimeCareerTips: widget.storageService.careerTips,
+    );
 
     if (mounted) {
       setState(() {});
@@ -159,6 +170,14 @@ class _CourierDashAppState extends State<CourierDashApp> {
     _game.overlays.remove('LockerModal');
   }
 
+  void _openAchievements() {
+    _game.overlays.add('AchievementsModal');
+  }
+
+  void _closeAchievements() {
+    _game.overlays.remove('AchievementsModal');
+  }
+
   Future<void> _handleEquipSkin(String skinId) async {
     await widget.storageService.equipSkin(skinId);
     _game.setPlayerSkin(CourierSkin.findById(skinId));
@@ -188,8 +207,11 @@ class _CourierDashAppState extends State<CourierDashApp> {
                   highDistance: widget.storageService.highDistance,
                   careerTips: widget.storageService.careerTips,
                   isMuted: widget.audioController.isMuted,
+                  unlockedAchievementsCount: _game.achievementManager.unlockedCount,
+                  totalAchievementsCount: _game.achievementManager.totalCount,
                   onToggleMute: _toggleMute,
                   onOpenLocker: _openLocker,
+                  onOpenAchievements: _openAchievements,
                   onStartGame: _startGame,
                 ),
             'LockerModal': (context, game) => LockerModal(
@@ -199,6 +221,10 @@ class _CourierDashAppState extends State<CourierDashApp> {
                   onEquipSkin: _handleEquipSkin,
                   onUnlockSkin: _handleUnlockSkin,
                   onClose: _closeLocker,
+                ),
+            'AchievementsModal': (context, game) => AchievementsModal(
+                  unlockedAchievementIds: widget.storageService.unlockedAchievements,
+                  onClose: _closeAchievements,
                 ),
             'HUD': (context, game) => AnimatedBuilder(
                   animation: _gameState,

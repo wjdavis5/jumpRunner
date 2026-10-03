@@ -15,6 +15,7 @@ class LocalStorageService {
   static const String _keyUnlockedSkins = 'courier_unlocked_skins';
   static const String _keyEquippedSkin = 'courier_equipped_skin';
   static const String _keyCompletedContracts = 'courier_completed_contracts';
+  static const String _keyUnlockedAchievements = 'courier_unlocked_achievements';
 
   SharedPreferences? _prefs;
 
@@ -31,6 +32,10 @@ class LocalStorageService {
 
   /// Lifetime delivery contracts completed by the courier.
   int get completedContracts => _prefs?.getInt(_keyCompletedContracts) ?? 0;
+
+  /// List of achievement identifiers unlocked by the player.
+  List<String> get unlockedAchievements =>
+      _prefs?.getStringList(_keyUnlockedAchievements) ?? const [];
 
   /// Whether audio is muted by player preference.
   bool get isSoundMuted => _prefs?.getBool(_keySoundMuted) ?? false;
@@ -102,5 +107,20 @@ class LocalStorageService {
     final prefs = _prefs;
     if (prefs == null || count <= 0) return;
     await prefs.setInt(_keyCompletedContracts, completedContracts + count);
+  }
+
+  /// Unlocks an achievement and persists it to local storage.
+  ///
+  /// Returns `true` if newly unlocked; `false` if already unlocked.
+  Future<bool> unlockAchievement(String achievementId) async {
+    final prefs = _prefs;
+    if (prefs == null) return false;
+
+    final current = List<String>.from(unlockedAchievements);
+    if (current.contains(achievementId)) return false;
+
+    current.add(achievementId);
+    await prefs.setStringList(_keyUnlockedAchievements, current);
+    return true;
   }
 }

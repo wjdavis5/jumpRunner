@@ -10,6 +10,9 @@ class TitleScreen extends StatelessWidget {
     this.isMuted = false,
     this.onToggleMute,
     this.onOpenLocker,
+    this.onOpenAchievements,
+    this.unlockedAchievementsCount = 0,
+    this.totalAchievementsCount = 6,
   });
 
   final int highDistance;
@@ -18,13 +21,16 @@ class TitleScreen extends StatelessWidget {
   final bool isMuted;
   final VoidCallback? onToggleMute;
   final VoidCallback? onOpenLocker;
+  final VoidCallback? onOpenAchievements;
+  final int unlockedAchievementsCount;
+  final int totalAchievementsCount;
 
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Container(
-        width: 520,
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+        width: 600,
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 22),
         decoration: BoxDecoration(
           color: const Color(0xFF1C2833).withValues(alpha: 0.95),
           borderRadius: BorderRadius.circular(24),
@@ -210,6 +216,34 @@ class TitleScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(14),
                         ),
                         padding: const EdgeInsets.symmetric(horizontal: 16),
+                      ),
+                    ),
+                  ),
+                ],
+                if (onOpenAchievements != null) ...[
+                  const SizedBox(width: 10),
+                  SizedBox(
+                    height: 52,
+                    child: OutlinedButton.icon(
+                      key: const Key('open_trophies_button'),
+                      onPressed: onOpenAchievements,
+                      icon: const Icon(Icons.emoji_events, size: 22, color: Color(0xFFF1C40F)),
+                      label: Text(
+                        'TROPHIES ($unlockedAchievementsCount/$totalAchievementsCount)',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFFF1C40F), width: 1.5),
+                        backgroundColor: const Color(0xFFF1C40F).withValues(alpha: 0.1),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
                       ),
                     ),
                   ),
