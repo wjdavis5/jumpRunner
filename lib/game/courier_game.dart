@@ -12,6 +12,7 @@ import 'components/parallax_city.dart';
 import 'components/particle_effect.dart';
 import 'components/pickup_component.dart';
 import 'components/rain_component.dart';
+import 'logic/achievement_manager.dart';
 import 'logic/camera_juice_controller.dart';
 import 'logic/game_state.dart';
 import 'logic/weather_controller.dart';
@@ -31,12 +32,14 @@ class CourierGame extends FlameGame
     WorldChunkManager? chunkManager,
     WeatherController? weatherController,
     CameraJuiceController? cameraJuiceController,
+    AchievementManager? achievementManager,
     CourierSkin? initialSkin,
   })  : gameState = gameState ?? GameState(),
         audio = audioController ?? GameAudioController(),
         chunkManager = chunkManager ?? WorldChunkManager(),
         weatherController = weatherController ?? WeatherController(),
         cameraJuice = cameraJuiceController ?? CameraJuiceController(),
+        achievementManager = achievementManager ?? AchievementManager(),
         activeSkin = initialSkin ?? CourierSkin.standard,
         super(
           camera: CameraComponent.withFixedResolution(
@@ -67,6 +70,9 @@ class CourierGame extends FlameGame
   final WorldChunkManager chunkManager;
   final WeatherController weatherController;
   final CameraJuiceController cameraJuice;
+  final AchievementManager achievementManager;
+
+  int _wetHazardsCleared = 0;
 
   late final ParallaxCityComponent parallaxCity;
   late final RainComponent rainComponent;
@@ -155,6 +161,17 @@ class CourierGame extends FlameGame
       audio.playMilestone();
       spawnConfetti(Vector2(virtualResolution.x / 2, 100));
       spawnConfetti(Vector2(player.position.x + 40, groundY - 120), count: 20);
+    };
+
+    achievementManager.onAchievementUnlocked = (achievement) {
+      audio.playMilestone();
+      world.add(
+        FloatingTextComponent(
+          text: 'TROPHY: ${achievement.title}!',
+          position: Vector2(player.position.x - 20, player.position.y - 40),
+          color: const Color(0xFFF1C40F),
+        ),
+      );
     };
 
     gameState.onGameOver = () {
@@ -261,6 +278,7 @@ class CourierGame extends FlameGame
     activeObstacles.clear();
     activePickups.clear();
     _footstepTimer = 0.0;
+    _wetHazardsCleared = 0;
 
     chunkManager.reset();
     weatherController.reset();
@@ -321,6 +339,12 @@ class CourierGame extends FlameGame
     // 2. Advance meter progress (20 px = 1 meter)
     final distanceDelta = (currentSpeed * dt) / 20.0;
     gameState.updateDistance(gameState.distanceMeters + distanceDelta);
+
+    // 2a. Evaluate distance achievements at key milestones
+    if ((gameState.distanceMeters >= 500.0 && !achievementManager.isUnlocked('first_delivery')) ||
+        (gameState.distanceMeters >= 2500.0 && !achievementManager.isUnlocked('shift_veteran'))) {
+      _evaluateAchievements();
+    }
 
     // 2b. Advance dynamic weather simulation
     weatherController.update(gameState.distanceMeters);
@@ -424,6 +448,21 @@ class CourierGame extends FlameGame
       Vector2(obstacle.position.x + (obstacle.size.x / 2), obstacle.position.y),
       color: const Color(0xFF00E5FF),
       count: 10,
+    );
+
+    if (weatherController.isRaining) {
+      _wetHazardsCleared++;
+    }
+    _evaluateAchievements();
+  }
+
+  void _evaluateAchievements() {
+    achievementManager.evaluateProgress(
+      distanceMeters: gameState.distanceMeters,
+      stuntCombo: gameState.stuntMultiplier.round(),
+      lifetimeContracts: gameState.contractManager.completedCount,
+      lifetimeCareerTips: gameState.tips + gameState.contractManager.totalBonusTips,
+      wetHazardsCleared: _wetHazardsCleared,
     );
   }
 
