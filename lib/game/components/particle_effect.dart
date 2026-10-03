@@ -66,6 +66,44 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Factory for footstep and landing puddle water splashes when wet/raining.
+  factory ParticleEffectComponent.splash({
+    required Vector2 position,
+    int count = 8,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFF81D4FA), // Light Blue
+      Color(0xFFB3E5FC), // Pale droplet
+      Color(0xFFE1F5FE), // Foam highlight
+      Color(0xFFFFFFFF), // Pure droplet reflection
+    ];
+
+    for (var i = 0; i < count; i++) {
+      // Fan upward and slightly backward
+      final angle = -math.pi / 2 + (rng.nextDouble() - 0.5) * 1.4;
+      final speed = 40.0 + rng.nextDouble() * 70.0;
+      final velocity = Vector2(math.cos(angle) * speed - 15.0, math.sin(angle) * speed);
+
+      particles.add(
+        GameParticle(
+          position: position.clone() + Vector2((rng.nextDouble() - 0.5) * 8, (rng.nextDouble() - 0.5) * 3),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 1.8 + rng.nextDouble() * 1.8,
+          maxLife: 0.25 + rng.nextDouble() * 0.15,
+          gravity: 220.0,
+          drag: 1.0,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   /// Factory for coin and pickup collection sparkles.
   factory ParticleEffectComponent.sparkles({
     required Vector2 position,

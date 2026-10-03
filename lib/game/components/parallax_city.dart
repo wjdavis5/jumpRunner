@@ -157,6 +157,7 @@ class ParallaxCityComponent extends PositionComponent {
   double elapsedTime = 0.0;
 
   late TimeOfDayPalette currentPalette;
+  double rainIntensity = 0.0;
 
   // Static color references preserved for backward compatibility
   static const Color skyTopColor = Color(0xFF6BA3D8);
@@ -260,10 +261,11 @@ class ParallaxCityComponent extends PositionComponent {
     }
   }
 
-  /// Updates ambient lighting and sky colors according to courier distance.
-  void updateLighting(double meters, [double dt = 0.0]) {
+  /// Updates ambient lighting and sky colors according to courier distance and weather.
+  void updateLighting(double meters, [double dt = 0.0, double rain = 0.0]) {
     distanceMeters = meters;
     elapsedTime += dt;
+    rainIntensity = rain.clamp(0.0, 1.0);
     currentPalette = calculatePaletteForDistance(meters);
   }
 
@@ -399,21 +401,36 @@ class ParallaxCityComponent extends PositionComponent {
   }
 
   void _renderSidewalk(Canvas canvas, double w, double h, double groundY, double offset) {
-    // 1. Sidewalk body
-    final sidewalkPaint = Paint()..color = currentPalette.sidewalk;
+    // 1. Sidewalk body - darken concrete slightly when wet
+    final wetSidewalkColor = rainIntensity > 0.05
+        ? Color.lerp(currentPalette.sidewalk, const Color(0xFF2B3033), rainIntensity * 0.45)!
+        : currentPalette.sidewalk;
+    final sidewalkPaint = Paint()..color = wetSidewalkColor;
     canvas.drawRect(Rect.fromLTWH(0, groundY, w, 24), sidewalkPaint);
 
     // 2. Curb edge
-    final curbPaint = Paint()..color = currentPalette.curb;
+    final wetCurbColor = rainIntensity > 0.05
+        ? Color.lerp(currentPalette.curb, const Color(0xFF1E2224), rainIntensity * 0.45)!
+        : currentPalette.curb;
+    final curbPaint = Paint()..color = wetCurbColor;
     canvas.drawRect(Rect.fromLTWH(0, groundY + 20, w, 4), curbPaint);
 
     // 3. Street asphalt below curb
     final streetPaint = Paint()..color = currentPalette.street;
     canvas.drawRect(Rect.fromLTWH(0, groundY + 24, w, h - (groundY + 24)), streetPaint);
 
+    // 3b. Wet asphalt sheen glaze when raining
+    if (rainIntensity > 0.08) {
+      final wetSheenAlpha =
+          (0.10 * rainIntensity + 0.08 * rainIntensity * currentPalette.lampGlow).clamp(0.0, 1.0);
+      final sheenPaint = Paint()
+        ..color = const Color(0xFF81D4FA).withValues(alpha: wetSheenAlpha);
+      canvas.drawRect(Rect.fromLTWH(0, groundY + 24, w, h - (groundY + 24)), sheenPaint);
+    }
+
     // 4. Sidewalk slab joint lines that scroll
     final jointPaint = Paint()
-      ..color = currentPalette.curb
+      ..color = wetCurbColor
       ..strokeWidth = 2;
 
     for (var slice = -1; slice <= 1; slice++) {
@@ -421,6 +438,19 @@ class ParallaxCityComponent extends PositionComponent {
       for (var x = startX; x < startX + w; x += 60.0) {
         if (x >= -10 && x <= w + 10) {
           canvas.drawLine(Offset(x, groundY), Offset(x, groundY + 20), jointPaint);
+        }
+      }
+    }
+
+    // 4b. Sidewalk rain puddles with sky/lamp reflections
+    if (rainIntensity > 0.1) {
+      const puddleSpacing = 160.0;
+      for (var slice = -1; slice <= 1; slice++) {
+        final startX = slice * w - offset;
+        for (var px = startX + 110.0; px < startX + w; px += puddleSpacing) {
+          if (px >= -50.0 && px <= w + 50.0) {
+            _renderPuddle(canvas, px, groundY + 11.0, rainIntensity);
+          }
         }
       }
     }
@@ -435,6 +465,32 @@ class ParallaxCityComponent extends PositionComponent {
         }
       }
     }
+  }
+
+  void _renderPuddle(Canvas canvas, double px, double py, double intensity) {
+    // Water basin depression
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(px, py), width: 36.0, height: 8.0),
+      Paint()..color = const Color(0xFF1E282D).withValues(alpha: (0.42 * intensity).clamp(0.0, 1.0)),
+    );
+
+    // Sky reflection shimmer
+    final reflectionColor = currentPalette.skyBottom;
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(px, py - 0.5), width: 30.0, height: 5.5),
+      Paint()..color = reflectionColor.withValues(alpha: (0.35 * intensity).clamp(0.0, 1.0)),
+    );
+
+    // Subtle water ripple ring
+    final rippleRadius = ((elapsedTime * 6.0 + (px % 8.0)) % 10.0) + 1.0;
+    final rippleAlpha = (0.30 * intensity * (1.0 - rippleRadius / 11.0)).clamp(0.0, 1.0);
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(px, py), width: rippleRadius * 2.4, height: rippleRadius * 0.6),
+      Paint()
+        ..color = Colors.white.withValues(alpha: rippleAlpha)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.8,
+    );
   }
 
   void _renderStreetlamp(Canvas canvas, double lx, double groundY, double glow) {
@@ -508,6 +564,22 @@ class ParallaxCityComponent extends PositionComponent {
         groundPoolRect,
         Paint()..color = const Color(0xFFFFEE88).withValues(alpha: (0.22 * glow).clamp(0.0, 1.0)),
       );
+
+      // Downward vertical wet asphalt streetlamp reflection
+      if (rainIntensity > 0.05) {
+        final reflectionRect = Rect.fromLTWH(lx + 8.0, groundY + 24.0, 16.0, 48.0);
+        final reflectionAlpha = (0.24 * glow * rainIntensity).clamp(0.0, 1.0);
+        final streetReflectionPaint = Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              const Color(0xFFFFD54F).withValues(alpha: reflectionAlpha),
+              const Color(0xFFFFD54F).withValues(alpha: 0.0),
+            ],
+          ).createShader(reflectionRect);
+        canvas.drawRect(reflectionRect, streetReflectionPaint);
+      }
     }
   }
 }
