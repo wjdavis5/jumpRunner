@@ -9,11 +9,13 @@ class HUDOverlay extends StatelessWidget {
     required this.gameState,
     this.isMuted = false,
     this.onToggleMute,
+    this.onPause,
   });
 
   final GameState gameState;
   final bool isMuted;
   final VoidCallback? onToggleMute;
+  final VoidCallback? onPause;
 
   @override
   Widget build(BuildContext context) {
@@ -293,6 +295,21 @@ class HUDOverlay extends StatelessWidget {
             ],
           ),
         ),
+        if (onPause != null) ...[
+          const SizedBox(width: 8),
+          IconButton(
+            key: const Key('pause_button'),
+            tooltip: 'Pause Shift (P)',
+            onPressed: onPause,
+            icon: const Icon(
+              Icons.pause,
+              color: Colors.white70,
+            ),
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.black.withValues(alpha: 0.6),
+            ),
+          ),
+        ],
         if (onToggleMute != null) ...[
           const SizedBox(width: 8),
           IconButton(

@@ -1,10 +1,13 @@
 import 'package:flame/camera.dart';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jump_runner/game/components/parallax_city.dart';
 import 'package:jump_runner/game/components/pickup_component.dart';
 import 'package:jump_runner/game/courier_game.dart';
+import 'package:jump_runner/game/logic/game_state.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -91,6 +94,48 @@ void main() {
       // Coin should have been pulled closer to player than simple scrolling alone
       final newDist = (game.player.position - coin.position).length;
       expect(newDist, lessThan(initialDist));
+    });
+
+    test('Keyboard P and Escape keys request pause, and paused status freezes game tick', () async {
+      final game = CourierGame();
+      await game.onLoad();
+      game.gameState.startRun();
+
+      int pauseRequestCount = 0;
+      game.onPauseRequested = () => pauseRequestCount++;
+
+      // Press P key
+      final pResult = game.onKeyEvent(
+        const KeyDownEvent(
+          physicalKey: PhysicalKeyboardKey.keyP,
+          logicalKey: LogicalKeyboardKey.keyP,
+          timeStamp: Duration.zero,
+        ),
+        {LogicalKeyboardKey.keyP},
+      );
+      expect(pResult, equals(KeyEventResult.handled));
+      expect(pauseRequestCount, equals(1));
+
+      // Press Escape key
+      final escResult = game.onKeyEvent(
+        const KeyDownEvent(
+          physicalKey: PhysicalKeyboardKey.escape,
+          logicalKey: LogicalKeyboardKey.escape,
+          timeStamp: Duration.zero,
+        ),
+        {LogicalKeyboardKey.escape},
+      );
+      expect(escResult, equals(KeyEventResult.handled));
+      expect(pauseRequestCount, equals(2));
+
+      // Freeze check: pause run
+      game.gameState.pauseRun();
+      final initialDistance = game.gameState.distanceMeters;
+      final initialNextChunkX = game.nextChunkX;
+
+      game.update(1.0); // 1 full second
+      expect(game.gameState.distanceMeters, equals(initialDistance));
+      expect(game.nextChunkX, equals(initialNextChunkX));
     });
   });
 }
