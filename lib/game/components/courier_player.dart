@@ -53,11 +53,33 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   double _runCycleTimer = 0.0;
   int _currentRunFrame = 0;
 
+  /// Curated Kenney character sprites for running, jumping, and hurt states.
+  List<Sprite>? runSprites;
+  Sprite? jumpSprite;
+  Sprite? hurtSprite;
+
   late final RectangleHitbox torsoHitbox;
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
+
+    try {
+      runSprites = await Future.wait([
+        Sprite.load('courier/run_1.png'),
+        Sprite.load('courier/run_2.png'),
+        Sprite.load('courier/run_3.png'),
+        Sprite.load('courier/run_4.png'),
+      ]);
+      jumpSprite = await Sprite.load('courier/jump.png');
+      hurtSprite = await Sprite.load('courier/hurt.png');
+    } catch (_) {
+      // In headless test environments where asset bundles are mocked or unavailable,
+      // fallback smoothly to procedural vector drawings.
+      runSprites = null;
+      jumpSprite = null;
+      hurtSprite = null;
+    }
 
     // Hitbox calibrated to the courier's torso and backpack (32x48 centered horizontally)
     // to prevent punitive collisions on swinging arms/feet.
@@ -156,7 +178,15 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
       if (flicker) return;
     }
 
-    _drawCourier(canvas);
+    if (state == CourierState.hurt && hurtSprite != null) {
+      hurtSprite!.render(canvas, size: size);
+    } else if ((state == CourierState.jumping || state == CourierState.falling) && jumpSprite != null) {
+      jumpSprite!.render(canvas, size: size);
+    } else if (state == CourierState.running && runSprites != null && runSprites!.isNotEmpty) {
+      runSprites![_currentRunFrame % runSprites!.length].render(canvas, size: size);
+    } else {
+      _drawCourier(canvas);
+    }
   }
 
   void _drawEnergyAura(Canvas canvas) {

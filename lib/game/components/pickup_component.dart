@@ -32,6 +32,8 @@ class PickupComponent extends PositionComponent with CollisionCallbacks {
   final PickupType type;
   final ValueChanged<PickupType>? onCollected;
 
+  Sprite? sprite;
+
   late double _baseY;
   double _bobTimer = 0.0;
   bool isCollected = false;
@@ -40,9 +42,27 @@ class PickupComponent extends PositionComponent with CollisionCallbacks {
 
   late final RectangleHitbox hitbox;
 
+  static String spritePathForType(PickupType type) {
+    switch (type) {
+      case PickupType.coin:
+      case PickupType.coin5:
+        return 'pickups/coin.png';
+      case PickupType.energyDrink:
+        return 'pickups/energy_drink.png';
+      case PickupType.packageRestore:
+        return 'pickups/package_box.png';
+    }
+  }
+
   @override
   Future<void> onLoad() async {
     await super.onLoad();
+
+    try {
+      sprite = await Sprite.load(spritePathForType(type));
+    } catch (_) {
+      sprite = null;
+    }
 
     hitbox = RectangleHitbox(
       position: Vector2.zero(),
@@ -83,6 +103,16 @@ class PickupComponent extends PositionComponent with CollisionCallbacks {
   @override
   void render(Canvas canvas) {
     super.render(canvas);
+
+    if (sprite != null) {
+      sprite!.render(canvas, size: size);
+      if (type == PickupType.coin5) {
+        // Distinguishing badge for $5 coin
+        final badgePaint = Paint()..color = const Color(0xFFE67E22);
+        canvas.drawCircle(Offset(size.x - 5, 5), 4, badgePaint);
+      }
+      return;
+    }
 
     switch (type) {
       case PickupType.coin:
