@@ -5,12 +5,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import 'audio_controller.dart';
+import '../services/storage_service.dart';
 import 'components/courier_player.dart';
 import 'components/floating_text_component.dart';
 import 'components/obstacle_component.dart';
 import 'components/parallax_city.dart';
 import 'components/particle_effect.dart';
 import 'components/pickup_component.dart';
+import 'components/pr_marker_component.dart';
 import 'components/rain_component.dart';
 import 'logic/achievement_manager.dart';
 import 'logic/camera_juice_controller.dart';
@@ -33,6 +35,8 @@ class CourierGame extends FlameGame
     WeatherController? weatherController,
     CameraJuiceController? cameraJuiceController,
     AchievementManager? achievementManager,
+    LocalStorageService? storageService,
+    int? personalRecordDistance,
     CourierSkin? initialSkin,
   })  : gameState = gameState ?? GameState(),
         audio = audioController ?? GameAudioController(),
@@ -40,6 +44,8 @@ class CourierGame extends FlameGame
         weatherController = weatherController ?? WeatherController(),
         cameraJuice = cameraJuiceController ?? CameraJuiceController(),
         achievementManager = achievementManager ?? AchievementManager(),
+        storage = storageService,
+        personalRecordDistance = personalRecordDistance ?? storageService?.highDistance ?? 0,
         activeSkin = initialSkin ?? CourierSkin.standard,
         super(
           camera: CameraComponent.withFixedResolution(
@@ -71,6 +77,12 @@ class CourierGame extends FlameGame
   final WeatherController weatherController;
   final CameraJuiceController cameraJuice;
   final AchievementManager achievementManager;
+  final LocalStorageService? storage;
+
+  int personalRecordDistance;
+  PersonalRecordMarkerComponent? activePrMarker;
+  bool hasSpawnedPrMarker = false;
+  bool hasSurpassedPr = false;
 
   int _wetHazardsCleared = 0;
 
@@ -280,6 +292,14 @@ class CourierGame extends FlameGame
     _footstepTimer = 0.0;
     _wetHazardsCleared = 0;
 
+    for (final m in world.children.whereType<PersonalRecordMarkerComponent>().toList()) {
+      m.removeFromParent();
+    }
+    activePrMarker = null;
+    hasSpawnedPrMarker = false;
+    hasSurpassedPr = false;
+    personalRecordDistance = storage?.highDistance ?? personalRecordDistance;
+
     chunkManager.reset();
     weatherController.reset();
     rainComponent.rainIntensity = 0.0;
@@ -346,6 +366,22 @@ class CourierGame extends FlameGame
       _evaluateAchievements();
     }
 
+    // 2c. Evaluate Personal Record (PR) Holographic Sidewalk Marker Spawning
+    if (!hasSpawnedPrMarker && personalRecordDistance >= 100) {
+      final remainingMeters = personalRecordDistance - gameState.distanceMeters;
+      // Spawn when milestone is within 45m ahead (~900px, entering horizon)
+      if (remainingMeters <= 45.0 && remainingMeters > -5.0) {
+        final spawnX = player.position.x + (remainingMeters * 20.0);
+        final marker = PersonalRecordMarkerComponent(
+          prDistance: personalRecordDistance,
+          position: Vector2(spawnX, groundY - 80.0),
+        );
+        activePrMarker = marker;
+        hasSpawnedPrMarker = true;
+        world.add(marker);
+      }
+    }
+
     // 2b. Advance dynamic weather simulation
     weatherController.update(gameState.distanceMeters);
     rainComponent.rainIntensity = weatherController.rainIntensity;
@@ -367,7 +403,7 @@ class CourierGame extends FlameGame
     camera.viewfinder.zoom = cameraJuice.currentZoom;
     camera.viewfinder.angle = cameraJuice.shakeAngle;
 
-    // 4. Scroll active hazards and pickups leftward
+    // 4. Scroll active hazards, pickups, and PR marker leftward
     final scrollDelta = currentSpeed * dt;
     nextChunkX -= scrollDelta;
 
@@ -376,6 +412,18 @@ class CourierGame extends FlameGame
     }
     for (final p in activePickups) {
       p.position.x -= scrollDelta;
+    }
+    if (activePrMarker != null) {
+      activePrMarker!.position.x -= scrollDelta;
+    }
+
+    // 4b. Evaluate Personal Record (PR) Surpass Celebration
+    if (activePrMarker != null && !activePrMarker!.hasBeenSurpassed) {
+      if (player.position.x >= activePrMarker!.position.x) {
+        activePrMarker!.hasBeenSurpassed = true;
+        hasSurpassedPr = true;
+        _handlePersonalRecordSurpassed(activePrMarker!);
+      }
     }
 
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
@@ -422,6 +470,12 @@ class CourierGame extends FlameGame
     // 6. Clean up recycled items
     activeObstacles.removeWhere((o) => o.shouldRecycle || !o.isMounted);
     activePickups.removeWhere((p) => p.shouldRecycle || p.isCollected || !p.isMounted);
+    if (activePrMarker != null && activePrMarker!.shouldRecycle) {
+      if (activePrMarker!.isMounted) {
+        activePrMarker!.removeFromParent();
+      }
+      activePrMarker = null;
+    }
 
     // 7. Spawn next procedural chunk when horizon approaches
     if (nextChunkX <= virtualResolution.x + 480.0) {
@@ -464,6 +518,30 @@ class CourierGame extends FlameGame
       lifetimeCareerTips: gameState.tips + gameState.contractManager.totalBonusTips,
       wetHazardsCleared: _wetHazardsCleared,
     );
+  }
+
+  void _handlePersonalRecordSurpassed(PersonalRecordMarkerComponent marker) {
+    audio.playMilestone();
+    triggerScreenShake(0.35);
+
+    // Floating celebratory banner above courier
+    world.add(
+      FloatingTextComponent(
+        text: 'NEW RECORD! ${marker.prDistance}m BEATEN!',
+        position: Vector2(player.position.x - 10, player.position.y - 30),
+        color: const Color(0xFFF1C40F),
+      ),
+    );
+
+    // Gold sparkle burst at marker apex
+    spawnSparkles(
+      Vector2(marker.position.x + (marker.size.x / 2), marker.position.y + 10),
+      color: const Color(0xFFF1C40F),
+      count: 18,
+    );
+
+    // Horizon celebratory confetti shower
+    spawnConfetti(Vector2(virtualResolution.x / 2, 80), count: 25);
   }
 
   @override
