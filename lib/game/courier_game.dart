@@ -265,6 +265,7 @@ class CourierGame extends FlameGame
     chunkManager.reset();
     weatherController.reset();
     rainComponent.rainIntensity = 0.0;
+    audio.updateWeather(0.0);
     cameraJuice.reset();
     final baseCenter = Vector2(virtualResolution.x / 2, virtualResolution.y / 2);
     camera.viewfinder.position = baseCenter;
@@ -325,6 +326,7 @@ class CourierGame extends FlameGame
     weatherController.update(gameState.distanceMeters);
     rainComponent.rainIntensity = weatherController.rainIntensity;
     rainComponent.horizontalScrollSpeed = currentSpeed;
+    audio.updateWeather(weatherController.rainIntensity);
 
     // 3. Update parallax city velocity & dynamic environment lighting
     parallaxCity.speedMultiplier = currentSpeed / 200.0;

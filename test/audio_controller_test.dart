@@ -36,6 +36,28 @@ class MockAudioBackend implements AudioPlayerInterface {
   Future<void> setPlaybackRate(double rate) async {
     playbackRate = rate;
   }
+
+  String? activeAmbience;
+  bool isAmbiencePlaying = false;
+  double ambienceVolume = 0.0;
+
+  @override
+  Future<void> startAmbience(String file, {double volume = 0.0}) async {
+    activeAmbience = file;
+    isAmbiencePlaying = true;
+    ambienceVolume = volume;
+  }
+
+  @override
+  Future<void> stopAmbience() async {
+    isAmbiencePlaying = false;
+    ambienceVolume = 0.0;
+  }
+
+  @override
+  Future<void> setAmbienceVolume(double volume) async {
+    ambienceVolume = volume;
+  }
 }
 
 void main() {
@@ -203,6 +225,90 @@ void main() {
       await audio.toggleMute();
       expect(mockBackend.isBgmPlaying, isTrue);
       expect(mockBackend.bgmVolume, closeTo(GameAudioController.duckedBgmVolume, 0.01));
+    });
+
+    test('Weather ambience updates scale smoothly from 0.0 to 0.4 based on rain precipitation intensity', () async {
+      final audio = GameAudioController(
+        backend: mockBackend,
+        storageService: storage,
+      );
+
+      // Intensity 0.0: No ambience active
+      await audio.updateWeather(0.0);
+      expect(audio.isRainAudioActive, isFalse);
+      expect(mockBackend.isAmbiencePlaying, isFalse);
+      expect(audio.currentRainVolume, equals(0.0));
+
+      // Intensity 0.5: Half precipitation -> volume 0.2
+      await audio.updateWeather(0.5);
+      expect(audio.isRainAudioActive, isTrue);
+      expect(mockBackend.isAmbiencePlaying, isTrue);
+      expect(mockBackend.activeAmbience, equals(GameAudioController.sfxRainAmbience));
+      expect(audio.currentRainVolume, closeTo(0.2, 0.001));
+      expect(mockBackend.ambienceVolume, closeTo(0.2, 0.001));
+
+      // Intensity 1.0: Full precipitation -> max volume 0.4
+      await audio.updateWeather(1.0);
+      expect(audio.currentRainVolume, closeTo(0.4, 0.001));
+      expect(mockBackend.ambienceVolume, closeTo(0.4, 0.001));
+
+      // Intensity > 1.0 clamped at 0.4
+      await audio.updateWeather(1.5);
+      expect(audio.currentRainVolume, closeTo(0.4, 0.001));
+      expect(mockBackend.ambienceVolume, closeTo(0.4, 0.001));
+
+      // Back to 0.0: Ambience stopped
+      await audio.updateWeather(0.0);
+      expect(audio.isRainAudioActive, isFalse);
+      expect(mockBackend.isAmbiencePlaying, isFalse);
+      expect(audio.currentRainVolume, equals(0.0));
+    });
+
+    test('Mute toggle silences rain ambience and unmuting restores weather audio when raining', () async {
+      final audio = GameAudioController(
+        backend: mockBackend,
+        storageService: storage,
+      );
+
+      // Start rain at intensity 0.75 (volume 0.3)
+      await audio.updateWeather(0.75);
+      expect(audio.isRainAudioActive, isTrue);
+      expect(mockBackend.isAmbiencePlaying, isTrue);
+      expect(mockBackend.ambienceVolume, closeTo(0.3, 0.001));
+
+      // Toggle mute: should stop ambient audio
+      await audio.toggleMute();
+      expect(audio.isMuted, isTrue);
+      expect(audio.isRainAudioActive, isFalse);
+      expect(mockBackend.isAmbiencePlaying, isFalse);
+
+      // Updating weather while muted should not play audio
+      await audio.updateWeather(0.9);
+      expect(audio.isRainAudioActive, isFalse);
+      expect(mockBackend.isAmbiencePlaying, isFalse);
+
+      // Unmute: should restore ambient audio based on current rain intensity
+      await audio.toggleMute();
+      expect(audio.isMuted, isFalse);
+      expect(audio.isRainAudioActive, isTrue);
+      expect(mockBackend.isAmbiencePlaying, isTrue);
+      expect(mockBackend.ambienceVolume, closeTo(0.36, 0.001));
+    });
+
+    test('stopMusic stops active rain ambience', () async {
+      final audio = GameAudioController(
+        backend: mockBackend,
+        storageService: storage,
+      );
+
+      await audio.updateWeather(0.6);
+      expect(audio.isRainAudioActive, isTrue);
+      expect(mockBackend.isAmbiencePlaying, isTrue);
+
+      await audio.stopMusic();
+      expect(audio.isRainAudioActive, isFalse);
+      expect(mockBackend.isAmbiencePlaying, isFalse);
+      expect(audio.currentRainVolume, equals(0.0));
     });
   });
 }

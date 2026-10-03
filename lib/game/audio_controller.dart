@@ -11,12 +11,18 @@ abstract class AudioPlayerInterface {
   Future<void> stopBgm();
   Future<void> setBgmVolume(double volume);
   Future<void> setPlaybackRate(double rate);
+
+  Future<void> startAmbience(String file, {double volume = 0.0}) async {}
+  Future<void> stopAmbience() async {}
+  Future<void> setAmbienceVolume(double volume) async {}
 }
 
 /// Production audio backend delegating to FlameAudio.
 ///
 /// Swallows platform errors quietly to ensure missing hardware channels never crash the app.
 class FlameAudioBackend implements AudioPlayerInterface {
+  AudioPlayer? _ambiencePlayer;
+
   @override
   Future<void> playSfx(String file, {double volume = 1.0}) async {
     try {
@@ -61,6 +67,41 @@ class FlameAudioBackend implements AudioPlayerInterface {
       debugPrint('[Audio] Bgm playback rate error: $e');
     }
   }
+
+  @override
+  Future<void> startAmbience(String file, {double volume = 0.0}) async {
+    try {
+      if (_ambiencePlayer != null) {
+        await _ambiencePlayer!.stop();
+      }
+      _ambiencePlayer = await FlameAudio.loopLongAudio(file, volume: volume);
+    } catch (e) {
+      debugPrint('[Audio] Ambience error ($file): $e');
+    }
+  }
+
+  @override
+  Future<void> stopAmbience() async {
+    try {
+      if (_ambiencePlayer != null) {
+        await _ambiencePlayer!.stop();
+        _ambiencePlayer = null;
+      }
+    } catch (e) {
+      debugPrint('[Audio] Ambience stop error: $e');
+    }
+  }
+
+  @override
+  Future<void> setAmbienceVolume(double volume) async {
+    try {
+      if (_ambiencePlayer != null) {
+        await _ambiencePlayer!.setVolume(volume);
+      }
+    } catch (e) {
+      debugPrint('[Audio] Ambience volume error: $e');
+    }
+  }
 }
 
 /// Central audio manager for Courier Dash.
@@ -101,7 +142,15 @@ class GameAudioController {
   static const String sfxCoin = 'sfx/coin.ogg';
   static const String sfxFumble = 'sfx/fumble.ogg';
   static const String sfxMilestone = 'sfx/milestone.ogg';
+  static const String sfxRainAmbience = 'sfx/rain_ambience.ogg';
   static const String musicBgm = 'music/courier_groove.ogg';
+
+  /// Maximum volume for ambient weather rain audio (Issue #27 requirement: 0.0 to 0.4).
+  static const double maxRainAmbienceVolume = 0.4;
+
+  double currentRainIntensity = 0.0;
+  double currentRainVolume = 0.0;
+  bool isRainAudioActive = false;
 
   /// Preloads audio assets into cache for low-latency playback.
   Future<void> preload() async {
@@ -111,6 +160,7 @@ class GameAudioController {
         sfxCoin,
         sfxFumble,
         sfxMilestone,
+        sfxRainAmbience,
         musicBgm,
       ]);
     } catch (_) {}
@@ -179,15 +229,72 @@ class GameAudioController {
 
     if (isMuted) {
       await _backend.stopBgm();
-    } else if (isMusicActive) {
-      final vol = isPaused
-          ? duckedBgmVolume
-          : (isMilestoneDucking ? milestoneDuckedBgmVolume : currentBgmVolume);
-      await _backend.startBgm(musicBgm, volume: vol);
-      if (currentPlaybackRate != 1.0) {
-        await _backend.setPlaybackRate(currentPlaybackRate);
+      if (isRainAudioActive) {
+        await _backend.stopAmbience();
+        isRainAudioActive = false;
+        currentRainVolume = 0.0;
+      }
+    } else {
+      if (isMusicActive) {
+        final vol = isPaused
+            ? duckedBgmVolume
+            : (isMilestoneDucking ? milestoneDuckedBgmVolume : currentBgmVolume);
+        await _backend.startBgm(musicBgm, volume: vol);
+        if (currentPlaybackRate != 1.0) {
+          await _backend.setPlaybackRate(currentPlaybackRate);
+        }
+      }
+      if (currentRainIntensity > 0.01) {
+        final targetVolume = currentRainIntensity * maxRainAmbienceVolume;
+        isRainAudioActive = true;
+        currentRainVolume = targetVolume;
+        await _backend.startAmbience(sfxRainAmbience, volume: targetVolume);
       }
     }
+  }
+
+  /// Updates ambient weather audio based on rain precipitation intensity (0.0 to 1.0).
+  ///
+  /// Dynamically scales volume between 0.0 and 0.4 with smooth interpolation,
+  /// and respects user mute state.
+  Future<void> updateWeather(double rainIntensity) async {
+    currentRainIntensity = rainIntensity.clamp(0.0, 1.0);
+    final targetVolume = currentRainIntensity * maxRainAmbienceVolume;
+
+    if (isMuted) {
+      if (isRainAudioActive) {
+        await _backend.stopAmbience();
+        isRainAudioActive = false;
+        currentRainVolume = 0.0;
+      }
+      return;
+    }
+
+    if (targetVolume > 0.01) {
+      if (!isRainAudioActive) {
+        isRainAudioActive = true;
+        currentRainVolume = targetVolume;
+        await _backend.startAmbience(sfxRainAmbience, volume: targetVolume);
+      } else if ((targetVolume - currentRainVolume).abs() >= 0.01) {
+        currentRainVolume = targetVolume;
+        await _backend.setAmbienceVolume(targetVolume);
+      }
+    } else {
+      if (isRainAudioActive) {
+        await _backend.setAmbienceVolume(0.0);
+        await _backend.stopAmbience();
+        isRainAudioActive = false;
+        currentRainVolume = 0.0;
+      }
+    }
+  }
+
+  /// Stops all ambient soundscapes (e.g. on run restart or game exit).
+  Future<void> stopAmbience() async {
+    isRainAudioActive = false;
+    currentRainVolume = 0.0;
+    currentRainIntensity = 0.0;
+    await _backend.stopAmbience();
   }
 
   /// Plays jump sound effect.
@@ -232,9 +339,10 @@ class GameAudioController {
     }
   }
 
-  /// Stops background music track.
+  /// Stops background music track and active ambient soundscapes.
   Future<void> stopMusic() async {
     isMusicActive = false;
     await _backend.stopBgm();
+    await stopAmbience();
   }
 }
