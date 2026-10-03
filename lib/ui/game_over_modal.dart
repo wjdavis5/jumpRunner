@@ -9,12 +9,16 @@ class GameOverModal extends StatelessWidget {
     required this.isNewRecord,
     required this.careerTips,
     required this.onRestart,
+    this.completedContracts = 0,
+    this.contractBonusTips = 0,
   });
 
   final int distance;
   final int tips;
   final bool isNewRecord;
   final int careerTips;
+  final int completedContracts;
+  final int contractBonusTips;
   final VoidCallback onRestart;
 
   @override
@@ -73,6 +77,37 @@ class GameOverModal extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                     fontSize: 13,
                   ),
+                ),
+              ),
+
+            if (completedContracts > 0)
+              Container(
+                key: const Key('game_over_contracts_badge'),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2ECC71).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF2ECC71), width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.task_alt, color: Color(0xFF2ECC71), size: 16),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '$completedContracts CONTRACT${completedContracts > 1 ? 'S' : ''} (+\$$contractBonusTips BONUS)',
+                        style: const TextStyle(
+                          color: Color(0xFF2ECC71),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
               ),
 

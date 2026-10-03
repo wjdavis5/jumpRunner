@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../game/logic/game_state.dart';
+import '../game/models/shift_contract.dart';
 
 /// Top HUD overlay displaying carried package HP, current distance, and tip earnings.
 class HUDOverlay extends StatelessWidget {
@@ -49,6 +50,15 @@ class HUDOverlay extends StatelessWidget {
               right: 0,
               child: Center(
                 child: _buildMilestoneBanner(gameState.activeMilestone!),
+              ),
+            ),
+          if (gameState.isContractCelebrationVisible && gameState.activeContractCelebration != null)
+            Positioned(
+              top: gameState.isMilestoneBannerVisible ? 142.0 : 72.0,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: _buildContractBanner(gameState.activeContractCelebration!),
               ),
             ),
         ],
@@ -142,6 +152,69 @@ class HUDOverlay extends StatelessWidget {
                         ),
                       ],
                     ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContractBanner(ShiftContract contract) {
+    return IgnorePointer(
+      child: AnimatedOpacity(
+        opacity: gameState.isContractCelebrationVisible ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 300),
+        child: Container(
+          key: const Key('contract_celebration_banner'),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xEE1A252F),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: const Color(0xFF2ECC71),
+              width: 2.0,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF2ECC71).withValues(alpha: 0.45),
+                blurRadius: 16,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.task_alt,
+                color: Color(0xFF2ECC71),
+                size: 26,
+              ),
+              const SizedBox(width: 10),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'CONTRACT COMPLETED: ${contract.title.toUpperCase()}!',
+                    style: const TextStyle(
+                      color: Color(0xFF2ECC71),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '+${contract.rewardTips} BONUS CAREER TIPS EARNED',
+                    style: const TextStyle(
+                      color: Color(0xFFF1C40F),
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
               ),
             ],

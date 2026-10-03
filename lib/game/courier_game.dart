@@ -294,6 +294,7 @@ class CourierGame extends FlameGame
     // 0. Update active energy drink buff, celebration, and stunt combo timers
     gameState.updateEnergyTimer(dt);
     gameState.updateMilestoneTimer(dt);
+    gameState.updateContractTimer(dt);
     gameState.updateStuntTimer(dt);
     player.isBoosted = gameState.isEnergyBoostActive;
 
