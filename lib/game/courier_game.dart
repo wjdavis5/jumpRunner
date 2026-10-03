@@ -209,6 +209,7 @@ class CourierGame extends FlameGame
     chunkManager.reset();
     nextChunkX = 960.0;
     currentSpeed = 200.0;
+    parallaxCity.updateLighting(0.0, 0.0);
 
     gameState.startRun();
     player.position = Vector2(120.0, groundY - player.size.y);
@@ -251,8 +252,9 @@ class CourierGame extends FlameGame
     final distanceDelta = (currentSpeed * dt) / 20.0;
     gameState.updateDistance(gameState.distanceMeters + distanceDelta);
 
-    // 3. Update parallax city velocity
+    // 3. Update parallax city velocity & dynamic environment lighting
     parallaxCity.speedMultiplier = currentSpeed / 200.0;
+    parallaxCity.updateLighting(gameState.distanceMeters, dt);
 
     // 4. Scroll active hazards and pickups leftward
     final scrollDelta = currentSpeed * dt;
