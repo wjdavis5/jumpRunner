@@ -41,12 +41,20 @@ class GameState extends ChangeNotifier {
   static const double milestoneIntervalMeters = 500.0;
   static const int milestoneBonusTips = 50;
 
+  static const double defaultEnergyDrinkDuration = 5.0;
+
   int get maxPackages => defaultMaxPackages;
 
   int packages = defaultMaxPackages;
   int tips = 0;
   double distanceMeters = 0.0;
   GameStatus status = GameStatus.idle;
+
+  /// Remaining duration in seconds for the Cold Brew Energy Drink buff.
+  double energyDrinkTimer = 0.0;
+
+  /// Returns true if the courier is currently energized by an energy drink.
+  bool get isEnergyBoostActive => energyDrinkTimer > 0;
 
   int _lastMilestoneIndex = 0;
 
@@ -61,14 +69,37 @@ class GameState extends ChangeNotifier {
     tips = 0;
     distanceMeters = 0.0;
     _lastMilestoneIndex = 0;
+    energyDrinkTimer = 0.0;
     status = GameStatus.running;
     notifyListeners();
   }
 
+  /// Activates or extends the Cold Brew Energy Drink buff.
+  void activateEnergyDrink([double duration = defaultEnergyDrinkDuration]) {
+    if (status != GameStatus.running) return;
+    // Refresh or extend buff up to a 10s maximum cap
+    energyDrinkTimer = (energyDrinkTimer + duration).clamp(0.0, 10.0);
+    notifyListeners();
+  }
+
+  /// Updates the energy buff countdown timer.
+  void updateEnergyTimer(double dt) {
+    if (energyDrinkTimer > 0) {
+      energyDrinkTimer -= dt;
+      if (energyDrinkTimer <= 0) {
+        energyDrinkTimer = 0.0;
+      }
+      notifyListeners();
+    }
+  }
+
   /// Adds collected tips to current run bank.
+  ///
+  /// Awards double tips while [isEnergyBoostActive] is true.
   void addTip(int amount) {
     if (status != GameStatus.running) return;
-    tips += amount;
+    final earned = isEnergyBoostActive ? amount * 2 : amount;
+    tips += earned;
     notifyListeners();
   }
 

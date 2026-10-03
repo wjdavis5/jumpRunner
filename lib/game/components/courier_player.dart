@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
@@ -38,6 +40,9 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   final VoidCallback? onDamage;
 
   CourierState state = CourierState.running;
+
+  /// True when the courier is under the Cold Brew Energy Drink speed/magnet buff.
+  bool isBoosted = false;
 
   // Invulnerability
   static const double invulnerabilityDuration = 1.5;
@@ -140,6 +145,11 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   void render(Canvas canvas) {
     super.render(canvas);
 
+    // Render electric energy aura when boosted by cold brew
+    if (isBoosted) {
+      _drawEnergyAura(canvas);
+    }
+
     // Invulnerability flicker: strobe alpha at 10Hz
     if (isInvulnerable) {
       final flicker = ((_invulnerabilityTimer * 10).floor() % 2) == 0;
@@ -147,6 +157,39 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
     }
 
     _drawCourier(canvas);
+  }
+
+  void _drawEnergyAura(Canvas canvas) {
+    final center = Offset(size.x / 2, size.y / 2);
+    final pulse = 0.5 + 0.5 * math.sin(_runCycleTimer * 25.0);
+
+    // Glowing electric halo
+    final glowPaint = Paint()
+      ..color = const Color(0xFF2ECC71).withValues(alpha: 0.35 + 0.15 * pulse)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
+    canvas.drawCircle(center, 30 + 4 * pulse, glowPaint);
+
+    final innerGlowPaint = Paint()
+      ..color = const Color(0xFFF1C40F).withValues(alpha: 0.5 + 0.2 * pulse)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+    canvas.drawCircle(center, 24, innerGlowPaint);
+
+    // Speed trails behind the courier
+    final trailPaint = Paint()
+      ..color = const Color(0xFF00E676).withValues(alpha: 0.7)
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round;
+
+    final trailOffsets = [-6.0, 4.0, 14.0];
+    for (var i = 0; i < trailOffsets.length; i++) {
+      final y = center.dy + trailOffsets[i];
+      final length = 18.0 + (i % 2 == 0 ? 8.0 * pulse : -4.0 * pulse);
+      canvas.drawLine(
+        Offset(-length, y),
+        Offset(6.0, y),
+        trailPaint,
+      );
+    }
   }
 
   void _drawCourier(Canvas canvas) {

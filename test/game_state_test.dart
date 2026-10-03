@@ -79,5 +79,50 @@ void main() {
       state.addTip(5);
       expect(state.tips, equals(6));
     });
+
+    test('Energy drink buff activates, ticks down, and doubles tip rewards (R6)', () {
+      final state = GameState()..startRun();
+      expect(state.isEnergyBoostActive, isFalse);
+      expect(state.energyDrinkTimer, equals(0.0));
+
+      // 1. Activate energy drink
+      state.activateEnergyDrink();
+      expect(state.isEnergyBoostActive, isTrue);
+      expect(state.energyDrinkTimer, equals(5.0));
+
+      // 2. Tip multiplier test: 2x tips during boost
+      state.addTip(1); // 1 * 2 = 2
+      state.addTip(5); // 5 * 2 = 10
+      expect(state.tips, equals(12));
+
+      // 3. Stacking / extending boost up to 10s max
+      state.activateEnergyDrink(4.0);
+      expect(state.energyDrinkTimer, equals(9.0));
+      state.activateEnergyDrink(5.0);
+      expect(state.energyDrinkTimer, equals(10.0)); // clamped to 10s
+
+      // 4. Timer countdown
+      state.updateEnergyTimer(6.0);
+      expect(state.energyDrinkTimer, equals(4.0));
+      expect(state.isEnergyBoostActive, isTrue);
+
+      // 5. Expiration back to 1x multiplier
+      state.updateEnergyTimer(5.0);
+      expect(state.energyDrinkTimer, equals(0.0));
+      expect(state.isEnergyBoostActive, isFalse);
+
+      state.addTip(5); // back to 1x
+      expect(state.tips, equals(17));
+    });
+
+    test('startRun resets active energy drink timer', () {
+      final state = GameState()..startRun();
+      state.activateEnergyDrink();
+      expect(state.isEnergyBoostActive, isTrue);
+
+      state.startRun();
+      expect(state.isEnergyBoostActive, isFalse);
+      expect(state.energyDrinkTimer, equals(0.0));
+    });
   });
 }

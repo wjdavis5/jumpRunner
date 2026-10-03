@@ -24,6 +24,24 @@ void main() {
       expect(find.text('350 m'), findsOneWidget);
       expect(find.text(r'$25'), findsOneWidget);
       expect(find.byIcon(Icons.inventory_2), findsNWidgets(3));
+      expect(find.byKey(const Key('energy_boost_badge')), findsNothing);
+    });
+
+    testWidgets('HUDOverlay displays energy boost badge when boost is active (R6)', (tester) async {
+      final state = GameState()..startRun();
+      state.activateEnergyDrink();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: HUDOverlay(gameState: state),
+          ),
+        ),
+      );
+
+      expect(find.byKey(const Key('energy_boost_badge')), findsOneWidget);
+      expect(find.text('BOOST 5.0s (2X TIPS & MAGNET)'), findsOneWidget);
+      expect(find.byIcon(Icons.bolt), findsOneWidget);
     });
 
     testWidgets('GameOverModal renders stats and triggers restart callback', (tester) async {

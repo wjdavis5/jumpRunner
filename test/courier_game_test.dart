@@ -1,7 +1,9 @@
 import 'package:flame/camera.dart';
+import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jump_runner/game/components/parallax_city.dart';
+import 'package:jump_runner/game/components/pickup_component.dart';
 import 'package:jump_runner/game/courier_game.dart';
 
 void main() {
@@ -54,6 +56,41 @@ void main() {
 
       final components = game.world.children.whereType<ParallaxCityComponent>();
       expect(components.length, equals(1));
+    });
+
+    test('Energy drink pickup activates boost and enables coin magnet (R6)', () async {
+      final game = CourierGame();
+      await game.onLoad();
+      game.gameState.startRun();
+
+      expect(game.gameState.isEnergyBoostActive, isFalse);
+      expect(game.player.isBoosted, isFalse);
+
+      // 1. Manually trigger energy drink pickup
+      game.gameState.activateEnergyDrink();
+      game.update(0.1);
+
+      expect(game.gameState.isEnergyBoostActive, isTrue);
+      expect(game.player.isBoosted, isTrue);
+
+      // 2. Test coin magnet pull
+      final initialCoinPos = Vector2(game.player.position.x + 120.0, game.player.position.y);
+      final coin = PickupComponent(
+        type: PickupType.coin,
+        position: initialCoinPos.clone(),
+      );
+      game.world.add(coin);
+      game.activePickups.add(coin);
+
+      // Record distance before magnet update
+      final initialDist = (game.player.position - coin.position).length;
+
+      // Advance game loop
+      game.update(0.1);
+
+      // Coin should have been pulled closer to player than simple scrolling alone
+      final newDist = (game.player.position - coin.position).length;
+      expect(newDist, lessThan(initialDist));
     });
   });
 }
