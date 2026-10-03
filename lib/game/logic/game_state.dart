@@ -87,6 +87,46 @@ class DeliveryEvent {
   final bool didRestockPackage;
 }
 
+/// Rail Ollie event dispatched when leaping off a grind rail into an aerial trick combo.
+class RailOllieEvent {
+  const RailOllieEvent({
+    required this.grindDistanceMeters,
+    required this.multiplier,
+    required this.baseTips,
+    required this.totalTips,
+    required this.streak,
+  });
+
+  /// Distance in meters traveled along the rail before the ollie pop.
+  final double grindDistanceMeters;
+
+  /// Active stunt combo multiplier applied to this ollie.
+  final double multiplier;
+
+  /// Base tips value before combo scaling ($20).
+  final int baseTips;
+
+  /// Total tips awarded for this rail ollie.
+  final int totalTips;
+
+  /// Current consecutive stunt streak count.
+  final int streak;
+}
+
+/// Rail clear event dispatched when grinding across a rail to its trailing edge.
+class RailClearEvent {
+  const RailClearEvent({
+    required this.grindDistanceMeters,
+    required this.bonusTips,
+  });
+
+  /// Distance in meters traveled across the complete rail.
+  final double grindDistanceMeters;
+
+  /// Bonus tips awarded for completing the rail grind.
+  final int bonusTips;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -206,9 +246,14 @@ class GameState extends ChangeNotifier {
 
   int _lastMilestoneIndex = 0;
 
+  /// Total rail grinds and trick dismounts performed in current run.
+  int grindsInRun = 0;
+
   ValueChanged<MilestoneEvent>? onMilestone;
   ValueChanged<StuntEvent>? onStunt;
   ValueChanged<DeliveryEvent>? onDeliveryCompleted;
+  ValueChanged<RailOllieEvent>? onRailOllie;
+  ValueChanged<RailClearEvent>? onRailClear;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -236,6 +281,7 @@ class GameState extends ChangeNotifier {
     stuntStreakTimer = 0.0;
     deliveriesInRun = 0;
     deliveryStreak = 0;
+    grindsInRun = 0;
     status = GameStatus.running;
     contractManager.reset();
 
@@ -368,6 +414,62 @@ class GameState extends ChangeNotifier {
     );
     onStunt?.call(event);
     notifyListeners();
+  }
+
+  /// Records an explosive Rail Ollie combo pop from an active grind rail.
+  ///
+  /// Advances the stunt streak, scales bonus tips by stunt multiplier and energy boost,
+  /// and triggers the stunt combo timer.
+  RailOllieEvent? recordRailOllie({required double grindDistanceMeters}) {
+    if (status != GameStatus.running) return null;
+
+    grindsInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    const baseTip = 20;
+    final baseAward = (baseTip * stuntMultiplier).round();
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? baseAward * 2
+        : baseAward;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = RailOllieEvent(
+      grindDistanceMeters: grindDistanceMeters,
+      multiplier: stuntMultiplier,
+      baseTips: baseTip,
+      totalTips: awarded,
+      streak: stuntStreak,
+    );
+
+    onRailOllie?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records a clean rail dismount after riding across a full rail span.
+  RailClearEvent? recordRailClear({required double grindDistanceMeters}) {
+    if (status != GameStatus.running) return null;
+
+    grindsInRun++;
+    const baseTip = 10;
+    final awarded = isEnergyBoostActive ? baseTip * 2 : baseTip;
+    tips += awarded;
+
+    contractManager.onTipCollected(awarded);
+
+    final event = RailClearEvent(
+      grindDistanceMeters: grindDistanceMeters,
+      bonusTips: awarded,
+    );
+
+    onRailClear?.call(event);
+    notifyListeners();
+    return event;
   }
 
   /// Adds collected tips to current run bank.

@@ -12,6 +12,7 @@ enum CourierState {
   running,
   jumping,
   falling,
+  grinding,
   hurt,
 }
 
@@ -29,6 +30,7 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
     this.onJump,
     this.onLand,
     this.onDamage,
+    this.onRailOllie,
   })  : skin = skin ?? CourierSkin.standard,
         simulator = JumpPhysicsSimulator(groundY: groundY) {
     size = playerSize ?? Vector2(64, 64);
@@ -41,6 +43,7 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   final VoidCallback? onJump;
   final VoidCallback? onLand;
   final VoidCallback? onDamage;
+  final VoidCallback? onRailOllie;
 
   CourierSkin skin;
 
@@ -50,6 +53,12 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   }
 
   CourierState state = CourierState.running;
+
+  /// Whether the courier is currently sliding along a metallic grind rail.
+  bool get isGrinding => state == CourierState.grinding;
+
+  /// Cumulative distance in meters traveled during the current grind session.
+  double grindDistance = 0.0;
 
   /// True when the courier is under the Cold Brew Energy Drink speed/magnet buff.
   bool isBoosted = false;
@@ -101,13 +110,40 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   }
 
   /// Triggers a jump. Returns `true` if initiated, `false` if rejected (e.g. airborne).
+  /// If initiated while grinding, executes a high-pop Rail Ollie combo jump.
   bool jump() {
+    if (state == CourierState.grinding) {
+      state = CourierState.jumping;
+      simulator.launch(340.0);
+      onJump?.call();
+      onRailOllie?.call();
+      return true;
+    }
+
     if (simulator.startJump()) {
       state = CourierState.jumping;
       onJump?.call();
       return true;
     }
     return false;
+  }
+
+  /// Initiates grinding along a rail surface at [railSurfaceY].
+  void startGrinding(double railSurfaceY) {
+    setTargetSurfaceY(railSurfaceY);
+    simulator.currentY = railSurfaceY;
+    simulator.verticalVelocity = 0.0;
+    simulator.isGrounded = true;
+    state = CourierState.grinding;
+    grindDistance = 0.0;
+  }
+
+  /// Concludes grinding, reverting to standard running.
+  void endGrinding() {
+    if (state == CourierState.grinding) {
+      state = CourierState.running;
+    }
+    grindDistance = 0.0;
   }
 
   /// Launches the courier into an aerial trajectory from a ramp.
@@ -178,6 +214,8 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
       }
       if (_invulnerabilityTimer > 0) {
         state = CourierState.hurt;
+      } else if (state == CourierState.grinding) {
+        // Retain grinding state while grounded on rail
       } else {
         state = CourierState.running;
       }
@@ -307,6 +345,26 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
       // Extended landing legs
       canvas.drawRect(const Rect.fromLTWH(22, 46, 8, 16), pantsPaint);
       canvas.drawRect(const Rect.fromLTWH(32, 46, 8, 16), pantsPaint);
+    } else if (state == CourierState.grinding) {
+      // Crouched grinding stance with skateboard deck locked onto the rail
+      canvas.drawRect(const Rect.fromLTWH(18, 50, 10, 10), pantsPaint);
+      canvas.drawRect(const Rect.fromLTWH(34, 48, 10, 12), pantsPaint);
+
+      // Grind skateboard / sole plate
+      final boardPaint = Paint()..color = const Color(0xFF1ABC9C);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(const Rect.fromLTWH(12, 59, 40, 4), const Radius.circular(2)),
+        boardPaint,
+      );
+
+      // Friction sparks showering backwards from under the board
+      final sparkPaint = Paint()
+        ..color = const Color(0xFFFF9F43)
+        ..strokeWidth = 2.5
+        ..strokeCap = StrokeCap.round;
+      canvas.drawLine(const Offset(10, 61), const Offset(2, 63), sparkPaint);
+      canvas.drawLine(const Offset(14, 60), const Offset(6, 65), sparkPaint);
+      canvas.drawLine(const Offset(16, 62), const Offset(8, 66), sparkPaint);
     } else {
       // Alternating run stride
       final legOffset = (_currentRunFrame % 2 == 0) ? 4.0 : -4.0;

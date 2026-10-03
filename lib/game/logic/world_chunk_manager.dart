@@ -80,8 +80,23 @@ class DropZoneData {
   final double height;
 }
 
+/// Data model for an elevated urban metallic grind rail.
+class GrindRailData {
+  const GrindRailData({
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+}
+
 /// A generated chunk slice containing obstacles, collectible pickups,
-/// optional elevated aerial routes, and customer doorstep drop zones.
+/// optional elevated aerial routes, customer doorstep drop zones, and metallic grind rails.
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -89,6 +104,7 @@ class ChunkData {
     this.scaffoldings = const [],
     this.ramps = const [],
     this.dropZones = const [],
+    this.grindRails = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -96,6 +112,7 @@ class ChunkData {
   final List<ScaffoldingData> scaffoldings;
   final List<RampData> ramps;
   final List<DropZoneData> dropZones;
+  final List<GrindRailData> grindRails;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -146,6 +163,7 @@ class WorldChunkManager {
     final pickups = <PickupData>[];
     final scaffoldings = <ScaffoldingData>[];
     final ramps = <RampData>[];
+    final grindRails = <GrindRailData>[];
 
     final minClearance = calculateMinClearance(speed);
     final naturalStart = startX + 60.0 + _random.nextDouble() * 40.0;
@@ -204,9 +222,75 @@ class WorldChunkManager {
           height: gSize.y,
         ));
 
-        _lastObstacleEndX = scaffoldingX + scaffoldingWidth;
-        cursorX = _lastObstacleEndX + minClearance + 1.0;
+        // Optionally attach an elevated catwalk grind rail extending off the scaffolding deck
+        if (_random.nextDouble() < 0.40 && (endX - (scaffoldingX + scaffoldingWidth)) >= 160.0) {
+          final railX = scaffoldingX + scaffoldingWidth + 12.0;
+          final railWidth = math.min(220.0, endX - railX);
+          final railY = scaffoldingY; // Level with scaffolding deck
+          grindRails.add(GrindRailData(
+            x: railX,
+            y: railY,
+            width: railWidth,
+            height: 8.0,
+          ));
+
+          // Gold coins along the rail
+          for (double rx = railX + 30.0; rx < railX + railWidth - 20.0; rx += 60.0) {
+            pickups.add(PickupData(
+              type: PickupType.coin,
+              x: rx,
+              y: railY - 26.0,
+            ));
+          }
+
+          _lastObstacleEndX = railX + railWidth;
+          cursorX = _lastObstacleEndX + minClearance + 1.0;
+        } else {
+          _lastObstacleEndX = scaffoldingX + scaffoldingWidth;
+          cursorX = _lastObstacleEndX + minClearance + 1.0;
+        }
       }
+    }
+
+    // Urban Street Grind Rail: Spawns after 90m when no scaffolding route is present
+    if (scaffoldings.isEmpty &&
+        distanceMeters >= 90.0 &&
+        _random.nextDouble() < 0.35 &&
+        (endX - cursorX) >= 260.0) {
+      final railWidth = 200.0 + _random.nextDouble() * 60.0;
+      final railX = cursorX;
+      final railY = groundY - 48.0;
+
+      grindRails.add(GrindRailData(
+        x: railX,
+        y: railY,
+        width: railWidth,
+        height: 8.0,
+      ));
+
+      // Rewarding coins floating along the grind rail
+      for (double rx = railX + 25.0; rx < railX + railWidth - 15.0; rx += 55.0) {
+        pickups.add(PickupData(
+          type: PickupType.coin,
+          x: rx,
+          y: railY - 26.0,
+        ));
+      }
+
+      // Ground hazard underneath the rail for player to grind over
+      final groundType = ObstacleType.values[_random.nextInt(3)]; // scooter, dog, hydrant
+      final gSize = ObstacleComponent.defaultSizeForType(groundType);
+      final gX = railX + (railWidth / 2) - (gSize.x / 2);
+      obstacles.add(ObstacleData(
+        type: groundType,
+        x: gX,
+        y: groundY - gSize.y,
+        width: gSize.x,
+        height: gSize.y,
+      ));
+
+      _lastObstacleEndX = railX + railWidth;
+      cursorX = _lastObstacleEndX + minClearance + 1.0;
     }
 
     // Introduce dynamic hazards (skate messenger, pigeon flock) at distance/speed milestones
@@ -288,8 +372,11 @@ class WorldChunkManager {
 
     final List<DropZoneData> dropZones = [];
 
-    // Customer Doorstep Delivery Drop-off Zones (after 70m, on ground sidewalk outside scaffolding)
-    if (distanceMeters >= 70.0 && _random.nextDouble() < 0.45 && scaffoldings.isEmpty) {
+    // Customer Doorstep Delivery Drop-off Zones (after 70m, on ground sidewalk outside scaffolding/rails)
+    if (distanceMeters >= 70.0 &&
+        _random.nextDouble() < 0.45 &&
+        scaffoldings.isEmpty &&
+        grindRails.isEmpty) {
       final candidateX = startX + 180.0 + (_random.nextDouble() * (chunkWidth - 360.0));
       const zoneWidth = 68.0;
       final isClearFromObstacles = obstacles.every(
@@ -314,6 +401,7 @@ class WorldChunkManager {
       scaffoldings: scaffoldings,
       ramps: ramps,
       dropZones: dropZones,
+      grindRails: grindRails,
     );
   }
 }
