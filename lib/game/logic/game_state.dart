@@ -30,13 +30,37 @@ class MilestoneEvent {
   final int bonusTips;
 }
 
-/// Central state machine managing the package HP mechanism, shift milestones, and score.
+/// Stunt event dispatched when pulling off a tight near-miss leap over an obstacle.
+class StuntEvent {
+  const StuntEvent({
+    required this.streak,
+    required this.multiplier,
+    required this.bonusTips,
+    required this.clearance,
+  });
+
+  /// Consecutive near-miss stunts completed without collision.
+  final int streak;
+
+  /// Current active stunt combo multiplier (e.g. 1.2x, 1.5x, 2.0x, 2.5x).
+  final double multiplier;
+
+  /// Bonus tips awarded for this stunt leap.
+  final int bonusTips;
+
+  /// Clearance margin in virtual pixels between courier and obstacle top.
+  final double clearance;
+}
+
+/// Central state machine managing the package HP mechanism, shift milestones,
+/// stunt combos, and score tracking.
 ///
 /// Rules:
 /// - Couriers start with 3 package lives.
-/// - Hazards decrement 1 package life.
+/// - Hazards decrement 1 package life and reset active stunt combo streak.
 /// - Reaching 0 packages triggers GameOver.
 /// - Every 500m milestone restores 1 lost package; if already at 3 packages, awards $50 tip bonus.
+/// - Near-miss jumps over hazards reward bonus tips and ramp up a stunt combo multiplier (up to 2.5x).
 class GameState extends ChangeNotifier {
   static const int defaultMaxPackages = 3;
   static const double milestoneIntervalMeters = 500.0;
@@ -44,6 +68,8 @@ class GameState extends ChangeNotifier {
 
   static const double defaultEnergyDrinkDuration = 5.0;
   static const double milestoneBannerDuration = 3.0;
+  static const double stuntComboDuration = 4.0;
+  static const int baseStuntTip = 5;
 
   int get maxPackages => defaultMaxPackages;
 
@@ -67,9 +93,28 @@ class GameState extends ChangeNotifier {
   /// True when the milestone celebration banner should be displayed.
   bool get isMilestoneBannerVisible => activeMilestone != null && milestoneBannerTimer > 0;
 
+  /// Current consecutive near-miss stunt streak.
+  int stuntStreak = 0;
+
+  /// Remaining countdown timer in seconds before active stunt streak decays.
+  double stuntStreakTimer = 0.0;
+
+  /// True when a stunt combo multiplier (> 1.0x) is currently active.
+  bool get isComboActive => stuntStreak > 1 && stuntStreakTimer > 0;
+
+  /// Calculates the current stunt combo multiplier according to streak depth.
+  double get stuntMultiplier {
+    if (stuntStreak <= 0) return 1.0;
+    if (stuntStreak == 1) return 1.2;
+    if (stuntStreak == 2) return 1.5;
+    if (stuntStreak == 3) return 2.0;
+    return 2.5;
+  }
+
   int _lastMilestoneIndex = 0;
 
   ValueChanged<MilestoneEvent>? onMilestone;
+  ValueChanged<StuntEvent>? onStunt;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
   VoidCallback? onDamageTaken;
@@ -83,6 +128,8 @@ class GameState extends ChangeNotifier {
     energyDrinkTimer = 0.0;
     activeMilestone = null;
     milestoneBannerTimer = 0.0;
+    stuntStreak = 0;
+    stuntStreakTimer = 0.0;
     status = GameStatus.running;
     notifyListeners();
   }
@@ -134,6 +181,39 @@ class GameState extends ChangeNotifier {
     }
   }
 
+  /// Updates the stunt combo countdown timer.
+  void updateStuntTimer(double dt) {
+    if (stuntStreakTimer > 0) {
+      stuntStreakTimer -= dt;
+      if (stuntStreakTimer <= 0) {
+        stuntStreakTimer = 0.0;
+        stuntStreak = 0;
+        notifyListeners();
+      }
+    }
+  }
+
+  /// Records a successful near-miss stunt leap over a street hazard.
+  void recordStunt({double clearance = 20.0}) {
+    if (status != GameStatus.running) return;
+
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    final earnedTips = (baseStuntTip * stuntMultiplier).round();
+    final awarded = isEnergyBoostActive ? earnedTips * 2 : earnedTips;
+    tips += awarded;
+
+    final event = StuntEvent(
+      streak: stuntStreak,
+      multiplier: stuntMultiplier,
+      bonusTips: awarded,
+      clearance: clearance,
+    );
+    onStunt?.call(event);
+    notifyListeners();
+  }
+
   /// Adds collected tips to current run bank.
   ///
   /// Awards double tips while [isEnergyBoostActive] is true.
@@ -157,11 +237,14 @@ class GameState extends ChangeNotifier {
 
   /// Applies damage from a hazard collision.
   ///
+  /// Resets active stunt streaks and multiplier on impact.
   /// Returns `true` if player survived with remaining packages; `false` on game over.
   bool applyHazardDamage() {
     if (status != GameStatus.running) return false;
 
     packages--;
+    stuntStreak = 0;
+    stuntStreakTimer = 0.0;
     onDamageTaken?.call();
 
     if (packages <= 0) {

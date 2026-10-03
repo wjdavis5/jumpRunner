@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 
 import 'audio_controller.dart';
 import 'components/courier_player.dart';
+import 'components/floating_text_component.dart';
 import 'components/obstacle_component.dart';
 import 'components/parallax_city.dart';
 import 'components/particle_effect.dart';
@@ -202,6 +203,9 @@ class CourierGame extends FlameGame
     for (final c in world.children.whereType<ParticleEffectComponent>().toList()) {
       c.removeFromParent();
     }
+    for (final t in world.children.whereType<FloatingTextComponent>().toList()) {
+      t.removeFromParent();
+    }
     activeObstacles.clear();
     activePickups.clear();
     _footstepTimer = 0.0;
@@ -229,9 +233,10 @@ class CourierGame extends FlameGame
     super.update(dt);
     if (!isRunning || gameState.status != GameStatus.running) return;
 
-    // 0. Update active energy drink buff & celebration timers
+    // 0. Update active energy drink buff, celebration, and stunt combo timers
     gameState.updateEnergyTimer(dt);
     gameState.updateMilestoneTimer(dt);
+    gameState.updateStuntTimer(dt);
     player.isBoosted = gameState.isEnergyBoostActive;
 
     // Footstep dust puffs while running along sidewalk
@@ -286,6 +291,28 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 5b. Stunt Near-Miss Detection: evaluate tight clearances over hazards
+    final playerLeft = player.position.x;
+    final playerRight = player.position.x + player.size.x;
+    final playerBottom = player.position.y + player.size.y;
+
+    for (final o in activeObstacles) {
+      if (!o.hasTriggeredNearMiss && !o.hasCollidedWithPlayer) {
+        final obsLeft = o.position.x;
+        final obsRight = o.position.x + o.size.x;
+        final obsTop = o.position.y;
+
+        final isOverlappingHorizontally = (playerRight >= obsLeft && playerLeft <= obsRight);
+        if (isOverlappingHorizontally) {
+          final verticalClearance = obsTop - playerBottom;
+          if (verticalClearance >= 0.0 && verticalClearance <= 40.0) {
+            o.hasTriggeredNearMiss = true;
+            _handleNearMiss(o, verticalClearance);
+          }
+        }
+      }
+    }
+
     // 6. Clean up recycled items
     activeObstacles.removeWhere((o) => o.shouldRecycle || !o.isMounted);
     activePickups.removeWhere((p) => p.shouldRecycle || p.isCollected || !p.isMounted);
@@ -294,6 +321,28 @@ class CourierGame extends FlameGame
     if (nextChunkX <= virtualResolution.x + 480.0) {
       _spawnChunk();
     }
+  }
+
+  void _handleNearMiss(ObstacleComponent obstacle, double clearance) {
+    gameState.recordStunt(clearance: clearance);
+    audio.playCoin();
+
+    // Floating score popup above courier
+    final multiplierStr = gameState.stuntMultiplier > 1.0 ? '${gameState.stuntMultiplier}x ' : '';
+    world.add(
+      FloatingTextComponent(
+        text: 'STUNT! $multiplierStr+\$${(5 * gameState.stuntMultiplier).round()}',
+        position: Vector2(player.position.x + 4.0, player.position.y - 20.0),
+        color: const Color(0xFF00E5FF),
+      ),
+    );
+
+    // Cyan sparkle burst at the hazard apex
+    spawnSparkles(
+      Vector2(obstacle.position.x + (obstacle.size.x / 2), obstacle.position.y),
+      color: const Color(0xFF00E5FF),
+      count: 10,
+    );
   }
 
   @override

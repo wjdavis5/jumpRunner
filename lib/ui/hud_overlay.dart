@@ -260,6 +260,42 @@ class HUDOverlay extends StatelessWidget {
             ),
           ),
         ],
+        if (gameState.isComboActive) ...[
+          const SizedBox(height: 6),
+          Container(
+            key: const Key('stunt_combo_badge'),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFE67E22), Color(0xFFE74C3C)],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFE74C3C).withValues(alpha: 0.6),
+                  blurRadius: 8,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.local_fire_department, color: Colors.white, size: 16),
+                const SizedBox(width: 4),
+                Text(
+                  'STUNT COMBO ${gameState.stuntMultiplier}x (${gameState.stuntStreak})',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }

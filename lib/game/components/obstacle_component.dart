@@ -34,6 +34,9 @@ class ObstacleComponent extends PositionComponent with CollisionCallbacks {
 
   late final RectangleHitbox hitbox;
 
+  bool hasCollidedWithPlayer = false;
+  bool hasTriggeredNearMiss = false;
+
   bool get shouldRecycle => position.x < -200.0;
 
   static String spritePathForType(ObstacleType type) {
@@ -97,6 +100,7 @@ class ObstacleComponent extends PositionComponent with CollisionCallbacks {
   ) {
     super.onCollisionStart(intersectionPoints, other);
     if (other is CourierPlayer) {
+      hasCollidedWithPlayer = true;
       other.takeDamage();
     }
   }
