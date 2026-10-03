@@ -22,6 +22,7 @@ import 'logic/weather_controller.dart';
 import 'logic/world_chunk_manager.dart';
 import 'models/courier_skin.dart';
 import 'models/daily_shift.dart';
+import 'models/run_booster.dart';
 
 /// Main Flame game loop for Courier Dash.
 ///
@@ -40,6 +41,7 @@ class CourierGame extends FlameGame
     LocalStorageService? storageService,
     int? personalRecordDistance,
     CourierSkin? initialSkin,
+    Set<RunBooster>? initialBoosters,
     this.dailyShift,
   })  : gameState = gameState ?? GameState(),
         audio = audioController ?? GameAudioController(),
@@ -50,6 +52,7 @@ class CourierGame extends FlameGame
         storage = storageService,
         personalRecordDistance = personalRecordDistance ?? storageService?.highDistance ?? 0,
         activeSkin = initialSkin ?? CourierSkin.standard,
+        activeBoosters = initialBoosters ?? const {},
         super(
           camera: CameraComponent.withFixedResolution(
             width: virtualResolution.x,
@@ -59,6 +62,7 @@ class CourierGame extends FlameGame
         );
 
   CourierSkin activeSkin;
+  Set<RunBooster> activeBoosters;
 
   /// Updates player cosmetic skin and runtime palette.
   void setPlayerSkin(CourierSkin skin) {
@@ -81,7 +85,7 @@ class CourierGame extends FlameGame
   final CameraJuiceController cameraJuice;
   final AchievementManager achievementManager;
   final LocalStorageService? storage;
-  final DailyShift? dailyShift;
+  DailyShift? dailyShift;
 
   int personalRecordDistance;
   PersonalRecordMarkerComponent? activePrMarker;
@@ -201,12 +205,13 @@ class CourierGame extends FlameGame
       onRunConcluded?.call();
     };
 
-    if (dailyShift != null) {
-      gameState.startRun(dailyShift: dailyShift);
-      if (dailyShift!.modifier == DailyModifier.rainyRush) {
+    if (dailyShift != null || activeBoosters.isNotEmpty) {
+      gameState.startRun(dailyShift: dailyShift, equippedBoosters: activeBoosters);
+      if (dailyShift?.modifier == DailyModifier.rainyRush) {
         weatherController.rainIntensity = 0.8;
         rainComponent.rainIntensity = 0.8;
       }
+      player.isBoosted = gameState.isEnergyBoostActive;
     }
 
     // Seed initial terrain chunk
@@ -302,7 +307,14 @@ class CourierGame extends FlameGame
   }
 
   /// Resets the runner for the next shift.
-  void restartRun() {
+  void restartRun({DailyShift? shift, Set<RunBooster>? equippedBoosters}) {
+    if (shift != null) {
+      dailyShift = shift;
+    }
+    if (equippedBoosters != null) {
+      activeBoosters = equippedBoosters;
+    }
+
     for (final o in activeObstacles.toList()) {
       o.removeFromParent();
     }
@@ -350,7 +362,7 @@ class CourierGame extends FlameGame
     parallaxCity.updateLighting(0.0, 0.0, 0.0);
 
     hasRecordedDailyShiftSuccess = false;
-    gameState.startRun(dailyShift: dailyShift);
+    gameState.startRun(dailyShift: dailyShift, equippedBoosters: activeBoosters);
     if (dailyShift?.modifier == DailyModifier.rainyRush) {
       weatherController.rainIntensity = 0.8;
       rainComponent.rainIntensity = 0.8;
@@ -360,7 +372,7 @@ class CourierGame extends FlameGame
     player.simulator.verticalVelocity = 0.0;
     player.simulator.isGrounded = true;
     player.state = CourierState.running;
-    player.isBoosted = false;
+    player.isBoosted = gameState.isEnergyBoostActive;
 
     isRunning = true;
     _spawnChunk();

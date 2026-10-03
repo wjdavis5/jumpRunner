@@ -18,6 +18,7 @@ class LocalStorageService {
   static const String _keyUnlockedAchievements = 'courier_unlocked_achievements';
   static const String _keyLastCompletedDaily = 'courier_last_completed_daily';
   static const String _keyDailyStars = 'courier_daily_stars';
+  static const String _keyBoosterPrefix = 'courier_booster_';
 
   SharedPreferences? _prefs;
 
@@ -150,6 +151,37 @@ class LocalStorageService {
 
     current.add(achievementId);
     await prefs.setStringList(_keyUnlockedAchievements, current);
+    return true;
+  }
+
+  /// Returns the stored inventory count for a consumable booster.
+  int getBoosterCount(String boosterId) =>
+      _prefs?.getInt('$_keyBoosterPrefix$boosterId') ?? 0;
+
+  /// Purchases a consumable booster using accumulated career tips.
+  ///
+  /// Returns `true` if booster was successfully purchased; `false` if insufficient funds or inventory at max capacity.
+  Future<bool> buyBooster(String boosterId, int cost, [int maxCapacity = 5]) async {
+    final prefs = _prefs;
+    if (prefs == null) return false;
+    if (careerTips < cost) return false;
+    if (getBoosterCount(boosterId) >= maxCapacity) return false;
+
+    await prefs.setInt(_keyCareerTips, careerTips - cost);
+    await prefs.setInt('$_keyBoosterPrefix$boosterId', getBoosterCount(boosterId) + 1);
+    return true;
+  }
+
+  /// Consumes one unit of the specified booster from inventory.
+  ///
+  /// Returns `true` if consumed; `false` if inventory was zero or storage unavailable.
+  Future<bool> consumeBooster(String boosterId) async {
+    final prefs = _prefs;
+    if (prefs == null) return false;
+    final current = getBoosterCount(boosterId);
+    if (current <= 0) return false;
+
+    await prefs.setInt('$_keyBoosterPrefix$boosterId', current - 1);
     return true;
   }
 }
