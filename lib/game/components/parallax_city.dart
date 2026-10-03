@@ -290,15 +290,16 @@ class ParallaxCityComponent extends PositionComponent {
     final w = size.x;
     final h = size.y;
     final groundY = h - 80;
+    const bleed = 60.0;
 
-    // 1. Dynamic Sky Gradient
+    // 1. Dynamic Sky Gradient (with margin bleed for camera shake & zoom)
     final skyPaint = Paint()
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [currentPalette.skyTop, currentPalette.skyBottom],
-      ).createShader(Rect.fromLTWH(0, 0, w, groundY));
-    canvas.drawRect(Rect.fromLTWH(0, 0, w, groundY), skyPaint);
+      ).createShader(Rect.fromLTWH(-bleed, -bleed, w + bleed * 2, groundY + bleed));
+    canvas.drawRect(Rect.fromLTWH(-bleed, -bleed, w + bleed * 2, groundY + bleed), skyPaint);
 
     // 2. Stars & Moon (Rendered behind distant skyline)
     if (currentPalette.stars > 0.01) {
@@ -401,23 +402,28 @@ class ParallaxCityComponent extends PositionComponent {
   }
 
   void _renderSidewalk(Canvas canvas, double w, double h, double groundY, double offset) {
+    const bleed = 60.0;
+
     // 1. Sidewalk body - darken concrete slightly when wet
     final wetSidewalkColor = rainIntensity > 0.05
         ? Color.lerp(currentPalette.sidewalk, const Color(0xFF2B3033), rainIntensity * 0.45)!
         : currentPalette.sidewalk;
     final sidewalkPaint = Paint()..color = wetSidewalkColor;
-    canvas.drawRect(Rect.fromLTWH(0, groundY, w, 24), sidewalkPaint);
+    canvas.drawRect(Rect.fromLTWH(-bleed, groundY, w + bleed * 2, 24), sidewalkPaint);
 
     // 2. Curb edge
     final wetCurbColor = rainIntensity > 0.05
         ? Color.lerp(currentPalette.curb, const Color(0xFF1E2224), rainIntensity * 0.45)!
         : currentPalette.curb;
     final curbPaint = Paint()..color = wetCurbColor;
-    canvas.drawRect(Rect.fromLTWH(0, groundY + 20, w, 4), curbPaint);
+    canvas.drawRect(Rect.fromLTWH(-bleed, groundY + 20, w + bleed * 2, 4), curbPaint);
 
     // 3. Street asphalt below curb
     final streetPaint = Paint()..color = currentPalette.street;
-    canvas.drawRect(Rect.fromLTWH(0, groundY + 24, w, h - (groundY + 24)), streetPaint);
+    canvas.drawRect(
+      Rect.fromLTWH(-bleed, groundY + 24, w + bleed * 2, h - (groundY + 24) + bleed),
+      streetPaint,
+    );
 
     // 3b. Wet asphalt sheen glaze when raining
     if (rainIntensity > 0.08) {
@@ -425,7 +431,10 @@ class ParallaxCityComponent extends PositionComponent {
           (0.10 * rainIntensity + 0.08 * rainIntensity * currentPalette.lampGlow).clamp(0.0, 1.0);
       final sheenPaint = Paint()
         ..color = const Color(0xFF81D4FA).withValues(alpha: wetSheenAlpha);
-      canvas.drawRect(Rect.fromLTWH(0, groundY + 24, w, h - (groundY + 24)), sheenPaint);
+      canvas.drawRect(
+        Rect.fromLTWH(-bleed, groundY + 24, w + bleed * 2, h - (groundY + 24) + bleed),
+        sheenPaint,
+      );
     }
 
     // 4. Sidewalk slab joint lines that scroll
