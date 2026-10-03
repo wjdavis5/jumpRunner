@@ -93,7 +93,7 @@ class WorldChunkManager {
 
     final minClearance = calculateMinClearance(speed);
     final naturalStart = startX + 60.0 + _random.nextDouble() * 40.0;
-    double cursorX = math.max(naturalStart, _lastObstacleEndX + minClearance);
+    double cursorX = math.max(naturalStart, _lastObstacleEndX + minClearance + 1.0);
     final endX = startX + chunkWidth - 80.0;
 
     // Introduce dynamic hazards (skate messenger, pigeon flock) at distance/speed milestones

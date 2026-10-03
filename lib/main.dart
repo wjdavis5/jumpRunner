@@ -8,8 +8,10 @@ import 'game/logic/achievement_manager.dart';
 import 'game/logic/game_state.dart';
 import 'game/models/courier_skin.dart';
 import 'game/models/daily_shift.dart';
+import 'game/models/run_booster.dart';
 import 'services/storage_service.dart';
 import 'ui/achievements_modal.dart';
+import 'ui/bodega_modal.dart';
 import 'ui/daily_shift_modal.dart';
 import 'ui/game_over_modal.dart';
 import 'ui/hud_overlay.dart';
@@ -68,6 +70,7 @@ class _CourierDashAppState extends State<CourierDashApp> {
   bool _isNewRecord = false;
   int _lastDistance = 0;
   int _lastTips = 0;
+  Set<RunBooster> _equippedBoosters = {};
 
   @override
   void initState() {
@@ -115,11 +118,32 @@ class _CourierDashAppState extends State<CourierDashApp> {
     }
   }
 
-  void _startGame([DailyShift? dailyShift]) {
-    _gameState.startRun(dailyShift: dailyShift);
-    _game.restartRun();
+  void _startGame([DailyShift? dailyShift]) async {
+    final boostersToApply = Set<RunBooster>.from(_equippedBoosters);
+    for (final booster in boostersToApply) {
+      await widget.storageService.consumeBooster(booster.id);
+    }
+    _equippedBoosters = {};
+    _gameState.startRun(dailyShift: dailyShift, equippedBoosters: boostersToApply);
+    _game.restartRun(shift: dailyShift, equippedBoosters: boostersToApply);
     _game.overlays.remove('TitleScreen');
     _game.overlays.add('HUD');
+    if (mounted) setState(() {});
+  }
+
+  void _openBodega() {
+    _game.overlays.add('BodegaModal');
+  }
+
+  void _closeBodega() {
+    _game.overlays.remove('BodegaModal');
+    if (mounted) setState(() {});
+  }
+
+  void _handleEquippedBoostersChanged(Set<RunBooster> boosters) {
+    setState(() {
+      _equippedBoosters = boosters;
+    });
   }
 
   void _openDailyShift() {
@@ -226,11 +250,19 @@ class _CourierDashAppState extends State<CourierDashApp> {
                   unlockedAchievementsCount: _game.achievementManager.unlockedCount,
                   totalAchievementsCount: _game.achievementManager.totalCount,
                   dailyStars: widget.storageService.dailyStars,
+                  equippedBoosters: _equippedBoosters,
                   onToggleMute: _toggleMute,
                   onOpenLocker: _openLocker,
+                  onOpenBodega: _openBodega,
                   onOpenAchievements: _openAchievements,
                   onOpenDailyShift: _openDailyShift,
                   onStartGame: _startGame,
+                ),
+            'BodegaModal': (context, game) => BodegaModal(
+                  storageService: widget.storageService,
+                  equippedBoosters: _equippedBoosters,
+                  onEquippedBoostersChanged: _handleEquippedBoostersChanged,
+                  onClose: _closeBodega,
                 ),
             'DailyShiftModal': (context, game) => DailyShiftModal(
                   storageService: widget.storageService,

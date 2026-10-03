@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/daily_shift.dart';
+import '../models/run_booster.dart';
 import '../models/shift_contract.dart';
 import 'contract_manager.dart';
 
@@ -95,9 +96,15 @@ class GameState extends ChangeNotifier {
   bool get isDailyShiftActive => activeDailyShift != null;
   bool hasCompletedDailyShiftInRun = false;
 
+  /// Active single-run consumables equipped for this shift.
+  Set<RunBooster> activeBoosters = const {};
+
+  /// True if courier has a reinforced satchel equipped for +1 package capacity.
+  bool get hasReinforcedSatchel => activeBoosters.contains(RunBooster.satchel);
+
   int get maxPackages => (activeDailyShift?.modifier == DailyModifier.fragileFreight)
       ? 1
-      : defaultMaxPackages;
+      : (hasReinforcedSatchel ? 4 : defaultMaxPackages);
 
   int packages = defaultMaxPackages;
   int tips = 0;
@@ -163,8 +170,11 @@ class GameState extends ChangeNotifier {
   VoidCallback? onDamageTaken;
 
   /// Begins or resets an active courier run.
-  void startRun({DailyShift? dailyShift}) {
+  void startRun({DailyShift? dailyShift, Set<RunBooster>? equippedBoosters}) {
     activeDailyShift = dailyShift;
+    activeBoosters = equippedBoosters != null
+        ? Set<RunBooster>.unmodifiable(equippedBoosters)
+        : const {};
     hasCompletedDailyShiftInRun = false;
     packages = maxPackages;
     tips = 0;
@@ -181,6 +191,15 @@ class GameState extends ChangeNotifier {
     stuntStreakTimer = 0.0;
     status = GameStatus.running;
     contractManager.reset();
+
+    // Trigger pre-run equipped consumables
+    if (activeBoosters.contains(RunBooster.espresso)) {
+      activateEnergyDrink(8.0);
+    }
+    if (activeBoosters.contains(RunBooster.droneBeacon)) {
+      activateDrone(8.0);
+    }
+
     notifyListeners();
   }
 
