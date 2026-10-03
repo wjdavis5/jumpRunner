@@ -30,9 +30,24 @@ class ObstacleComponent extends PositionComponent with CollisionCallbacks {
 
   final ObstacleType type;
 
+  Sprite? sprite;
+
   late final RectangleHitbox hitbox;
 
   bool get shouldRecycle => position.x < -200.0;
+
+  static String spritePathForType(ObstacleType type) {
+    switch (type) {
+      case ObstacleType.scooter:
+        return 'hazards/scooter.png';
+      case ObstacleType.dog:
+        return 'hazards/dog.png';
+      case ObstacleType.hydrant:
+        return 'hazards/hydrant.png';
+      case ObstacleType.van:
+        return 'hazards/van.png';
+    }
+  }
 
   static Vector2 defaultSizeForType(ObstacleType type) {
     switch (type) {
@@ -50,6 +65,12 @@ class ObstacleComponent extends PositionComponent with CollisionCallbacks {
   @override
   Future<void> onLoad() async {
     await super.onLoad();
+
+    try {
+      sprite = await Sprite.load(spritePathForType(type));
+    } catch (_) {
+      sprite = null;
+    }
 
     // Hitbox calibrated slightly inside sprite bounds for fair gameplay
     final hitboxSize = Vector2(size.x * 0.9, size.y * 0.9);
@@ -83,6 +104,11 @@ class ObstacleComponent extends PositionComponent with CollisionCallbacks {
   @override
   void render(Canvas canvas) {
     super.render(canvas);
+
+    if (sprite != null) {
+      sprite!.render(canvas, size: size);
+      return;
+    }
 
     switch (type) {
       case ObstacleType.scooter:

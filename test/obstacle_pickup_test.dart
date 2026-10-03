@@ -93,5 +93,19 @@ void main() {
       pickup.update(0.1);
       expect(pickup.shouldRecycle, isTrue);
     });
+
+    test('Hazard sprite paths match curated Kenney assets', () {
+      expect(ObstacleComponent.spritePathForType(ObstacleType.scooter), equals('hazards/scooter.png'));
+      expect(ObstacleComponent.spritePathForType(ObstacleType.dog), equals('hazards/dog.png'));
+      expect(ObstacleComponent.spritePathForType(ObstacleType.hydrant), equals('hazards/hydrant.png'));
+      expect(ObstacleComponent.spritePathForType(ObstacleType.van), equals('hazards/van.png'));
+    });
+
+    test('Pickup sprite paths match curated Kenney assets', () {
+      expect(PickupComponent.spritePathForType(PickupType.coin), equals('pickups/coin.png'));
+      expect(PickupComponent.spritePathForType(PickupType.coin5), equals('pickups/coin.png'));
+      expect(PickupComponent.spritePathForType(PickupType.energyDrink), equals('pickups/energy_drink.png'));
+      expect(PickupComponent.spritePathForType(PickupType.packageRestore), equals('pickups/package_box.png'));
+    });
   });
 }
