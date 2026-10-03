@@ -42,6 +42,7 @@ class GameState extends ChangeNotifier {
   static const int milestoneBonusTips = 50;
 
   static const double defaultEnergyDrinkDuration = 5.0;
+  static const double milestoneBannerDuration = 3.0;
 
   int get maxPackages => defaultMaxPackages;
 
@@ -55,6 +56,15 @@ class GameState extends ChangeNotifier {
 
   /// Returns true if the courier is currently energized by an energy drink.
   bool get isEnergyBoostActive => energyDrinkTimer > 0;
+
+  /// The active milestone event being celebrated by the UI banner.
+  MilestoneEvent? activeMilestone;
+
+  /// Remaining display duration in seconds for the shift milestone celebration banner.
+  double milestoneBannerTimer = 0.0;
+
+  /// True when the milestone celebration banner should be displayed.
+  bool get isMilestoneBannerVisible => activeMilestone != null && milestoneBannerTimer > 0;
 
   int _lastMilestoneIndex = 0;
 
@@ -70,6 +80,8 @@ class GameState extends ChangeNotifier {
     distanceMeters = 0.0;
     _lastMilestoneIndex = 0;
     energyDrinkTimer = 0.0;
+    activeMilestone = null;
+    milestoneBannerTimer = 0.0;
     status = GameStatus.running;
     notifyListeners();
   }
@@ -88,6 +100,18 @@ class GameState extends ChangeNotifier {
       energyDrinkTimer -= dt;
       if (energyDrinkTimer <= 0) {
         energyDrinkTimer = 0.0;
+      }
+      notifyListeners();
+    }
+  }
+
+  /// Updates the celebration banner countdown timer.
+  void updateMilestoneTimer(double dt) {
+    if (milestoneBannerTimer > 0) {
+      milestoneBannerTimer -= dt;
+      if (milestoneBannerTimer <= 0) {
+        milestoneBannerTimer = 0.0;
+        activeMilestone = null;
       }
       notifyListeners();
     }
@@ -143,27 +167,23 @@ class GameState extends ChangeNotifier {
     if (currentMilestone > _lastMilestoneIndex) {
       while (_lastMilestoneIndex < currentMilestone) {
         _lastMilestoneIndex++;
-        if (packages < maxPackages) {
+        final bool shouldRestore = packages < maxPackages;
+        if (shouldRestore) {
           packages++;
-          onMilestone?.call(
-            MilestoneEvent(
-              milestoneIndex: _lastMilestoneIndex,
-              distanceMeters: _lastMilestoneIndex * milestoneIntervalMeters,
-              restoredPackage: true,
-              bonusTips: 0,
-            ),
-          );
         } else {
           tips += milestoneBonusTips;
-          onMilestone?.call(
-            MilestoneEvent(
-              milestoneIndex: _lastMilestoneIndex,
-              distanceMeters: _lastMilestoneIndex * milestoneIntervalMeters,
-              restoredPackage: false,
-              bonusTips: milestoneBonusTips,
-            ),
-          );
         }
+
+        final event = MilestoneEvent(
+          milestoneIndex: _lastMilestoneIndex,
+          distanceMeters: _lastMilestoneIndex * milestoneIntervalMeters,
+          restoredPackage: shouldRestore,
+          bonusTips: shouldRestore ? 0 : milestoneBonusTips,
+        );
+
+        activeMilestone = event;
+        milestoneBannerTimer = milestoneBannerDuration;
+        onMilestone?.call(event);
       }
     }
     notifyListeners();

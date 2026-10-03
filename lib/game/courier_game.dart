@@ -173,8 +173,9 @@ class CourierGame extends FlameGame
     super.update(dt);
     if (!isRunning || gameState.status != GameStatus.running) return;
 
-    // 0. Update active energy drink buff & player boosted visual state
+    // 0. Update active energy drink buff & celebration timers
     gameState.updateEnergyTimer(dt);
+    gameState.updateMilestoneTimer(dt);
     player.isBoosted = gameState.isEnergyBoostActive;
 
     // 1. Calculate dynamic scroll speed based on distance (with energy boost)
