@@ -245,6 +245,7 @@ class CourierGame extends FlameGame
     // 1. Calculate dynamic scroll speed based on distance (with energy boost)
     final speedMultiplier = gameState.isEnergyBoostActive ? 1.2 : 1.0;
     currentSpeed = chunkManager.calculateSpeed(gameState.distanceMeters) * speedMultiplier;
+    audio.updateSpeed(currentSpeed);
 
     // 2. Advance meter progress (20 px = 1 meter)
     final distanceDelta = (currentSpeed * dt) / 20.0;

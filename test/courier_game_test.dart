@@ -7,7 +7,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jump_runner/game/components/parallax_city.dart';
 import 'package:jump_runner/game/components/pickup_component.dart';
 import 'package:jump_runner/game/courier_game.dart';
-import 'package:jump_runner/game/logic/game_state.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

@@ -107,6 +107,7 @@ class _CourierDashAppState extends State<CourierDashApp> {
     if (_gameState.status == GameStatus.running) {
       _gameState.pauseRun();
       _game.overlays.add('PauseMenu');
+      widget.audioController.pauseDucking();
     }
   }
 
@@ -114,6 +115,7 @@ class _CourierDashAppState extends State<CourierDashApp> {
     if (_gameState.status == GameStatus.paused) {
       _gameState.resumeRun();
       _game.overlays.remove('PauseMenu');
+      widget.audioController.resumeDucking();
     }
   }
 
@@ -130,6 +132,7 @@ class _CourierDashAppState extends State<CourierDashApp> {
     _game.overlays.remove('HUD');
     _gameState.status = GameStatus.idle;
     _game.isRunning = false;
+    widget.audioController.resumeDucking();
     _game.overlays.add('TitleScreen');
   }
 
