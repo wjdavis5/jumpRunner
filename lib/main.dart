@@ -76,6 +76,7 @@ class _CourierDashAppState extends State<CourierDashApp> {
       gameState: _gameState,
       audioController: widget.audioController,
       achievementManager: AchievementManager(storageService: widget.storageService),
+      storageService: widget.storageService,
       initialSkin: equippedSkin,
     );
 
