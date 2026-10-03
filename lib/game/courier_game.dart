@@ -130,6 +130,7 @@ class CourierGame extends FlameGame
         audio.playCoin();
         break;
       case PickupType.energyDrink:
+        gameState.activateEnergyDrink();
         audio.playCoin();
         break;
       case PickupType.packageRestore:
@@ -160,6 +161,7 @@ class CourierGame extends FlameGame
     player.simulator.verticalVelocity = 0.0;
     player.simulator.isGrounded = true;
     player.state = CourierState.running;
+    player.isBoosted = false;
 
     isRunning = true;
     _spawnChunk();
@@ -171,8 +173,13 @@ class CourierGame extends FlameGame
     super.update(dt);
     if (!isRunning || gameState.status != GameStatus.running) return;
 
-    // 1. Calculate dynamic scroll speed based on distance
-    currentSpeed = chunkManager.calculateSpeed(gameState.distanceMeters);
+    // 0. Update active energy drink buff & player boosted visual state
+    gameState.updateEnergyTimer(dt);
+    player.isBoosted = gameState.isEnergyBoostActive;
+
+    // 1. Calculate dynamic scroll speed based on distance (with energy boost)
+    final speedMultiplier = gameState.isEnergyBoostActive ? 1.2 : 1.0;
+    currentSpeed = chunkManager.calculateSpeed(gameState.distanceMeters) * speedMultiplier;
 
     // 2. Advance meter progress (20 px = 1 meter)
     final distanceDelta = (currentSpeed * dt) / 20.0;
@@ -192,11 +199,30 @@ class CourierGame extends FlameGame
       p.position.x -= scrollDelta;
     }
 
-    // 5. Clean up recycled items
+    // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
+    if (gameState.isEnergyBoostActive) {
+      final playerCenter = player.position + (player.size / 2);
+      const magnetRadius = 260.0;
+      const magnetSpeed = 480.0;
+
+      for (final p in activePickups) {
+        if ((p.type == PickupType.coin || p.type == PickupType.coin5) && !p.isCollected) {
+          final pickupCenter = p.position + (p.size / 2);
+          final diff = playerCenter - pickupCenter;
+          final dist = diff.length;
+          if (dist < magnetRadius && dist > 1.0) {
+            final pull = diff.normalized() * (magnetSpeed * dt);
+            p.position += pull;
+          }
+        }
+      }
+    }
+
+    // 6. Clean up recycled items
     activeObstacles.removeWhere((o) => o.shouldRecycle || !o.isMounted);
     activePickups.removeWhere((p) => p.shouldRecycle || p.isCollected || !p.isMounted);
 
-    // 6. Spawn next procedural chunk when horizon approaches
+    // 7. Spawn next procedural chunk when horizon approaches
     if (nextChunkX <= virtualResolution.x + 480.0) {
       _spawnChunk();
     }
