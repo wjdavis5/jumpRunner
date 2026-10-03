@@ -2,7 +2,8 @@ import 'dart:math' as math;
 
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Offline key-value persistence service for courier career records and preferences.
+/// Offline key-value persistence service for courier career records, locker unlocks,
+/// and audio preferences.
 ///
 /// Guaranteed zero network calls, zero third-party telemetry, 100% offline.
 class LocalStorageService {
@@ -11,6 +12,8 @@ class LocalStorageService {
   static const String _keyHighDistance = 'courier_high_distance';
   static const String _keyCareerTips = 'courier_career_tips';
   static const String _keySoundMuted = 'courier_sound_muted';
+  static const String _keyUnlockedSkins = 'courier_unlocked_skins';
+  static const String _keyEquippedSkin = 'courier_equipped_skin';
 
   SharedPreferences? _prefs;
 
@@ -27,6 +30,13 @@ class LocalStorageService {
 
   /// Whether audio is muted by player preference.
   bool get isSoundMuted => _prefs?.getBool(_keySoundMuted) ?? false;
+
+  /// List of skin identifiers unlocked by the player.
+  List<String> get unlockedSkins =>
+      _prefs?.getStringList(_keyUnlockedSkins) ?? const ['standard'];
+
+  /// Identifier of the currently equipped vanity courier outfit.
+  String get equippedSkin => _prefs?.getString(_keyEquippedSkin) ?? 'standard';
 
   /// Records completed run stats, updating personal best distance and cumulative career tips.
   ///
@@ -51,5 +61,35 @@ class LocalStorageService {
   /// Saves user audio mute preference.
   Future<void> setSoundMuted(bool muted) async {
     await _prefs?.setBool(_keySoundMuted, muted);
+  }
+
+  /// Purchases and unlocks a cosmetic courier skin using accumulated career tips.
+  ///
+  /// Returns `true` if skin was successfully purchased; `false` if insufficient funds or already owned.
+  Future<bool> unlockSkin(String skinId, int cost) async {
+    final prefs = _prefs;
+    if (prefs == null) return false;
+
+    final currentUnlocked = List<String>.from(unlockedSkins);
+    if (currentUnlocked.contains(skinId)) return true;
+
+    if (careerTips < cost) return false;
+
+    await prefs.setInt(_keyCareerTips, careerTips - cost);
+    currentUnlocked.add(skinId);
+    await prefs.setStringList(_keyUnlockedSkins, currentUnlocked);
+    return true;
+  }
+
+  /// Equips an unlocked vanity courier outfit.
+  Future<bool> equipSkin(String skinId) async {
+    final prefs = _prefs;
+    if (prefs == null) return false;
+
+    if (unlockedSkins.contains(skinId)) {
+      await prefs.setString(_keyEquippedSkin, skinId);
+      return true;
+    }
+    return false;
   }
 }

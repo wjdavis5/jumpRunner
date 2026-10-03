@@ -5,6 +5,7 @@ import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
 import '../logic/jump_physics.dart';
+import '../models/courier_skin.dart';
 
 /// Courier avatar state machine enum.
 enum CourierState {
@@ -24,10 +25,12 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
     this.groundY = 460.0,
     double initialX = 120.0,
     Vector2? playerSize,
+    CourierSkin? skin,
     this.onJump,
     this.onLand,
     this.onDamage,
-  }) : simulator = JumpPhysicsSimulator(groundY: groundY) {
+  })  : skin = skin ?? CourierSkin.standard,
+        simulator = JumpPhysicsSimulator(groundY: groundY) {
     size = playerSize ?? Vector2(64, 64);
     position = Vector2(initialX, groundY - size.y);
   }
@@ -38,6 +41,13 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   final VoidCallback? onJump;
   final VoidCallback? onLand;
   final VoidCallback? onDamage;
+
+  CourierSkin skin;
+
+  /// Updates the cosmetic outfit worn by the courier.
+  void setSkin(CourierSkin newSkin) {
+    skin = newSkin;
+  }
 
   CourierState state = CourierState.running;
 
@@ -223,12 +233,20 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   }
 
   void _drawCourier(Canvas canvas) {
+    // Ambient vanity glow for neon / golden skins
+    if (skin.glowColor != Colors.transparent) {
+      final glowPaint = Paint()
+        ..color = skin.glowColor.withValues(alpha: 0.35)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+      canvas.drawCircle(const Offset(30, 30), 22, glowPaint);
+    }
+
     // Stylized courier rendering: courier shirt, cap, delivery backpack
-    final bodyPaint = Paint()..color = const Color(0xFF2980B9);
+    final bodyPaint = Paint()..color = skin.primaryColor;
     final backpackPaint = Paint()..color = const Color(0xFFE67E22);
     final skinPaint = Paint()..color = const Color(0xFFF5CBA7);
-    final capPaint = Paint()..color = const Color(0xFFC0392B);
-    final pantsPaint = Paint()..color = const Color(0xFF2C3E50);
+    final capPaint = Paint()..color = skin.accentColor;
+    final pantsPaint = Paint()..color = skin.accentColor;
 
     // Torso / Jacket
     canvas.drawRRect(
@@ -274,6 +292,18 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
       final legOffset = (_currentRunFrame % 2 == 0) ? 4.0 : -4.0;
       canvas.drawRect(Rect.fromLTWH(20 + legOffset, 46, 8, 16), pantsPaint);
       canvas.drawRect(Rect.fromLTWH(32 - legOffset, 46, 8, 16), pantsPaint);
+
+      // Trailing shoe spark VFX for high-top sneakers
+      if (skin.hasSpeedTrail) {
+        final sparkPaint = Paint()
+          ..color = skin.accentColor.withValues(alpha: 0.6)
+          ..strokeWidth = 2.0;
+        canvas.drawLine(
+          Offset(12.0 + legOffset, 60.0),
+          Offset(20.0 + legOffset, 60.0),
+          sparkPaint,
+        );
+      }
     }
   }
 }

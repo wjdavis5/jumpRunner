@@ -9,6 +9,7 @@ class TitleScreen extends StatelessWidget {
     required this.onStartGame,
     this.isMuted = false,
     this.onToggleMute,
+    this.onOpenLocker,
   });
 
   final int highDistance;
@@ -16,6 +17,7 @@ class TitleScreen extends StatelessWidget {
   final VoidCallback onStartGame;
   final bool isMuted;
   final VoidCallback? onToggleMute;
+  final VoidCallback? onOpenLocker;
 
   @override
   Widget build(BuildContext context) {
@@ -155,30 +157,64 @@ class TitleScreen extends StatelessWidget {
 
             const SizedBox(height: 24),
 
-            // Start button
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton.icon(
-                onPressed: onStartGame,
-                icon: const Icon(Icons.play_arrow, size: 28),
-                label: const Text(
-                  'START SHIFT',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.0,
+            // Action Buttons
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: SizedBox(
+                    height: 52,
+                    child: ElevatedButton.icon(
+                      onPressed: onStartGame,
+                      icon: const Icon(Icons.play_arrow, size: 28),
+                      label: const Text(
+                        'START SHIFT',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF27AE60),
+                        foregroundColor: Colors.white,
+                        elevation: 6,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF27AE60),
-                  foregroundColor: Colors.white,
-                  elevation: 6,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                if (onOpenLocker != null) ...[
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    height: 52,
+                    child: OutlinedButton.icon(
+                      key: const Key('open_locker_button'),
+                      onPressed: onOpenLocker,
+                      icon: const Icon(Icons.checkroom, size: 22, color: Color(0xFF00E5FF)),
+                      label: const Text(
+                        'LOCKER',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF00E5FF), width: 1.5),
+                        backgroundColor: const Color(0xFF00E5FF).withValues(alpha: 0.1),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                      ),
+                    ),
                   ),
-                ),
-              ),
+                ],
+              ],
             ),
           ],
         ),
