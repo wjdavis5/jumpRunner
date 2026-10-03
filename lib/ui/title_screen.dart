@@ -11,8 +11,10 @@ class TitleScreen extends StatelessWidget {
     this.onToggleMute,
     this.onOpenLocker,
     this.onOpenAchievements,
+    this.onOpenDailyShift,
     this.unlockedAchievementsCount = 0,
     this.totalAchievementsCount = 6,
+    this.dailyStars = 0,
   });
 
   final int highDistance;
@@ -22,8 +24,10 @@ class TitleScreen extends StatelessWidget {
   final VoidCallback? onToggleMute;
   final VoidCallback? onOpenLocker;
   final VoidCallback? onOpenAchievements;
+  final VoidCallback? onOpenDailyShift;
   final int unlockedAchievementsCount;
   final int totalAchievementsCount;
+  final int dailyStars;
 
   @override
   Widget build(BuildContext context) {
@@ -240,6 +244,34 @@ class TitleScreen extends StatelessWidget {
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: Color(0xFFF1C40F), width: 1.5),
                         backgroundColor: const Color(0xFFF1C40F).withValues(alpha: 0.1),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                      ),
+                    ),
+                  ),
+                ],
+                if (onOpenDailyShift != null) ...[
+                  const SizedBox(width: 10),
+                  SizedBox(
+                    height: 52,
+                    child: OutlinedButton.icon(
+                      key: const Key('open_daily_shift_button'),
+                      onPressed: onOpenDailyShift,
+                      icon: const Icon(Icons.event_available, size: 22, color: Color(0xFF3498DB)),
+                      label: Text(
+                        dailyStars > 0 ? 'DAILY ($dailyStars ⭐)' : 'DAILY',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF3498DB), width: 1.5),
+                        backgroundColor: const Color(0xFF3498DB).withValues(alpha: 0.1),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),

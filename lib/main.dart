@@ -7,8 +7,10 @@ import 'game/courier_game.dart';
 import 'game/logic/achievement_manager.dart';
 import 'game/logic/game_state.dart';
 import 'game/models/courier_skin.dart';
+import 'game/models/daily_shift.dart';
 import 'services/storage_service.dart';
 import 'ui/achievements_modal.dart';
+import 'ui/daily_shift_modal.dart';
 import 'ui/game_over_modal.dart';
 import 'ui/hud_overlay.dart';
 import 'ui/locker_modal.dart';
@@ -113,11 +115,24 @@ class _CourierDashAppState extends State<CourierDashApp> {
     }
   }
 
-  void _startGame() {
-    _gameState.startRun();
+  void _startGame([DailyShift? dailyShift]) {
+    _gameState.startRun(dailyShift: dailyShift);
     _game.restartRun();
     _game.overlays.remove('TitleScreen');
     _game.overlays.add('HUD');
+  }
+
+  void _openDailyShift() {
+    _game.overlays.add('DailyShiftModal');
+  }
+
+  void _closeDailyShift() {
+    _game.overlays.remove('DailyShiftModal');
+  }
+
+  void _startDailyShift(DailyShift shift) {
+    _closeDailyShift();
+    _startGame(shift);
   }
 
   void _restartGame() {
@@ -210,10 +225,16 @@ class _CourierDashAppState extends State<CourierDashApp> {
                   isMuted: widget.audioController.isMuted,
                   unlockedAchievementsCount: _game.achievementManager.unlockedCount,
                   totalAchievementsCount: _game.achievementManager.totalCount,
+                  dailyStars: widget.storageService.dailyStars,
                   onToggleMute: _toggleMute,
                   onOpenLocker: _openLocker,
                   onOpenAchievements: _openAchievements,
+                  onOpenDailyShift: _openDailyShift,
                   onStartGame: _startGame,
+                ),
+            'DailyShiftModal': (context, game) => DailyShiftModal(
+                  storageService: widget.storageService,
+                  onStartDailyShift: _startDailyShift,
                 ),
             'LockerModal': (context, game) => LockerModal(
                   careerTips: widget.storageService.careerTips,

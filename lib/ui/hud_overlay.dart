@@ -287,9 +287,13 @@ class HUDOverlay extends StatelessWidget {
                 ),
               ),
               Text(
-                'Shift Goal: ${nextMilestone}m',
-                style: const TextStyle(
-                  color: Color(0xFF85C1E9),
+                gameState.isDailyShiftActive
+                    ? 'DAILY GOAL: ${gameState.activeDailyShift!.targetDistanceMeters}m (${gameState.activeDailyShift!.modifier.title})'
+                    : 'Shift Goal: ${nextMilestone}m',
+                style: TextStyle(
+                  color: gameState.isDailyShiftActive
+                      ? gameState.activeDailyShift!.modifier.color
+                      : const Color(0xFF85C1E9),
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
                 ),
