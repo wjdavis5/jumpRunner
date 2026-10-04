@@ -19,6 +19,7 @@ import 'components/pr_marker_component.dart';
 import 'components/rain_component.dart';
 import 'components/ramp_component.dart';
 import 'components/scaffolding_component.dart';
+import 'components/steam_vent_component.dart';
 import 'logic/achievement_manager.dart';
 import 'logic/camera_juice_controller.dart';
 import 'logic/game_state.dart';
@@ -116,6 +117,7 @@ class CourierGame extends FlameGame
   final List<RampComponent> activeRamps = [];
   final List<DropZoneComponent> activeDropZones = [];
   final List<GrindRailComponent> activeGrindRails = [];
+  final List<SteamVentComponent> activeSteamVents = [];
   ObstacleComponent? _currentVaultTarget;
   double cameraTargetY = 270.0;
   double _grindSparkTimer = 0.0;
@@ -213,6 +215,8 @@ class CourierGame extends FlameGame
       onRailOllie: _handleRailOllie,
       checkCanVault: _canVaultObstacleAhead,
       onVault: _handleParkourVault,
+      onGlideStarted: _handleGlideStarted,
+      onGlideEnded: _handleGlideEnded,
     );
     world.add(player);
 
@@ -328,6 +332,18 @@ class CourierGame extends FlameGame
       world.add(grComp);
     }
 
+    for (final sv in chunk.steamVents) {
+      final svComp = SteamVentComponent(
+        position: Vector2(sv.x, sv.y),
+        size: Vector2(sv.width, sv.height),
+        groundY: groundY,
+        updraftHeight: sv.updraftHeight,
+        updraftVelocity: sv.updraftVelocity,
+      );
+      activeSteamVents.add(svComp);
+      world.add(svComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -430,12 +446,20 @@ class CourierGame extends FlameGame
     for (final gr in world.children.whereType<GrindRailComponent>().toList()) {
       gr.removeFromParent();
     }
+    for (final sv in activeSteamVents.toList()) {
+      sv.removeFromParent();
+    }
+    for (final sv in world.children.whereType<SteamVentComponent>().toList()) {
+      sv.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
     activeGrindRails.clear();
+    activeSteamVents.clear();
     cameraTargetY = virtualResolution.y / 2;
     player.endGrinding();
+    player.stopGlide();
     player.resetTargetSurfaceY();
     _footstepTimer = 0.0;
     _grindSparkTimer = 0.0;
@@ -540,6 +564,9 @@ class CourierGame extends FlameGame
     // 2. Advance meter progress (20 px = 1 meter)
     final distanceDelta = (currentSpeed * dt) / 20.0;
     gameState.updateDistance(gameState.distanceMeters + distanceDelta);
+    if (player.isGliding) {
+      player.glideDistance += distanceDelta;
+    }
 
     // 2a. Evaluate distance achievements at key milestones
     if ((gameState.distanceMeters >= 500.0 && !achievementManager.isUnlocked('first_delivery')) ||
@@ -579,7 +606,7 @@ class CourierGame extends FlameGame
 
     // 3b. Update camera trauma shake, velocity framing zoom, and vertical aerial tracking
     cameraJuice.update(dt, currentSpeed: currentSpeed);
-    final targetCameraY = (player.isElevated || player.isGrinding)
+    final targetCameraY = (player.isElevated || player.isGrinding || player.isGliding)
         ? (virtualResolution.y / 2) - 35.0
         : (virtualResolution.y / 2);
     cameraTargetY += (targetCameraY - cameraTargetY) * (3.0 * dt).clamp(0.0, 1.0);
@@ -611,6 +638,9 @@ class CourierGame extends FlameGame
     }
     for (final gr in activeGrindRails) {
       gr.position.x -= scrollDelta;
+    }
+    for (final sv in activeSteamVents) {
+      sv.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -785,6 +815,35 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4h. Evaluate Thermal Steam Vent Updraft Column Contact
+    for (final sv in activeSteamVents) {
+      if (sv.isInUpdraft(player.position, player.size)) {
+        player.simulator.applyUpdraft(sv.updraftVelocity);
+        if (!sv.hasTriggeredBoost) {
+          sv.hasTriggeredBoost = true;
+          audio.playJump();
+          triggerScreenShake(0.2);
+          spawnSparkles(
+            Vector2(sv.position.x + (sv.size.x / 2), sv.position.y),
+            color: const Color(0xFF00E5FF),
+            count: 12,
+          );
+          final event = gameState.recordSteamVentBoost();
+          if (event != null) {
+            final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+            addEffect(
+              FloatingTextComponent(
+                text: 'STEAM BOOST! $multStr+\$${event.totalTips}',
+                position: Vector2(player.position.x - 10.0, player.position.y - 35.0),
+                color: const Color(0xFF00E5FF),
+              ),
+            );
+          }
+          _evaluateAchievements();
+        }
+      }
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -853,6 +912,13 @@ class CourierGame extends FlameGame
     activeGrindRails.removeWhere((gr) {
       if (gr.shouldRecycle || gr.isRemoved) {
         if (gr.isMounted) gr.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeSteamVents.removeWhere((sv) {
+      if (sv.shouldRecycle || sv.isRemoved) {
+        if (sv.isMounted) sv.removeFromParent();
         return true;
       }
       return false;
@@ -999,6 +1065,36 @@ class CourierGame extends FlameGame
     _evaluateAchievements();
   }
 
+  void _handleGlideStarted() {
+    audio.playJump();
+    triggerScreenShake(0.10);
+    spawnSparkles(
+      Vector2(player.position.x + (player.size.x / 2), player.position.y - 8.0),
+      color: const Color(0xFFFF9F43),
+      count: 8,
+    );
+  }
+
+  void _handleGlideEnded() {
+    final meters = player.glideDistance;
+    if (meters >= 5.0) {
+      final event = gameState.recordGlide(glideDistanceMeters: meters);
+      if (event != null) {
+        audio.playCoin();
+        triggerScreenShake(0.15);
+        final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+        addEffect(
+          FloatingTextComponent(
+            text: 'GLIDE! ${meters.toStringAsFixed(0)}m $multStr+\$${event.totalTips}',
+            position: Vector2(player.position.x - 10.0, player.position.y - 35.0),
+            color: const Color(0xFFFF9F43),
+          ),
+        );
+        _evaluateAchievements();
+      }
+    }
+  }
+
   void _evaluateAchievements() {
     achievementManager.evaluateProgress(
       distanceMeters: gameState.distanceMeters,
@@ -1037,7 +1133,9 @@ class CourierGame extends FlameGame
   void onTapDown(TapDownEvent event) {
     super.onTapDown(event);
     if (isRunning && gameState.status == GameStatus.running) {
-      player.jump();
+      if (!player.jump()) {
+        player.toggleGlide();
+      }
     }
   }
 
@@ -1073,7 +1171,9 @@ class CourierGame extends FlameGame
     if (isJumpKey) {
       if (event is KeyDownEvent) {
         if (isRunning && gameState.status == GameStatus.running) {
-          player.jump();
+          if (!player.jump()) {
+            player.toggleGlide();
+          }
         }
         return KeyEventResult.handled;
       } else if (event is KeyUpEvent) {

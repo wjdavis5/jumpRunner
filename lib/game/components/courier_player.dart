@@ -8,12 +8,14 @@ import '../logic/jump_physics.dart';
 import '../models/courier_skin.dart';
 
 /// Courier avatar state machine enum.
+/// Courier avatar state machine enum.
 enum CourierState {
   running,
   jumping,
   falling,
   grinding,
   vaulting,
+  gliding,
   hurt,
 }
 
@@ -34,6 +36,8 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
     this.onRailOllie,
     this.checkCanVault,
     this.onVault,
+    this.onGlideStarted,
+    this.onGlideEnded,
   })  : skin = skin ?? CourierSkin.standard,
         simulator = JumpPhysicsSimulator(groundY: groundY) {
     size = playerSize ?? Vector2(64, 64);
@@ -49,6 +53,8 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   final VoidCallback? onRailOllie;
   final bool Function()? checkCanVault;
   final VoidCallback? onVault;
+  final VoidCallback? onGlideStarted;
+  final VoidCallback? onGlideEnded;
 
   CourierSkin skin;
 
@@ -64,6 +70,12 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
 
   /// Whether the courier is currently executing an agile parkour obstacle vault.
   bool get isVaulting => state == CourierState.vaulting;
+
+  /// Whether the courier is currently gliding with deployed delivery poncho canopy.
+  bool get isGliding => state == CourierState.gliding;
+
+  /// Cumulative distance in meters traveled during the active glide session.
+  double glideDistance = 0.0;
 
   double _vaultTimer = 0.0;
   static const double defaultVaultDuration = 0.36;
@@ -123,6 +135,7 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   /// Triggers a jump. Returns `true` if initiated, `false` if rejected (e.g. airborne).
   /// If initiated while grinding, executes a high-pop Rail Ollie combo jump.
   /// If initiated while grounded near a low vaultable obstacle, executes an agile parkour vault.
+  /// If initiated while airborne, toggles the delivery glide chute.
   bool jump() {
     if (state == CourierState.grinding) {
       state = CourierState.jumping;
@@ -143,7 +156,47 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
       onJump?.call();
       return true;
     }
+
     return false;
+  }
+
+  /// Deploys emergency delivery glide chute while airborne.
+  bool deployGlide() {
+    if (simulator.isGrounded || state == CourierState.hurt || state == CourierState.gliding) {
+      return false;
+    }
+    startGlide();
+    return true;
+  }
+
+  /// Toggles delivery glide chute while airborne.
+  bool toggleGlide() {
+    if (simulator.isGrounded || state == CourierState.hurt) return false;
+    if (isGliding) {
+      stopGlide();
+      return true;
+    } else {
+      startGlide();
+      return true;
+    }
+  }
+
+  /// Deploys emergency delivery glide chute while airborne.
+  void startGlide() {
+    if (simulator.isGrounded || state == CourierState.hurt) return;
+    state = CourierState.gliding;
+    simulator.isGliding = true;
+    glideDistance = 0.0;
+    onGlideStarted?.call();
+  }
+
+  /// Stows delivery glide chute, reverting to standard gravity fall.
+  void stopGlide() {
+    if (state == CourierState.gliding) {
+      simulator.isGliding = false;
+      state = CourierState.falling;
+      onGlideEnded?.call();
+    }
   }
 
   /// Initiates grinding along a rail surface at [railSurfaceY].
@@ -202,6 +255,9 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   bool takeDamage() {
     if (isInvulnerable) return false;
 
+    if (isGliding) {
+      stopGlide();
+    }
     _invulnerabilityTimer = invulnerabilityDuration;
     state = CourierState.hurt;
     onDamage?.call();
@@ -234,6 +290,13 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
         } else {
           state = CourierState.falling;
         }
+      }
+    } else if (state == CourierState.gliding) {
+      if (simulator.isGrounded) {
+        state = CourierState.running;
+        simulator.isGliding = false;
+        if (wasAirborne) onLand?.call();
+        onGlideEnded?.call();
       }
     } else if (!simulator.isGrounded) {
       if (_invulnerabilityTimer > 0 && state == CourierState.hurt) {
@@ -420,6 +483,46 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
         ..strokeCap = StrokeCap.round;
       canvas.drawLine(const Offset(-4, 34), const Offset(10, 34), streakPaint);
       canvas.drawLine(const Offset(-8, 44), const Offset(6, 44), streakPaint);
+    } else if (state == CourierState.gliding) {
+      // Aerodynamic horizontal flight legs trailing back
+      canvas.drawRect(const Rect.fromLTWH(10, 44, 18, 7), pantsPaint);
+      canvas.drawRect(const Rect.fromLTWH(24, 46, 16, 6), pantsPaint);
+
+      // Suspension rigging cords from backpack up to parachute canopy
+      final cordPaint = Paint()
+        ..color = const Color(0xFFBDC3C7)
+        ..strokeWidth = 1.2;
+      canvas.drawLine(const Offset(22, 22), const Offset(4, -6), cordPaint);
+      canvas.drawLine(const Offset(24, 22), const Offset(20, -10), cordPaint);
+      canvas.drawLine(const Offset(28, 22), const Offset(44, -10), cordPaint);
+      canvas.drawLine(const Offset(30, 22), const Offset(60, -6), cordPaint);
+
+      // Deployed high-visibility delivery parachute canopy arch overhead
+      final canopyPath = Path()
+        ..moveTo(2, -4)
+        ..quadraticBezierTo(32, -18, 62, -4)
+        ..quadraticBezierTo(32, -10, 2, -4)
+        ..close();
+      final canopyPaint = Paint()..color = const Color(0xFFFF5722);
+      canvas.drawPath(canopyPath, canopyPaint);
+
+      // Reflective safety chevron stripe along canopy
+      final stripePath = Path()
+        ..moveTo(14, -7)
+        ..quadraticBezierTo(32, -14, 50, -7)
+        ..quadraticBezierTo(32, -11, 14, -7)
+        ..close();
+      final stripePaint = Paint()..color = Colors.white.withValues(alpha: 0.9);
+      canvas.drawPath(stripePath, stripePaint);
+
+      // Trailing cyan aerodynamic wind glide lines
+      final windPaint = Paint()
+        ..color = const Color(0xFF00E5FF).withValues(alpha: 0.7)
+        ..strokeWidth = 1.8
+        ..strokeCap = StrokeCap.round;
+      canvas.drawLine(const Offset(-10, 36), const Offset(6, 36), windPaint);
+      canvas.drawLine(const Offset(-16, 44), const Offset(2, 44), windPaint);
+      canvas.drawLine(const Offset(-6, 28), const Offset(12, 28), windPaint);
     } else {
       // Alternating run stride
       final legOffset = (_currentRunFrame % 2 == 0) ? 4.0 : -4.0;

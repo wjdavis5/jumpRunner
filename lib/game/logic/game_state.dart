@@ -154,6 +154,54 @@ class VaultEvent {
   final int streak;
 }
 
+/// Event dispatched when a courier catches a rising steam vent thermal updraft.
+class SteamVentEvent {
+  const SteamVentEvent({
+    required this.multiplier,
+    required this.baseTips,
+    required this.totalTips,
+    required this.streak,
+  });
+
+  /// Active stunt combo multiplier applied to this boost.
+  final double multiplier;
+
+  /// Base tips value ($20).
+  final int baseTips;
+
+  /// Total tips awarded after multipliers.
+  final int totalTips;
+
+  /// Current consecutive stunt streak count.
+  final int streak;
+}
+
+/// Event dispatched when completing a sustained aerodynamic glide traversal.
+class GlideEvent {
+  const GlideEvent({
+    required this.glideDistanceMeters,
+    required this.multiplier,
+    required this.baseTips,
+    required this.totalTips,
+    required this.streak,
+  });
+
+  /// Distance in meters traveled during the glide session.
+  final double glideDistanceMeters;
+
+  /// Active stunt combo multiplier applied to this glide.
+  final double multiplier;
+
+  /// Base tips value calculated from distance.
+  final int baseTips;
+
+  /// Total tips awarded after multipliers.
+  final int totalTips;
+
+  /// Current consecutive stunt streak count.
+  final int streak;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -279,12 +327,20 @@ class GameState extends ChangeNotifier {
   /// Total agile parkour obstacle vaults performed in current run.
   int vaultsInRun = 0;
 
+  /// Total steam vent updraft boosts caught in current run.
+  int steamBoostsInRun = 0;
+
+  /// Total sustained aerodynamic glides completed in current run.
+  int glidesInRun = 0;
+
   ValueChanged<MilestoneEvent>? onMilestone;
   ValueChanged<StuntEvent>? onStunt;
   ValueChanged<DeliveryEvent>? onDeliveryCompleted;
   ValueChanged<RailOllieEvent>? onRailOllie;
   ValueChanged<RailClearEvent>? onRailClear;
   ValueChanged<VaultEvent>? onVault;
+  ValueChanged<SteamVentEvent>? onSteamVent;
+  ValueChanged<GlideEvent>? onGlide;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -314,6 +370,8 @@ class GameState extends ChangeNotifier {
     deliveryStreak = 0;
     grindsInRun = 0;
     vaultsInRun = 0;
+    steamBoostsInRun = 0;
+    glidesInRun = 0;
     status = GameStatus.running;
     contractManager.reset();
 
@@ -535,6 +593,73 @@ class GameState extends ChangeNotifier {
     );
 
     onVault?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records catching a rising thermal steam vent updraft.
+  ///
+  /// Increments stunt streak, awards bonus tips, and resets the combo timer.
+  SteamVentEvent? recordSteamVentBoost() {
+    if (status != GameStatus.running) return null;
+
+    steamBoostsInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    const baseTip = 20;
+    final baseAward = (baseTip * stuntMultiplier).round();
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? baseAward * 2
+        : baseAward;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = SteamVentEvent(
+      multiplier: stuntMultiplier,
+      baseTips: baseTip,
+      totalTips: awarded,
+      streak: stuntStreak,
+    );
+
+    onSteamVent?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records a sustained aerodynamic glide traversal across the cityscape.
+  ///
+  /// Awards scaling tips based on distance glided and advances stunt streak.
+  GlideEvent? recordGlide({required double glideDistanceMeters}) {
+    if (status != GameStatus.running || glideDistanceMeters < 5.0) return null;
+
+    glidesInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    final baseTip = (glideDistanceMeters * 1.5).round().clamp(15, 60);
+    final baseAward = (baseTip * stuntMultiplier).round();
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? baseAward * 2
+        : baseAward;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = GlideEvent(
+      glideDistanceMeters: glideDistanceMeters,
+      multiplier: stuntMultiplier,
+      baseTips: baseTip,
+      totalTips: awarded,
+      streak: stuntStreak,
+    );
+
+    onGlide?.call(event);
     notifyListeners();
     return event;
   }
