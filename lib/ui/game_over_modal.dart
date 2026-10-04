@@ -25,6 +25,7 @@ class GameOverModal extends StatelessWidget {
     this.drainGeysersCompleted = 0,
     this.solarSurgesCompleted = 0,
     this.puddleSkimsCompleted = 0,
+    this.windTunnelGlidesCompleted = 0,
   });
 
   final int distance;
@@ -47,6 +48,7 @@ class GameOverModal extends StatelessWidget {
   final int drainGeysersCompleted;
   final int solarSurgesCompleted;
   final int puddleSkimsCompleted;
+  final int windTunnelGlidesCompleted;
   final VoidCallback onRestart;
 
   @override
@@ -562,6 +564,37 @@ class GameOverModal extends StatelessWidget {
                         '$puddleSkimsCompleted PUDDLE SKIM${puddleSkimsCompleted > 1 ? 'S' : ''}',
                         style: const TextStyle(
                           color: Color(0xFF29B6F6),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            if (windTunnelGlidesCompleted > 0)
+              Container(
+                key: const Key('game_over_wind_tunnel_badge'),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00E5FF).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF00E5FF), width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.air, color: Color(0xFF00E5FF), size: 16),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '$windTunnelGlidesCompleted WIND TUNNEL GLIDE${windTunnelGlidesCompleted > 1 ? 'S' : ''}',
+                        style: const TextStyle(
+                          color: Color(0xFF00E5FF),
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                           letterSpacing: 0.5,
