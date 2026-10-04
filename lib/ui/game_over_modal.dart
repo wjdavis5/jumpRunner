@@ -40,6 +40,7 @@ class GameOverModal extends StatelessWidget {
     this.newsstandsCompleted = 0,
     this.cafeBistrosCompleted = 0,
     this.buskersCompleted = 0,
+    this.hydrantsCompleted = 0,
   });
 
   final int distance;
@@ -77,6 +78,7 @@ class GameOverModal extends StatelessWidget {
   final int newsstandsCompleted;
   final int cafeBistrosCompleted;
   final int buskersCompleted;
+  final int hydrantsCompleted;
   final VoidCallback onRestart;
 
   @override
@@ -1057,6 +1059,37 @@ class GameOverModal extends StatelessWidget {
                         '$buskersCompleted STREET BUSKER JAZZ${buskersCompleted > 1 ? ' ENCOUNTERS' : ' ENCOUNTER'}',
                         style: const TextStyle(
                           color: Color(0xFFE1BEE7),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            if (hydrantsCompleted > 0)
+              Container(
+                key: const Key('game_over_hydrant_badge'),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00ACC1).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF00E5FF), width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.water_drop, color: Color(0xFFB2EBF2), size: 16),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '$hydrantsCompleted FIRE HYDRANT SPRAY${hydrantsCompleted > 1 ? ' BLASTS' : ' BLAST'}',
+                        style: const TextStyle(
+                          color: Color(0xFFB2EBF2),
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                           letterSpacing: 0.5,
