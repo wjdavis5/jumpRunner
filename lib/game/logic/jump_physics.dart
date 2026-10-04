@@ -96,13 +96,13 @@ class JumpPhysicsSimulator {
   /// Initiates a jump from the ground.
   ///
   /// Returns `true` if jump successfully initiated; `false` if rejected (e.g. mid-air).
-  bool startJump() {
+  bool startJump({double impulseMultiplier = 1.0}) {
     if (!isGrounded) return false;
 
     isGrounded = false;
     isHolding = true;
     holdTimer = 0.0;
-    verticalVelocity = initialImpulse;
+    verticalVelocity = initialImpulse * impulseMultiplier;
     return true;
   }
 

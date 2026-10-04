@@ -895,6 +895,51 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Generates a kinetic burst of dark rich espresso coffee droplets, golden crema foam,
+  /// and white ceramic porcelain cup shards shattering upon a sidewalk cafe bistro table vault.
+  factory ParticleEffectComponent.espressoPorcelainBurst({
+    required Vector2 position,
+    int count = 26,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFF3E2723), // Dark roasted espresso liquid
+      Color(0xFF4E342E), // Rich coffee drop
+      Color(0xFFD7CCC8), // Golden hazelnut crema froth
+      Color(0xFFFFE082), // Golden crema amber sparkle
+      Color(0xFFFFFFFF), // Glazed white porcelain shard
+      Color(0xFFECEFF1), // Ceramic shard
+      Color(0xFFD32F2F), // Checkered tablecloth thread red
+    ];
+
+    for (var i = 0; i < count; i++) {
+      final angle = -math.pi * 0.5 + (rng.nextDouble() - 0.5) * 2.0;
+      final speed = 80.0 + rng.nextDouble() * 160.0;
+      final velocity = Vector2(
+        math.cos(angle) * speed,
+        math.sin(angle) * speed - 30.0,
+      );
+
+      particles.add(
+        GameParticle(
+          position: position.clone() +
+              Vector2((rng.nextDouble() - 0.5) * 14.0, (rng.nextDouble() - 0.5) * 10.0),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 1.8 + rng.nextDouble() * 2.2,
+          maxLife: 0.45 + rng.nextDouble() * 0.35,
+          gravity: 210.0, // Kinetic downward splash arc
+          drag: 0.95,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.

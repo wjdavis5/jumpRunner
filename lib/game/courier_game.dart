@@ -24,6 +24,7 @@ import 'components/glass_skylight_component.dart';
 import 'components/flower_kiosk_component.dart';
 import 'components/water_tower_component.dart';
 import 'components/newsstand_component.dart';
+import 'components/cafe_bistro_component.dart';
 import 'components/lightning_flash_component.dart';
 import 'components/grind_rail_component.dart';
 import 'components/hvac_wind_tunnel_component.dart';
@@ -166,6 +167,7 @@ class CourierGame extends FlameGame
   final List<FlowerKioskComponent> activeFlowerKiosks = [];
   final List<WaterTowerComponent> activeWaterTowers = [];
   final List<NewsstandComponent> activeNewsstands = [];
+  final List<CafeBistroComponent> activeCafeBistros = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
@@ -714,6 +716,17 @@ class CourierGame extends FlameGame
       world.add(nsComp);
     }
 
+    for (final cb in chunk.cafeBistros) {
+      final cbComp = CafeBistroComponent(
+        position: Vector2(cb.x, cb.y),
+        width: cb.width,
+        height: cb.height,
+        groundY: groundY,
+      );
+      activeCafeBistros.add(cbComp);
+      world.add(cbComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -975,6 +988,12 @@ class CourierGame extends FlameGame
     for (final ns in world.children.whereType<NewsstandComponent>().toList()) {
       ns.removeFromParent();
     }
+    for (final cb in activeCafeBistros.toList()) {
+      cb.removeFromParent();
+    }
+    for (final cb in world.children.whereType<CafeBistroComponent>().toList()) {
+      cb.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -1002,6 +1021,7 @@ class CourierGame extends FlameGame
     activeFlowerKiosks.clear();
     activeWaterTowers.clear();
     activeNewsstands.clear();
+    activeCafeBistros.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
@@ -1089,6 +1109,7 @@ class CourierGame extends FlameGame
     gameState.updateVipTimer(dt);
     gameState.updateFloralAromaTimer(dt);
     gameState.updateNotorietyTimer(dt);
+    gameState.updateCaffeineSurgeTimer(dt);
     player.isBoosted = gameState.isEnergyBoostActive;
 
     // 0b. Spawn / mount companion delivery drone if active
@@ -1115,6 +1136,7 @@ class CourierGame extends FlameGame
 
     // 1. Calculate dynamic scroll speed based on distance (with energy boost, grind surge, and parkour vault surge)
     final speedMultiplier = (gameState.isEnergyBoostActive ? 1.2 : 1.0) *
+        (gameState.isCaffeineSurgeActive ? 1.18 : 1.0) *
         (player.isGrinding ? 1.20 : 1.0) *
         (player.isVaulting ? 1.25 : 1.0) *
         (player.isDrafting ? 1.20 : 1.0);
@@ -1268,6 +1290,9 @@ class CourierGame extends FlameGame
     }
     for (final ns in activeNewsstands) {
       ns.position.x -= scrollDelta;
+    }
+    for (final cb in activeCafeBistros) {
+      cb.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -1835,6 +1860,15 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4ad. Evaluate Sidewalk Cafe Bistro Hurdle Vaults
+    for (final cb in activeCafeBistros) {
+      if (!cb.hasVaulted) {
+        if (cb.checkVault(player.position, player.size, player.simulator)) {
+          _handleCafeBistroVault(cb);
+        }
+      }
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -2064,6 +2098,13 @@ class CourierGame extends FlameGame
     activeNewsstands.removeWhere((ns) {
       if (ns.shouldRecycle || ns.isRemoved) {
         if (ns.isMounted) ns.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeCafeBistros.removeWhere((cb) {
+      if (cb.shouldRecycle || cb.isRemoved) {
+        if (cb.isMounted) cb.removeFromParent();
         return true;
       }
       return false;
@@ -2872,6 +2913,35 @@ class CourierGame extends FlameGame
     }
   }
 
+  void _handleCafeBistroVault(CafeBistroComponent bistro) {
+    final event = gameState.recordCafeBistroVault();
+    if (event != null) {
+      audio.playJump();
+      audio.playCourierBark(
+        CourierBarkType.stunt,
+        line: 'Espresso rush!',
+      );
+      triggerScreenShake(0.14);
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+
+      addEffect(
+        FloatingTextComponent(
+          text: 'CAFE BISTRO VAULT! $multStr+\$${event.totalTips}',
+          position: Vector2(bistro.position.x - 10.0, bistro.tabletopWorldY - 32.0),
+          color: const Color(0xFFFFB74D),
+        ),
+      );
+      addEffect(
+        ParticleEffectComponent.espressoPorcelainBurst(
+          position: bistro.tabletopApexWorld,
+          count: 26,
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
   void _evaluateAchievements() {
     achievementManager.evaluateProgress(
       distanceMeters: gameState.distanceMeters,
@@ -2910,7 +2980,8 @@ class CourierGame extends FlameGame
   void onTapDown(TapDownEvent event) {
     super.onTapDown(event);
     if (isRunning && gameState.status == GameStatus.running) {
-      if (!player.jump()) {
+      final jumpMult = gameState.isCaffeineSurgeActive ? 1.10 : 1.0;
+      if (!player.jump(impulseMultiplier: jumpMult)) {
         player.toggleGlide();
       }
     }
@@ -2948,7 +3019,8 @@ class CourierGame extends FlameGame
     if (isJumpKey) {
       if (event is KeyDownEvent) {
         if (isRunning && gameState.status == GameStatus.running) {
-          if (!player.jump()) {
+          final jumpMult = gameState.isCaffeineSurgeActive ? 1.10 : 1.0;
+          if (!player.jump(impulseMultiplier: jumpMult)) {
             player.toggleGlide();
           }
         }

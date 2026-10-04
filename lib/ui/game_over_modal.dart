@@ -38,6 +38,7 @@ class GameOverModal extends StatelessWidget {
     this.flowerKiosksCompleted = 0,
     this.waterTowersCompleted = 0,
     this.newsstandsCompleted = 0,
+    this.cafeBistrosCompleted = 0,
   });
 
   final int distance;
@@ -73,6 +74,7 @@ class GameOverModal extends StatelessWidget {
   final int flowerKiosksCompleted;
   final int waterTowersCompleted;
   final int newsstandsCompleted;
+  final int cafeBistrosCompleted;
   final VoidCallback onRestart;
 
   @override
@@ -991,6 +993,37 @@ class GameOverModal extends StatelessWidget {
                         '$newsstandsCompleted NEWSSTAND VAULT${newsstandsCompleted > 1 ? 'S' : ''}',
                         style: const TextStyle(
                           color: Color(0xFFFFB300),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            if (cafeBistrosCompleted > 0)
+              Container(
+                key: const Key('game_over_cafe_bistro_badge'),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF8D6E63).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF8D6E63), width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.coffee, color: Color(0xFFD7CCC8), size: 16),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '$cafeBistrosCompleted CAFE BISTRO VAULT${cafeBistrosCompleted > 1 ? 'S' : ''}',
+                        style: const TextStyle(
+                          color: Color(0xFFD7CCC8),
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                           letterSpacing: 0.5,

@@ -752,6 +752,32 @@ class NewsstandEvent {
   final double notorietyDuration;
 }
 
+/// Event dispatched when performing a hurdle vault across a sidewalk outdoor cafe bistro table.
+class CafeBistroEvent {
+  const CafeBistroEvent({
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.stuntStreak,
+    required this.caffeineDuration,
+  });
+
+  /// Base tip value before stunt combo scaling ($30).
+  final int baseTips;
+
+  /// Total tip amount awarded after active combo multipliers.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this event.
+  final double multiplier;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+
+  /// Duration of the energetic Caffeine Surge buff in seconds.
+  final double caffeineDuration;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -835,6 +861,15 @@ class GameState extends ChangeNotifier {
 
   /// Returns true if the Extra! Extra! notoriety score multiplier (+1.5x) is actively buffing stunts.
   bool get isNotorietyActive => notorietyTimer > 0;
+
+  /// Remaining duration in seconds for the energetic Caffeine Surge speed boost buff.
+  double caffeineSurgeTimer = 0.0;
+
+  /// Duration of the energetic Caffeine Surge speed boost buff in seconds.
+  static const double caffeineSurgeDuration = 3.5;
+
+  /// Returns true if the Caffeine Surge (+18% speed boost) is actively energizing the courier.
+  bool get isCaffeineSurgeActive => caffeineSurgeTimer > 0;
 
   /// The active milestone event being celebrated by the UI banner.
   MilestoneEvent? activeMilestone;
@@ -982,6 +1017,9 @@ class GameState extends ChangeNotifier {
   /// Total sidewalk newspaper kiosks vaulted in current run.
   int newsstandsVaultedInRun = 0;
 
+  /// Total sidewalk outdoor cafe bistro tables vaulted in current run.
+  int cafeBistroVaultsInRun = 0;
+
   /// Total seconds spent drafting behind companion cyclists in current run.
   double totalDraftDurationInRun = 0.0;
 
@@ -1027,6 +1065,7 @@ class GameState extends ChangeNotifier {
   ValueChanged<FlowerKioskEvent>? onFlowerKioskVault;
   ValueChanged<WaterTowerEvent>? onWaterTowerTraversed;
   ValueChanged<NewsstandEvent>? onNewsstandVault;
+  ValueChanged<CafeBistroEvent>? onCafeBistroVault;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -1084,8 +1123,10 @@ class GameState extends ChangeNotifier {
     flowerKioskVaultsInRun = 0;
     waterTowersTraversedInRun = 0;
     newsstandsVaultedInRun = 0;
+    cafeBistroVaultsInRun = 0;
     floralAromaTimer = 0.0;
     notorietyTimer = 0.0;
+    caffeineSurgeTimer = 0.0;
     totalDraftDurationInRun = 0.0;
     isDrafting = false;
     status = GameStatus.running;
@@ -1236,6 +1277,17 @@ class GameState extends ChangeNotifier {
       notorietyTimer -= dt;
       if (notorietyTimer <= 0) {
         notorietyTimer = 0.0;
+      }
+      notifyListeners();
+    }
+  }
+
+  /// Updates the active Caffeine Surge speed boost countdown timer.
+  void updateCaffeineSurgeTimer(double dt) {
+    if (caffeineSurgeTimer > 0) {
+      caffeineSurgeTimer -= dt;
+      if (caffeineSurgeTimer <= 0) {
+        caffeineSurgeTimer = 0.0;
       }
       notifyListeners();
     }
@@ -2279,6 +2331,43 @@ class GameState extends ChangeNotifier {
     );
 
     onNewsstandVault?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records a hurdle vault across a sidewalk outdoor cafe bistro table,
+  /// awarding base tips ($30) scaled by combo multipliers,
+  /// advancing the stunt streak, activating the 3.5-second Caffeine Surge buff,
+  /// and resetting the stunt streak timer.
+  CafeBistroEvent? recordCafeBistroVault({int baseTips = 30}) {
+    if (status != GameStatus.running) return null;
+
+    cafeBistroVaultsInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+    caffeineSurgeTimer = caffeineSurgeDuration;
+
+    final baseAward = (baseTips * stuntMultiplier).round();
+    final withFloral = isFloralAromaActive ? (baseAward * 1.5).round() : baseAward;
+    final withNotoriety = isNotorietyActive ? (withFloral * 1.5).round() : withFloral;
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? withNotoriety * 2
+        : withNotoriety;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = CafeBistroEvent(
+      baseTips: baseTips,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+      stuntStreak: stuntStreak,
+      caffeineDuration: caffeineSurgeDuration,
+    );
+
+    onCafeBistroVault?.call(event);
     notifyListeners();
     return event;
   }
