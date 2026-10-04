@@ -2,7 +2,7 @@ import 'package:flame/components.dart';
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 
 import 'audio_controller.dart';
 import '../services/storage_service.dart';
@@ -19,6 +19,7 @@ import 'components/pr_marker_component.dart';
 import 'components/rain_component.dart';
 import 'components/ramp_component.dart';
 import 'components/scaffolding_component.dart';
+import 'components/speech_bubble_component.dart';
 import 'components/steam_vent_component.dart';
 import 'logic/achievement_manager.dart';
 import 'logic/camera_juice_controller.dart';
@@ -208,6 +209,7 @@ class CourierGame extends FlameGame
       },
       onDamage: () {
         audio.playFumble();
+        audio.playCourierBark(CourierBarkType.damage);
         spawnImpact(player.position + (player.size / 2));
         triggerScreenShake(0.65);
         gameState.applyHazardDamage();
@@ -219,6 +221,45 @@ class CourierGame extends FlameGame
       onGlideEnded: _handleGlideEnded,
     );
     world.add(player);
+
+    audio.addCourierBarkListener((type, line) {
+      Color borderColor = const Color(0xFF00E5FF);
+      Color textColor = const Color(0xFFFFFFFF);
+      if (type == CourierBarkType.damage) {
+        borderColor = const Color(0xFFFF5252);
+        textColor = const Color(0xFFFFCDD2);
+      } else if (type == CourierBarkType.nearMiss) {
+        borderColor = const Color(0xFFFFD166);
+      } else if (type == CourierBarkType.glide) {
+        borderColor = const Color(0xFFFF9F43);
+      }
+      addEffect(
+        SpeechBubbleComponent(
+          text: line,
+          position: Vector2(player.position.x - 10.0, player.position.y - 42.0),
+          borderColor: borderColor,
+          textColor: textColor,
+        ),
+      );
+    });
+
+    audio.addCustomerReactionListener((type, line) {
+      final Color borderColor = type == CustomerReactionType.fiveStars
+          ? const Color(0xFFF1C40F)
+          : const Color(0xFF2ECC71);
+      final Color textColor = type == CustomerReactionType.fiveStars
+          ? const Color(0xFFFFF176)
+          : Colors.white;
+      addEffect(
+        SpeechBubbleComponent(
+          text: line,
+          position: Vector2(player.position.x + 24.0, groundY - 76.0),
+          borderColor: borderColor,
+          textColor: textColor,
+          tailOffsetX: 22.0,
+        ),
+      );
+    });
 
     gameState.onMilestone = (event) {
       audio.playMilestone();
@@ -420,6 +461,10 @@ class CourierGame extends FlameGame
     for (final t in world.children.whereType<FloatingTextComponent>().toList()) {
       t.removeFromParent();
     }
+    for (final sb in world.children.whereType<SpeechBubbleComponent>().toList()) {
+      sb.removeFromParent();
+    }
+    audio.resetBarkCooldowns();
     activeObstacles.clear();
     activePickups.clear();
     for (final s in activeScaffolding.toList()) {
@@ -782,6 +827,11 @@ class CourierGame extends FlameGame
         );
         if (event != null) {
           audio.playCoin();
+          if (event.ratingStars >= 5) {
+            audio.playCustomerReaction(CustomerReactionType.fiveStars);
+          } else {
+            audio.playCustomerReaction(CustomerReactionType.thankYou);
+          }
           triggerScreenShake(0.15);
           spawnSparkles(
             Vector2(dz.position.x + (dz.size.x / 2), dz.position.y + dz.size.y - 10.0),
@@ -822,6 +872,7 @@ class CourierGame extends FlameGame
         if (!sv.hasTriggeredBoost) {
           sv.hasTriggeredBoost = true;
           audio.playJump();
+          audio.playCourierBark(CourierBarkType.stunt);
           triggerScreenShake(0.2);
           spawnSparkles(
             Vector2(sv.position.x + (sv.size.x / 2), sv.position.y),
@@ -939,6 +990,11 @@ class CourierGame extends FlameGame
         ft.removeFromParent();
       }
     }
+    for (final sb in world.children.whereType<SpeechBubbleComponent>().toList()) {
+      if (sb.isFinished) {
+        sb.removeFromParent();
+      }
+    }
 
     // 7. Spawn next procedural chunk when horizon approaches
     if (nextChunkX <= virtualResolution.x + 480.0) {
@@ -951,6 +1007,7 @@ class CourierGame extends FlameGame
   void _handleNearMiss(ObstacleComponent obstacle, double clearance) {
     gameState.recordStunt(clearance: clearance);
     audio.playCoin();
+    audio.playCourierBark(CourierBarkType.nearMiss);
 
     // Floating score popup above courier
     final multiplierStr = gameState.stuntMultiplier > 1.0 ? '${gameState.stuntMultiplier}x ' : '';
@@ -981,6 +1038,7 @@ class CourierGame extends FlameGame
     );
     if (event != null) {
       audio.playMilestone();
+      audio.playCourierBark(CourierBarkType.stunt);
       triggerScreenShake(0.3);
 
       spawnSparkles(
@@ -1034,6 +1092,7 @@ class CourierGame extends FlameGame
       target.hasBeenVaulted = true;
     }
     audio.playJump();
+    audio.playCourierBark(CourierBarkType.stunt);
     triggerScreenShake(0.18);
 
     final plantX = target != null
@@ -1067,6 +1126,7 @@ class CourierGame extends FlameGame
 
   void _handleGlideStarted() {
     audio.playJump();
+    audio.playCourierBark(CourierBarkType.glide);
     triggerScreenShake(0.10);
     spawnSparkles(
       Vector2(player.position.x + (player.size.x / 2), player.position.y - 8.0),

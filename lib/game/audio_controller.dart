@@ -1,7 +1,32 @@
+import 'dart:math' as math;
 import 'package:flame_audio/flame_audio.dart';
 import 'package:flutter/foundation.dart';
 
 import '../services/storage_service.dart';
+
+/// Enumerates courier personality voice bark categories.
+enum CourierBarkType {
+  /// Energetic vocal pop for stunts (rail ollie, parkour vault, steam boost).
+  stunt,
+
+  /// Tight reflex gasp for near-miss hazard clearances.
+  nearMiss,
+
+  /// Dismayed vocal grunt when stumbling or suffering hazard collision.
+  damage,
+
+  /// Airborne floating shout when deploying backpack glider.
+  glide,
+}
+
+/// Enumerates customer doorstep reaction vocal categories.
+enum CustomerReactionType {
+  /// Cheerful thank you upon successful package drop-off.
+  thankYou,
+
+  /// Enthusiastic 5-star rating shout for pristine deliveries.
+  fiveStars,
+}
 
 /// Abstract interface for audio playback to decouple flame_audio platform calls
 /// and allow deterministic headless testing without hardware audio plugins.
@@ -143,7 +168,90 @@ class GameAudioController {
   static const String sfxFumble = 'sfx/fumble.ogg';
   static const String sfxMilestone = 'sfx/milestone.ogg';
   static const String sfxRainAmbience = 'sfx/rain_ambience.ogg';
+  static const String sfxBarkStunt = 'sfx/bark_stunt.ogg';
+  static const String sfxBarkNearMiss = 'sfx/bark_near_miss.ogg';
+  static const String sfxBarkDamage = 'sfx/bark_damage.ogg';
+  static const String sfxBarkGlide = 'sfx/bark_glide.ogg';
+  static const String sfxCustomerThankYou = 'sfx/customer_thank_you.ogg';
+  static const String sfxCustomerFiveStars = 'sfx/customer_five_stars.ogg';
   static const String musicBgm = 'music/courier_groove.ogg';
+
+  /// Voice bark text line variations by courier bark category.
+  static const Map<CourierBarkType, List<String>> courierBarkLines = {
+    CourierBarkType.stunt: [
+      'Woohoo!',
+      'Slick!',
+      'Easy money!',
+      'Nailed it!',
+    ],
+    CourierBarkType.nearMiss: [
+      'Whoa!',
+      'Close one!',
+      'Too close!',
+    ],
+    CourierBarkType.damage: [
+      'Oof! My packages!',
+      'Ouch!',
+      'Watch the boxes!',
+    ],
+    CourierBarkType.glide: [
+      'Floating!',
+      'Catching air!',
+      'Hang time!',
+    ],
+  };
+
+  /// Customer doorstep reaction line variations by reaction category.
+  static const Map<CustomerReactionType, List<String>> customerReactionLines = {
+    CustomerReactionType.thankYou: [
+      'Thank you!',
+      'Right on time!',
+      'Awesome delivery!',
+    ],
+    CustomerReactionType.fiveStars: [
+      'Five stars! ★★★★★',
+      'Best courier ever!',
+      'Flawless delivery!',
+    ],
+  };
+
+  /// Cooldown throttle between courier voice barks in seconds.
+  double courierBarkCooldownSeconds = 2.0;
+
+  /// Cooldown throttle between customer doorstep reactions in seconds.
+  double customerReactionCooldownSeconds = 1.5;
+
+  DateTime? _lastCourierBarkTime;
+  DateTime? _lastCustomerReactionTime;
+
+  final math.Random random = math.Random();
+
+  final List<void Function(CourierBarkType type, String line)> _courierBarkListeners = [];
+  final List<void Function(CustomerReactionType type, String line)> _customerReactionListeners = [];
+
+  /// Registers an additional listener for courier voice barks.
+  void addCourierBarkListener(void Function(CourierBarkType type, String line) listener) {
+    _courierBarkListeners.add(listener);
+  }
+
+  /// Removes a previously registered courier voice bark listener.
+  void removeCourierBarkListener(void Function(CourierBarkType type, String line) listener) {
+    _courierBarkListeners.remove(listener);
+  }
+
+  /// Registers an additional listener for customer doorstep reactions.
+  void addCustomerReactionListener(void Function(CustomerReactionType type, String line) listener) {
+    _customerReactionListeners.add(listener);
+  }
+
+  /// Removes a previously registered customer reaction listener.
+  void removeCustomerReactionListener(void Function(CustomerReactionType type, String line) listener) {
+    _customerReactionListeners.remove(listener);
+  }
+
+  /// Primary callback invoked when barks or customer reactions are triggered.
+  void Function(CourierBarkType type, String line)? onCourierBark;
+  void Function(CustomerReactionType type, String line)? onCustomerReaction;
 
   /// Maximum volume for ambient weather rain audio (Issue #27 requirement: 0.0 to 0.4).
   static const double maxRainAmbienceVolume = 0.4;
@@ -161,6 +269,12 @@ class GameAudioController {
         sfxFumble,
         sfxMilestone,
         sfxRainAmbience,
+        sfxBarkStunt,
+        sfxBarkNearMiss,
+        sfxBarkDamage,
+        sfxBarkGlide,
+        sfxCustomerThankYou,
+        sfxCustomerFiveStars,
         musicBgm,
       ]);
     } catch (_) {}
@@ -344,5 +458,111 @@ class GameAudioController {
     isMusicActive = false;
     await _backend.stopBgm();
     await stopAmbience();
+  }
+
+  /// Whether a courier voice bark can be triggered according to cooldown.
+  bool canPlayCourierBark({DateTime? now}) {
+    if (_lastCourierBarkTime == null) return true;
+    final current = now ?? DateTime.now();
+    final elapsed = current.difference(_lastCourierBarkTime!).inMilliseconds / 1000.0;
+    return elapsed >= courierBarkCooldownSeconds;
+  }
+
+  /// Whether a customer doorstep reaction can be triggered according to cooldown.
+  bool canPlayCustomerReaction({DateTime? now}) {
+    if (_lastCustomerReactionTime == null) return true;
+    final current = now ?? DateTime.now();
+    final elapsed = current.difference(_lastCustomerReactionTime!).inMilliseconds / 1000.0;
+    return elapsed >= customerReactionCooldownSeconds;
+  }
+
+  /// Resets voice bark and customer reaction cooldown timers.
+  void resetBarkCooldowns() {
+    _lastCourierBarkTime = null;
+    _lastCustomerReactionTime = null;
+  }
+
+  /// Plays an expressive courier voice bark if cooldown permits.
+  ///
+  /// Returns `true` if the bark was triggered, or `false` if throttled by cooldown.
+  Future<bool> playCourierBark(
+    CourierBarkType type, {
+    bool ignoreCooldown = false,
+    String? line,
+    DateTime? now,
+  }) async {
+    final current = now ?? DateTime.now();
+    if (!ignoreCooldown && !canPlayCourierBark(now: current)) {
+      return false;
+    }
+    _lastCourierBarkTime = current;
+
+    final availableLines = courierBarkLines[type] ?? ['Woohoo!'];
+    final selectedLine = line ?? availableLines[random.nextInt(availableLines.length)];
+
+    onCourierBark?.call(type, selectedLine);
+    for (final l in List.of(_courierBarkListeners)) {
+      l(type, selectedLine);
+    }
+
+    if (isMuted) return true;
+
+    final sfxPath = _courierBarkSfx(type);
+    attemptedPlays.add(sfxPath);
+    await _backend.playSfx(sfxPath, volume: 0.85);
+    return true;
+  }
+
+  /// Plays a cheerful customer doorstep reaction if cooldown permits.
+  ///
+  /// Returns `true` if the reaction was triggered, or `false` if throttled by cooldown.
+  Future<bool> playCustomerReaction(
+    CustomerReactionType type, {
+    bool ignoreCooldown = false,
+    String? line,
+    DateTime? now,
+  }) async {
+    final current = now ?? DateTime.now();
+    if (!ignoreCooldown && !canPlayCustomerReaction(now: current)) {
+      return false;
+    }
+    _lastCustomerReactionTime = current;
+
+    final availableLines = customerReactionLines[type] ?? ['Thank you!'];
+    final selectedLine = line ?? availableLines[random.nextInt(availableLines.length)];
+
+    onCustomerReaction?.call(type, selectedLine);
+    for (final l in List.of(_customerReactionListeners)) {
+      l(type, selectedLine);
+    }
+
+    if (isMuted) return true;
+
+    final sfxPath = _customerReactionSfx(type);
+    attemptedPlays.add(sfxPath);
+    await _backend.playSfx(sfxPath, volume: 0.9);
+    return true;
+  }
+
+  String _courierBarkSfx(CourierBarkType type) {
+    switch (type) {
+      case CourierBarkType.stunt:
+        return sfxBarkStunt;
+      case CourierBarkType.nearMiss:
+        return sfxBarkNearMiss;
+      case CourierBarkType.damage:
+        return sfxBarkDamage;
+      case CourierBarkType.glide:
+        return sfxBarkGlide;
+    }
+  }
+
+  String _customerReactionSfx(CustomerReactionType type) {
+    switch (type) {
+      case CustomerReactionType.thankYou:
+        return sfxCustomerThankYou;
+      case CustomerReactionType.fiveStars:
+        return sfxCustomerFiveStars;
+    }
   }
 }

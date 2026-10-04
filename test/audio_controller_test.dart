@@ -310,5 +310,151 @@ void main() {
       expect(mockBackend.isAmbiencePlaying, isFalse);
       expect(audio.currentRainVolume, equals(0.0));
     });
+
+    test('Courier voice barks play corresponding SFX asset paths (Issue #48)', () async {
+      final audio = GameAudioController(
+        backend: mockBackend,
+        storageService: storage,
+      );
+
+      final stuntResult = await audio.playCourierBark(CourierBarkType.stunt);
+      expect(stuntResult, isTrue);
+      expect(mockBackend.playedSfx.last, equals('sfx/bark_stunt.ogg'));
+
+      audio.resetBarkCooldowns();
+      final nearMissResult = await audio.playCourierBark(CourierBarkType.nearMiss);
+      expect(nearMissResult, isTrue);
+      expect(mockBackend.playedSfx.last, equals('sfx/bark_near_miss.ogg'));
+
+      audio.resetBarkCooldowns();
+      final damageResult = await audio.playCourierBark(CourierBarkType.damage);
+      expect(damageResult, isTrue);
+      expect(mockBackend.playedSfx.last, equals('sfx/bark_damage.ogg'));
+
+      audio.resetBarkCooldowns();
+      final glideResult = await audio.playCourierBark(CourierBarkType.glide);
+      expect(glideResult, isTrue);
+      expect(mockBackend.playedSfx.last, equals('sfx/bark_glide.ogg'));
+    });
+
+    test('Customer doorstep reactions play corresponding SFX asset paths (Issue #48)', () async {
+      final audio = GameAudioController(
+        backend: mockBackend,
+        storageService: storage,
+      );
+
+      final thankYouResult = await audio.playCustomerReaction(CustomerReactionType.thankYou);
+      expect(thankYouResult, isTrue);
+      expect(mockBackend.playedSfx.last, equals('sfx/customer_thank_you.ogg'));
+
+      audio.resetBarkCooldowns();
+      final fiveStarsResult = await audio.playCustomerReaction(CustomerReactionType.fiveStars);
+      expect(fiveStarsResult, isTrue);
+      expect(mockBackend.playedSfx.last, equals('sfx/customer_five_stars.ogg'));
+    });
+
+    test('Voice bark cooldown throttling prevents spam and allows bypass (Issue #48)', () async {
+      final audio = GameAudioController(
+        backend: mockBackend,
+        storageService: storage,
+      );
+
+      final baseTime = DateTime(2026, 10, 4, 12, 0, 0);
+
+      // First bark at baseTime succeeds
+      final first = await audio.playCourierBark(CourierBarkType.stunt, now: baseTime);
+      expect(first, isTrue);
+      expect(mockBackend.playedSfx.length, equals(1));
+
+      // Second bark 0.5s later is throttled
+      final second = await audio.playCourierBark(
+        CourierBarkType.stunt,
+        now: baseTime.add(const Duration(milliseconds: 500)),
+      );
+      expect(second, isFalse);
+      expect(mockBackend.playedSfx.length, equals(1), reason: 'Throttled bark must not play audio');
+
+      // Bark with ignoreCooldown = true succeeds even within cooldown
+      final bypass = await audio.playCourierBark(
+        CourierBarkType.damage,
+        ignoreCooldown: true,
+        now: baseTime.add(const Duration(milliseconds: 600)),
+      );
+      expect(bypass, isTrue);
+      expect(mockBackend.playedSfx.length, equals(2));
+
+      // Bark after full cooldown (>= 2.0s) succeeds
+      final afterCooldown = await audio.playCourierBark(
+        CourierBarkType.nearMiss,
+        now: baseTime.add(const Duration(milliseconds: 2700)),
+      );
+      expect(afterCooldown, isTrue);
+      expect(mockBackend.playedSfx.length, equals(3));
+    });
+
+    test('Customer reaction cooldown throttling suppresses rapid repetitions (Issue #48)', () async {
+      final audio = GameAudioController(
+        backend: mockBackend,
+        storageService: storage,
+      );
+
+      final baseTime = DateTime(2026, 10, 4, 12, 0, 0);
+
+      final first = await audio.playCustomerReaction(CustomerReactionType.thankYou, now: baseTime);
+      expect(first, isTrue);
+      expect(mockBackend.playedSfx.length, equals(1));
+
+      // Attempt within 1.0s (less than 1.5s cooldown) is throttled
+      final tooSoon = await audio.playCustomerReaction(
+        CustomerReactionType.fiveStars,
+        now: baseTime.add(const Duration(milliseconds: 1000)),
+      );
+      expect(tooSoon, isFalse);
+      expect(mockBackend.playedSfx.length, equals(1));
+
+      // Attempt after 1.6s succeeds
+      final allowed = await audio.playCustomerReaction(
+        CustomerReactionType.fiveStars,
+        now: baseTime.add(const Duration(milliseconds: 1600)),
+      );
+      expect(allowed, isTrue);
+      expect(mockBackend.playedSfx.length, equals(2));
+    });
+
+    test('Mute silences voice barks and customer reactions but triggers visual callbacks (Issue #48)', () async {
+      final audio = GameAudioController(
+        backend: mockBackend,
+        storageService: storage,
+      );
+
+      await audio.toggleMute();
+      expect(audio.isMuted, isTrue);
+
+      String? spokenBark;
+      CourierBarkType? barkType;
+      audio.onCourierBark = (type, line) {
+        barkType = type;
+        spokenBark = line;
+      };
+
+      String? reactionText;
+      CustomerReactionType? reactionType;
+      audio.onCustomerReaction = (type, line) {
+        reactionType = type;
+        reactionText = line;
+      };
+
+      mockBackend.playedSfx.clear();
+
+      await audio.playCourierBark(CourierBarkType.stunt, line: 'Custom Woohoo!');
+      expect(barkType, equals(CourierBarkType.stunt));
+      expect(spokenBark, equals('Custom Woohoo!'));
+      expect(mockBackend.playedSfx, isEmpty, reason: 'Muted audio controller must not trigger bark SFX');
+
+      await audio.playCustomerReaction(CustomerReactionType.fiveStars, line: 'Five stars!');
+      expect(reactionType, equals(CustomerReactionType.fiveStars));
+      expect(reactionText, equals('Five stars!'));
+      expect(mockBackend.playedSfx, isEmpty, reason: 'Muted audio controller must not trigger reaction SFX');
+    });
   });
 }
