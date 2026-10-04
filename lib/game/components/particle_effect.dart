@@ -567,6 +567,44 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Safety cone orange plastic shards, retro-reflective vinyl flecks, and amber lantern sparks from a construction sawhorse hurdle vault.
+  factory ParticleEffectComponent.sawhorseSparks({
+    required Vector2 position,
+    int count = 16,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFFFF6D00), // Safety orange plastic
+      Color(0xFFFFD600), // Warning amber lantern flash
+      Color(0xFFFFFFFF), // Reflective white vinyl
+      Color(0xFF8D6E63), // Sawhorse timber splinter
+      Color(0xFFFFAB00), // Flasher beacon glow
+    ];
+
+    for (var i = 0; i < count; i++) {
+      final angle = rng.nextDouble() * 2 * math.pi;
+      final speed = 80.0 + rng.nextDouble() * 160.0;
+      final velocity = Vector2(math.cos(angle) * speed, math.sin(angle) * speed - 60.0);
+
+      particles.add(
+        GameParticle(
+          position: position.clone(),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 1.6 + rng.nextDouble() * 2.4,
+          maxLife: 0.35 + rng.nextDouble() * 0.3,
+          gravity: 220.0,
+          drag: 0.90,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.

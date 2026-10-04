@@ -30,6 +30,7 @@ class GameOverModal extends StatelessWidget {
     this.droneCatchesCompleted = 0,
     this.fireEscapesCompleted = 0,
     this.foodTruckDriftsCompleted = 0,
+    this.barricadesCompleted = 0,
   });
 
   final int distance;
@@ -57,6 +58,7 @@ class GameOverModal extends StatelessWidget {
   final int droneCatchesCompleted;
   final int fireEscapesCompleted;
   final int foodTruckDriftsCompleted;
+  final int barricadesCompleted;
   final VoidCallback onRestart;
 
   @override
@@ -727,6 +729,37 @@ class GameOverModal extends StatelessWidget {
                         '$foodTruckDriftsCompleted GREASE DRIFT SLIDE${foodTruckDriftsCompleted > 1 ? 'S' : ''}',
                         style: const TextStyle(
                           color: Color(0xFFFFB300),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            if (barricadesCompleted > 0)
+              Container(
+                key: const Key('game_over_barricade_badge'),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF6D00).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFF6D00), width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.construction, color: Color(0xFFFF6D00), size: 16),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '$barricadesCompleted BARRICADE VAULT${barricadesCompleted > 1 ? 'S' : ''}',
+                        style: const TextStyle(
+                          color: Color(0xFFFF6D00),
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                           letterSpacing: 0.5,
