@@ -4,10 +4,10 @@ import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
+import '../components/crane_swing_component.dart';
 import '../logic/jump_physics.dart';
 import '../models/courier_skin.dart';
 
-/// Courier avatar state machine enum.
 /// Courier avatar state machine enum.
 enum CourierState {
   running,
@@ -16,6 +16,7 @@ enum CourierState {
   grinding,
   vaulting,
   gliding,
+  swinging,
   hurt,
 }
 
@@ -38,13 +39,16 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
     this.onVault,
     this.onGlideStarted,
     this.onGlideEnded,
-  })  : skin = skin ?? CourierSkin.standard,
+    this.onCraneLaunch,
+  })  : defaultPlayerX = initialX,
+        skin = skin ?? CourierSkin.standard,
         simulator = JumpPhysicsSimulator(groundY: groundY) {
     size = playerSize ?? Vector2(64, 64);
     position = Vector2(initialX, groundY - size.y);
   }
 
   final double groundY;
+  final double defaultPlayerX;
   final JumpPhysicsSimulator simulator;
 
   final VoidCallback? onJump;
@@ -55,6 +59,7 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   final VoidCallback? onVault;
   final VoidCallback? onGlideStarted;
   final VoidCallback? onGlideEnded;
+  final ValueChanged<double>? onCraneLaunch;
 
   CourierSkin skin;
 
@@ -73,6 +78,12 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
 
   /// Whether the courier is currently gliding with deployed delivery poncho canopy.
   bool get isGliding => state == CourierState.gliding;
+
+  /// Whether the courier is currently suspended from a swinging construction crane hook.
+  bool get isSwinging => state == CourierState.swinging;
+
+  /// The active crane component the courier is currently attached to.
+  CraneSwingComponent? attachedCrane;
 
   /// Cumulative distance in meters traveled during the active glide session.
   double glideDistance = 0.0;
@@ -137,6 +148,10 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   /// If initiated while grounded near a low vaultable obstacle, executes an agile parkour vault.
   /// If initiated while airborne, toggles the delivery glide chute.
   bool jump() {
+    if (state == CourierState.swinging) {
+      return releaseCraneSwing();
+    }
+
     if (state == CourierState.grinding) {
       state = CourierState.jumping;
       simulator.launch(340.0);
@@ -244,6 +259,34 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   /// Whether the courier is currently elevated above street level.
   bool get isElevated => simulator.currentSurfaceY < groundY;
 
+  bool _isReturningFromCrane = false;
+
+  /// Attaches the courier to an overhead construction crane swing harness.
+  void attachToCrane(CraneSwingComponent crane) {
+    if (isSwinging) return;
+    if (isGliding) stopGlide();
+    attachedCrane = crane;
+    state = CourierState.swinging;
+    simulator.isGrounded = false;
+    simulator.verticalVelocity = 0.0;
+    _isReturningFromCrane = false;
+    crane.attachCourier();
+  }
+
+  /// Releases the courier from the crane hook, catapulting into high-speed aerial flight.
+  bool releaseCraneSwing() {
+    if (state != CourierState.swinging || attachedCrane == null) return false;
+    final swingAngle = attachedCrane!.swingAngle;
+    final impulse = attachedCrane!.releaseCourier();
+    attachedCrane = null;
+    state = CourierState.jumping;
+    simulator.launch(impulse.y);
+    _isReturningFromCrane = true;
+    onJump?.call();
+    onCraneLaunch?.call(swingAngle);
+    return true;
+  }
+
   /// Releases jump hold to shorten trajectory.
   void stopJump() {
     simulator.stopJump();
@@ -253,7 +296,7 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   ///
   /// Returns `true` if damage was registered; `false` if ignored due to invulnerability.
   bool takeDamage() {
-    if (isInvulnerable) return false;
+    if (isInvulnerable || isSwinging) return false;
 
     if (isGliding) {
       stopGlide();
@@ -269,8 +312,24 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
     super.update(dt);
 
     final wasAirborne = !simulator.isGrounded;
-    simulator.update(dt);
-    position.y = simulator.currentY - size.y;
+
+    if (state == CourierState.swinging && attachedCrane != null) {
+      final hookPos = attachedCrane!.hookPosition;
+      position.x = hookPos.x - (size.x / 2);
+      position.y = hookPos.y - 12.0;
+      simulator.currentY = position.y + size.y;
+    } else {
+      simulator.update(dt);
+      position.y = simulator.currentY - size.y;
+
+      if (_isReturningFromCrane) {
+        position.x += (defaultPlayerX - position.x) * (4.0 * dt).clamp(0.0, 1.0);
+        if ((position.x - defaultPlayerX).abs() < 1.0) {
+          position.x = defaultPlayerX;
+          _isReturningFromCrane = false;
+        }
+      }
+    }
 
     // Handle invulnerability countdown
     if (_invulnerabilityTimer > 0) {
@@ -298,6 +357,8 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
         if (wasAirborne) onLand?.call();
         onGlideEnded?.call();
       }
+    } else if (state == CourierState.swinging) {
+      // Retain swinging state while attached to crane hook
     } else if (!simulator.isGrounded) {
       if (_invulnerabilityTimer > 0 && state == CourierState.hurt) {
         // Retain hurt visual during invulnerability
@@ -523,6 +584,20 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
       canvas.drawLine(const Offset(-10, 36), const Offset(6, 36), windPaint);
       canvas.drawLine(const Offset(-16, 44), const Offset(2, 44), windPaint);
       canvas.drawLine(const Offset(-6, 28), const Offset(12, 28), windPaint);
+    } else if (state == CourierState.swinging) {
+      // Arms reaching overhead gripping the crane harness hook ring
+      final armPaint = Paint()
+        ..color = skin.primaryColor
+        ..strokeWidth = 4.0
+        ..strokeCap = StrokeCap.round;
+      canvas.drawLine(const Offset(24, 22), const Offset(28, 4), armPaint);
+      canvas.drawLine(const Offset(32, 22), const Offset(36, 4), armPaint);
+      canvas.drawCircle(const Offset(28, 3), 2.5, skinPaint);
+      canvas.drawCircle(const Offset(36, 3), 2.5, skinPaint);
+
+      // Trailing wind-swept legs swinging with pendulum momentum
+      canvas.drawRect(const Rect.fromLTWH(18, 46, 8, 14), pantsPaint);
+      canvas.drawRect(const Rect.fromLTWH(28, 48, 8, 14), pantsPaint);
     } else {
       // Alternating run stride
       final legOffset = (_currentRunFrame % 2 == 0) ? 4.0 : -4.0;
