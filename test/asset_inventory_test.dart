@@ -72,6 +72,12 @@ void main() {
         'assets/audio/sfx/fumble.ogg',
         'assets/audio/sfx/milestone.ogg',
         'assets/audio/sfx/rain_ambience.ogg',
+        'assets/audio/sfx/bark_stunt.ogg',
+        'assets/audio/sfx/bark_near_miss.ogg',
+        'assets/audio/sfx/bark_damage.ogg',
+        'assets/audio/sfx/bark_glide.ogg',
+        'assets/audio/sfx/customer_thank_you.ogg',
+        'assets/audio/sfx/customer_five_stars.ogg',
         'assets/audio/music/courier_groove.ogg',
       ];
 

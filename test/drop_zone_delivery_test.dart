@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
@@ -210,9 +211,9 @@ void main() {
       WorldChunkManager? foundManager;
       ChunkData? dropZoneChunk;
 
-      for (int seed = 0; seed < 50; seed++) {
-        final m = WorldChunkManager();
-        final c = m.generateChunk(startX: 500.0, speed: 250.0, distanceMeters: 120.0);
+      for (int seed = 0; seed < 100; seed++) {
+        final m = WorldChunkManager(random: math.Random(seed));
+        final c = m.generateChunk(startX: 500.0, speed: 250.0, distanceMeters: 80.0);
         if (c.dropZones.isNotEmpty) {
           foundManager = m;
           dropZoneChunk = c;
