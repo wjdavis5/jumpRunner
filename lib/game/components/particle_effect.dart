@@ -1030,6 +1030,49 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Billowing cotton linen fiber wisps, colorful fabric swatches, and birch clothespin splinters from a clothesline hurdle rebound.
+  factory ParticleEffectComponent.clotheslineLinenScatter({
+    required Vector2 position,
+    int count = 26,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFFFFFFFF), // Pure white cotton bedsheet
+      Color(0xFFFFF9C4), // Lemon yellow pastel towel
+      Color(0xFFFF8A80), // Coral red striped fabric
+      Color(0xFF80D8FF), // Sky blue chambray cotton
+      Color(0xFFE1BEE7), // Lavender pastel shirt
+      Color(0xFFFFD180), // Amber wooden clothespin splinter
+    ];
+
+    for (var i = 0; i < count; i++) {
+      final angle = -math.pi * 0.5 + (rng.nextDouble() - 0.5) * 2.2;
+      final speed = 60.0 + rng.nextDouble() * 140.0;
+      final velocity = Vector2(
+        math.cos(angle) * speed,
+        math.sin(angle) * speed - 20.0,
+      );
+
+      particles.add(
+        GameParticle(
+          position: position.clone() +
+              Vector2((rng.nextDouble() - 0.5) * 24.0, (rng.nextDouble() - 0.5) * 12.0),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 1.8 + rng.nextDouble() * 2.6,
+          maxLife: 0.55 + rng.nextDouble() * 0.40,
+          gravity: 140.0, // Gentle buoyant cotton flutter
+          drag: 0.94,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.

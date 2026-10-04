@@ -507,6 +507,23 @@ class FireHydrantData {
   final double height;
 }
 
+/// Data model for a rooftop tenement laundry clothesline fixture.
+class ClotheslineData {
+  const ClotheslineData({
+    required this.x,
+    required this.y,
+    this.width = 96.0,
+    this.height = 48.0,
+    this.roofY = 460.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+  final double roofY;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -541,6 +558,7 @@ class ChunkData {
     this.cafeBistros = const [],
     this.streetBuskers = const [],
     this.fireHydrants = const [],
+    this.clotheslines = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -575,6 +593,7 @@ class ChunkData {
   final List<CafeBistroData> cafeBistros;
   final List<StreetBuskerData> streetBuskers;
   final List<FireHydrantData> fireHydrants;
+  final List<ClotheslineData> clotheslines;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -1962,6 +1981,67 @@ class WorldChunkManager {
       }
     }
 
+    final List<ClotheslineData> clotheslines = [];
+    if (distanceMeters >= 75.0 && _random.nextDouble() < 0.32) {
+      const clotheslineWidth = 96.0;
+      const clotheslineHeight = 48.0;
+
+      // Try placing on rooftop scaffolding first if available
+      var placedOnScaffolding = false;
+      for (final s in scaffoldings) {
+        if (s.width >= 180.0) {
+          final clX = s.x + 30.0 + _random.nextDouble() * (s.width - clotheslineWidth - 60.0);
+          final clY = s.y - clotheslineHeight;
+          clotheslines.add(
+            ClotheslineData(
+              x: clX,
+              y: clY,
+              width: clotheslineWidth,
+              height: clotheslineHeight,
+              roofY: s.y,
+            ),
+          );
+          placedOnScaffolding = true;
+          break;
+        }
+      }
+
+      // If not placed on scaffolding, attempt ground level placement with clearance checks
+      if (!placedOnScaffolding) {
+        for (var attempt = 0; attempt < 8; attempt++) {
+          final clX = startX + 80.0 + _random.nextDouble() * (chunkWidth - 240.0);
+          final isClear = obstacles.every(
+            (o) => (clX + clotheslineWidth < o.x - 30.0) || (clX > o.x + o.width + 30.0),
+          ) && flowerKiosks.every(
+            (fk) => (clX + clotheslineWidth < fk.x - 30.0) || (clX > fk.x + fk.width + 30.0),
+          ) && waterTowers.every(
+            (wt) => (clX + clotheslineWidth < wt.x - 30.0) || (clX > wt.x + wt.width + 30.0),
+          ) && newsstands.every(
+            (ns) => (clX + clotheslineWidth < ns.x - 30.0) || (clX > ns.x + ns.width + 30.0),
+          ) && cafeBistros.every(
+            (cb) => (clX + clotheslineWidth < cb.x - 30.0) || (clX > cb.x + cb.width + 30.0),
+          ) && streetBuskers.every(
+            (sb) => (clX + clotheslineWidth < sb.x - 30.0) || (clX > sb.x + sb.width + 30.0),
+          ) && fireHydrants.every(
+            (fh) => (clX + clotheslineWidth < fh.x - 30.0) || (clX > fh.x + fh.width + 30.0),
+          );
+
+          if (isClear) {
+            clotheslines.add(
+              ClotheslineData(
+                x: clX,
+                y: groundY - clotheslineHeight,
+                width: clotheslineWidth,
+                height: clotheslineHeight,
+                roofY: groundY,
+              ),
+            );
+            break;
+          }
+        }
+      }
+    }
+
     return ChunkData(
       obstacles: obstacles,
       pickups: pickups,
@@ -1995,6 +2075,7 @@ class WorldChunkManager {
       cafeBistros: cafeBistros,
       streetBuskers: streetBuskers,
       fireHydrants: fireHydrants,
+      clotheslines: clotheslines,
     );
   }
 }

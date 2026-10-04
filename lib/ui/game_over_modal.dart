@@ -41,6 +41,7 @@ class GameOverModal extends StatelessWidget {
     this.cafeBistrosCompleted = 0,
     this.buskersCompleted = 0,
     this.hydrantsCompleted = 0,
+    this.clotheslinesCompleted = 0,
   });
 
   final int distance;
@@ -79,6 +80,7 @@ class GameOverModal extends StatelessWidget {
   final int cafeBistrosCompleted;
   final int buskersCompleted;
   final int hydrantsCompleted;
+  final int clotheslinesCompleted;
   final VoidCallback onRestart;
 
   @override
@@ -1090,6 +1092,37 @@ class GameOverModal extends StatelessWidget {
                         '$hydrantsCompleted FIRE HYDRANT SPRAY${hydrantsCompleted > 1 ? ' BLASTS' : ' BLAST'}',
                         style: const TextStyle(
                           color: Color(0xFFB2EBF2),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            if (clotheslinesCompleted > 0)
+              Container(
+                key: const Key('game_over_clothesline_badge'),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF7043).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFF8A80), width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.dry_cleaning, color: Color(0xFFFFCCBC), size: 16),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '$clotheslinesCompleted ROOFTOP CLOTHESLINE${clotheslinesCompleted > 1 ? ' REBOUNDS' : ' REBOUND'}',
+                        style: const TextStyle(
+                          color: Color(0xFFFFCCBC),
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                           letterSpacing: 0.5,

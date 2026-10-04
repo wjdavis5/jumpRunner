@@ -343,6 +343,7 @@ class _CourierDashAppState extends State<CourierDashApp> {
                   cafeBistrosCompleted: _gameState.cafeBistroVaultsInRun,
                   buskersCompleted: _gameState.buskersEncounteredInRun,
                   hydrantsCompleted: _gameState.hydrantsTraversedInRun,
+                  clotheslinesCompleted: _gameState.clotheslinesHurdledInRun,
                   onRestart: _restartGame,
                 ),
           },
