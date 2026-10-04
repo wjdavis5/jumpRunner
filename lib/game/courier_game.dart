@@ -25,6 +25,7 @@ import 'components/flower_kiosk_component.dart';
 import 'components/water_tower_component.dart';
 import 'components/newsstand_component.dart';
 import 'components/cafe_bistro_component.dart';
+import 'components/street_busker_component.dart';
 import 'components/lightning_flash_component.dart';
 import 'components/grind_rail_component.dart';
 import 'components/hvac_wind_tunnel_component.dart';
@@ -168,6 +169,7 @@ class CourierGame extends FlameGame
   final List<WaterTowerComponent> activeWaterTowers = [];
   final List<NewsstandComponent> activeNewsstands = [];
   final List<CafeBistroComponent> activeCafeBistros = [];
+  final List<StreetBuskerComponent> activeStreetBuskers = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
@@ -727,6 +729,17 @@ class CourierGame extends FlameGame
       world.add(cbComp);
     }
 
+    for (final sb in chunk.streetBuskers) {
+      final sbComp = StreetBuskerComponent(
+        position: Vector2(sb.x, sb.y),
+        width: sb.width,
+        height: sb.height,
+        groundY: groundY,
+      );
+      activeStreetBuskers.add(sbComp);
+      world.add(sbComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -994,6 +1007,12 @@ class CourierGame extends FlameGame
     for (final cb in world.children.whereType<CafeBistroComponent>().toList()) {
       cb.removeFromParent();
     }
+    for (final sb in activeStreetBuskers.toList()) {
+      sb.removeFromParent();
+    }
+    for (final sb in world.children.whereType<StreetBuskerComponent>().toList()) {
+      sb.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -1022,6 +1041,7 @@ class CourierGame extends FlameGame
     activeWaterTowers.clear();
     activeNewsstands.clear();
     activeCafeBistros.clear();
+    activeStreetBuskers.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
@@ -1110,6 +1130,7 @@ class CourierGame extends FlameGame
     gameState.updateFloralAromaTimer(dt);
     gameState.updateNotorietyTimer(dt);
     gameState.updateCaffeineSurgeTimer(dt);
+    gameState.updateUrbanGrooveTimer(dt);
     player.isBoosted = gameState.isEnergyBoostActive;
 
     // 0b. Spawn / mount companion delivery drone if active
@@ -1293,6 +1314,9 @@ class CourierGame extends FlameGame
     }
     for (final cb in activeCafeBistros) {
       cb.position.x -= scrollDelta;
+    }
+    for (final sb in activeStreetBuskers) {
+      sb.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -1869,6 +1893,15 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4ae. Evaluate Sidewalk Street Busker Jazz Stunts
+    for (final sb in activeStreetBuskers) {
+      if (!sb.hasEncountered) {
+        if (sb.checkInteraction(player.position, player.size, player.simulator)) {
+          _handleStreetBuskerEncounter(sb);
+        }
+      }
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -2105,6 +2138,13 @@ class CourierGame extends FlameGame
     activeCafeBistros.removeWhere((cb) {
       if (cb.shouldRecycle || cb.isRemoved) {
         if (cb.isMounted) cb.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeStreetBuskers.removeWhere((sb) {
+      if (sb.shouldRecycle || sb.isRemoved) {
+        if (sb.isMounted) sb.removeFromParent();
         return true;
       }
       return false;
@@ -2936,6 +2976,35 @@ class CourierGame extends FlameGame
         ParticleEffectComponent.espressoPorcelainBurst(
           position: bistro.tabletopApexWorld,
           count: 26,
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handleStreetBuskerEncounter(StreetBuskerComponent busker) {
+    final event = gameState.recordStreetBuskerEncounter();
+    if (event != null) {
+      audio.playCoin();
+      audio.playCourierBark(
+        CourierBarkType.stunt,
+        line: 'Urban groove!',
+      );
+      triggerScreenShake(0.14);
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+
+      addEffect(
+        FloatingTextComponent(
+          text: 'URBAN GROOVE! $multStr+\$${event.totalTips}',
+          position: Vector2(busker.position.x - 10.0, busker.position.y - 32.0),
+          color: const Color(0xFFE040FB),
+        ),
+      );
+      addEffect(
+        ParticleEffectComponent.musicalNoteFountain(
+          position: busker.saxBellApexWorld,
+          count: 28,
         ),
       );
       _evaluateAchievements();

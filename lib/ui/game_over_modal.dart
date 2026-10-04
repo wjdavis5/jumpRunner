@@ -39,6 +39,7 @@ class GameOverModal extends StatelessWidget {
     this.waterTowersCompleted = 0,
     this.newsstandsCompleted = 0,
     this.cafeBistrosCompleted = 0,
+    this.buskersCompleted = 0,
   });
 
   final int distance;
@@ -75,6 +76,7 @@ class GameOverModal extends StatelessWidget {
   final int waterTowersCompleted;
   final int newsstandsCompleted;
   final int cafeBistrosCompleted;
+  final int buskersCompleted;
   final VoidCallback onRestart;
 
   @override
@@ -1024,6 +1026,37 @@ class GameOverModal extends StatelessWidget {
                         '$cafeBistrosCompleted CAFE BISTRO VAULT${cafeBistrosCompleted > 1 ? 'S' : ''}',
                         style: const TextStyle(
                           color: Color(0xFFD7CCC8),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            if (buskersCompleted > 0)
+              Container(
+                key: const Key('game_over_busker_badge'),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF9C27B0).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFBA68C8), width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.music_note, color: Color(0xFFE1BEE7), size: 16),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '$buskersCompleted STREET BUSKER JAZZ${buskersCompleted > 1 ? ' ENCOUNTERS' : ' ENCOUNTER'}',
+                        style: const TextStyle(
+                          color: Color(0xFFE1BEE7),
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                           letterSpacing: 0.5,

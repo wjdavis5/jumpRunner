@@ -778,6 +778,32 @@ class CafeBistroEvent {
   final double caffeineDuration;
 }
 
+/// Event dispatched when encountering and tipping a sidewalk street busker jazz saxophonist.
+class StreetBuskerEvent {
+  const StreetBuskerEvent({
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.stuntStreak,
+    required this.urbanGrooveDuration,
+  });
+
+  /// Base tip value before stunt combo scaling ($35).
+  final int baseTips;
+
+  /// Total tip amount awarded after active combo multipliers.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this event.
+  final double multiplier;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+
+  /// Duration of the energetic Urban Groove tempo score buff in seconds.
+  final double urbanGrooveDuration;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -870,6 +896,15 @@ class GameState extends ChangeNotifier {
 
   /// Returns true if the Caffeine Surge (+18% speed boost) is actively energizing the courier.
   bool get isCaffeineSurgeActive => caffeineSurgeTimer > 0;
+
+  /// Remaining duration in seconds for the Urban Groove tempo score multiplier buff.
+  double urbanGrooveTimer = 0.0;
+
+  /// Duration of the Urban Groove tempo score multiplier buff in seconds.
+  static const double urbanGrooveDuration = 4.0;
+
+  /// Returns true if the Urban Groove score multiplier (+1.5x) is actively buffing stunts.
+  bool get isUrbanGrooveActive => urbanGrooveTimer > 0;
 
   /// The active milestone event being celebrated by the UI banner.
   MilestoneEvent? activeMilestone;
@@ -1020,6 +1055,9 @@ class GameState extends ChangeNotifier {
   /// Total sidewalk outdoor cafe bistro tables vaulted in current run.
   int cafeBistroVaultsInRun = 0;
 
+  /// Total sidewalk street busker jazz saxophonists tipped in current run.
+  int buskersEncounteredInRun = 0;
+
   /// Total seconds spent drafting behind companion cyclists in current run.
   double totalDraftDurationInRun = 0.0;
 
@@ -1066,6 +1104,7 @@ class GameState extends ChangeNotifier {
   ValueChanged<WaterTowerEvent>? onWaterTowerTraversed;
   ValueChanged<NewsstandEvent>? onNewsstandVault;
   ValueChanged<CafeBistroEvent>? onCafeBistroVault;
+  ValueChanged<StreetBuskerEvent>? onStreetBuskerEncounter;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -1124,9 +1163,11 @@ class GameState extends ChangeNotifier {
     waterTowersTraversedInRun = 0;
     newsstandsVaultedInRun = 0;
     cafeBistroVaultsInRun = 0;
+    buskersEncounteredInRun = 0;
     floralAromaTimer = 0.0;
     notorietyTimer = 0.0;
     caffeineSurgeTimer = 0.0;
+    urbanGrooveTimer = 0.0;
     totalDraftDurationInRun = 0.0;
     isDrafting = false;
     status = GameStatus.running;
@@ -1293,6 +1334,17 @@ class GameState extends ChangeNotifier {
     }
   }
 
+  /// Updates the active Urban Groove tempo score multiplier countdown timer.
+  void updateUrbanGrooveTimer(double dt) {
+    if (urbanGrooveTimer > 0) {
+      urbanGrooveTimer -= dt;
+      if (urbanGrooveTimer <= 0) {
+        urbanGrooveTimer = 0.0;
+      }
+      notifyListeners();
+    }
+  }
+
   /// Records a successful near-miss stunt leap over a street hazard.
   void recordStunt({double clearance = 20.0}) {
     if (status != GameStatus.running) return;
@@ -1303,9 +1355,10 @@ class GameState extends ChangeNotifier {
     final baseAward = (baseStuntTip * stuntMultiplier).round();
     final withFloral = isFloralAromaActive ? (baseAward * 1.5).round() : baseAward;
     final withNotoriety = isNotorietyActive ? (withFloral * 1.5).round() : withFloral;
+    final withGroove = isUrbanGrooveActive ? (withNotoriety * 1.5).round() : withNotoriety;
     final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
-        ? withNotoriety * 2
-        : withNotoriety;
+        ? withGroove * 2
+        : withGroove;
     final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
     tips += awarded;
 
@@ -2368,6 +2421,43 @@ class GameState extends ChangeNotifier {
     );
 
     onCafeBistroVault?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records an encounter with a sidewalk street busker jazz saxophonist,
+  /// awarding base tips ($35) scaled by combo multipliers,
+  /// advancing the stunt streak, activating the 4.0-second Urban Groove buff,
+  /// and resetting the stunt streak timer.
+  StreetBuskerEvent? recordStreetBuskerEncounter({int baseTips = 35}) {
+    if (status != GameStatus.running) return null;
+
+    buskersEncounteredInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+    urbanGrooveTimer = urbanGrooveDuration;
+
+    final baseAward = (baseTips * stuntMultiplier).round();
+    final withFloral = isFloralAromaActive ? (baseAward * 1.5).round() : baseAward;
+    final withNotoriety = isNotorietyActive ? (withFloral * 1.5).round() : withFloral;
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? withNotoriety * 2
+        : withNotoriety;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = StreetBuskerEvent(
+      baseTips: baseTips,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+      stuntStreak: stuntStreak,
+      urbanGrooveDuration: urbanGrooveDuration,
+    );
+
+    onStreetBuskerEncounter?.call(event);
     notifyListeners();
     return event;
   }
