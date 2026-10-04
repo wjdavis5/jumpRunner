@@ -805,6 +805,51 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Generates a rushing cascade of water droplets, frothing foam spray,
+  /// and splintered cedar wooden stave planks erupting from a rooftop water tower breach.
+  factory ParticleEffectComponent.waterTowerDeluge({
+    required Vector2 position,
+    int count = 26,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFFE0F7FA), // Translucent cyan water drop
+      Color(0xFF80DEEA), // Frothing wave spray
+      Color(0xFF00E5FF), // Pressurized aquamarine torrent
+      Color(0xFFFFFFFF), // Brilliant white aerated foam
+      Color(0xFF8D6E63), // Splintered cedar wood stave fleck
+      Color(0xFF5D4037), // Dark rustic cedar wood fiber
+    ];
+
+    for (var i = 0; i < count; i++) {
+      // Fan outward and forward in a rushing hydraulic arc
+      final angle = -math.pi * 0.15 + (rng.nextDouble() - 0.5) * 1.8;
+      final speed = 90.0 + rng.nextDouble() * 200.0;
+      final velocity = Vector2(
+        math.cos(angle) * speed + 60.0,
+        math.sin(angle) * speed * 0.8 - 40.0,
+      );
+
+      particles.add(
+        GameParticle(
+          position: position.clone() +
+              Vector2((rng.nextDouble() - 0.5) * 20.0, (rng.nextDouble() - 0.5) * 14.0),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 2.0 + rng.nextDouble() * 2.8,
+          maxLife: 0.50 + rng.nextDouble() * 0.35,
+          gravity: 240.0,
+          drag: 0.86,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.

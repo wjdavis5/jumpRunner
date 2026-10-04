@@ -700,6 +700,32 @@ class FlowerKioskEvent {
   final double floralAromaDuration;
 }
 
+/// Event dispatched when traversing an elevated rooftop wooden water tower or triggering a stave breach.
+class WaterTowerEvent {
+  const WaterTowerEvent({
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.stuntStreak,
+    required this.isBreachCascade,
+  });
+
+  /// Base tip value before stunt combo scaling ($35).
+  final int baseTips;
+
+  /// Total tip amount awarded after active combo multipliers.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this event.
+  final double multiplier;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+
+  /// Whether a structural timber stave breach released a rushing water cascade.
+  final bool isBreachCascade;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -915,6 +941,9 @@ class GameState extends ChangeNotifier {
   /// Total sidewalk flower vendor kiosks vaulted in current run.
   int flowerKioskVaultsInRun = 0;
 
+  /// Total rooftop wooden water towers traversed in current run.
+  int waterTowersTraversedInRun = 0;
+
   /// Total seconds spent drafting behind companion cyclists in current run.
   double totalDraftDurationInRun = 0.0;
 
@@ -958,6 +987,7 @@ class GameState extends ChangeNotifier {
   ValueChanged<AcCondenserEvent>? onAcCondenserUpdraft;
   ValueChanged<GlassSkylightEvent>? onGlassSkylightSmash;
   ValueChanged<FlowerKioskEvent>? onFlowerKioskVault;
+  ValueChanged<WaterTowerEvent>? onWaterTowerTraversed;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -1013,6 +1043,7 @@ class GameState extends ChangeNotifier {
     acUpdraftsInRun = 0;
     skylightSmashesInRun = 0;
     flowerKioskVaultsInRun = 0;
+    waterTowersTraversedInRun = 0;
     floralAromaTimer = 0.0;
     totalDraftDurationInRun = 0.0;
     isDrafting = false;
@@ -2121,6 +2152,44 @@ class GameState extends ChangeNotifier {
     );
 
     onFlowerKioskVault?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records an interaction with an elevated rooftop wooden water tower,
+  /// awarding base tips ($35, or $45 for breach cascade) scaled by combo multipliers,
+  /// advancing the stunt streak, and resetting the stunt streak timer.
+  WaterTowerEvent? recordWaterTowerTraverse({
+    int baseTips = 35,
+    bool isBreachCascade = false,
+  }) {
+    if (status != GameStatus.running) return null;
+
+    final effectiveBase = isBreachCascade ? baseTips + 10 : baseTips;
+    waterTowersTraversedInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    final baseAward = (effectiveBase * stuntMultiplier).round();
+    final withFloral = isFloralAromaActive ? (baseAward * 1.5).round() : baseAward;
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? withFloral * 2
+        : withFloral;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = WaterTowerEvent(
+      baseTips: effectiveBase,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+      stuntStreak: stuntStreak,
+      isBreachCascade: isBreachCascade,
+    );
+
+    onWaterTowerTraversed?.call(event);
     notifyListeners();
     return event;
   }
