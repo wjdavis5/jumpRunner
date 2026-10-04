@@ -323,6 +323,21 @@ class FireEscapeData {
   final double launchImpulse;
 }
 
+/// Data model for a parked gourmet food truck with an asphalt grease spill slick.
+class FoodTruckSlickData {
+  const FoodTruckSlickData({
+    required this.x,
+    required this.y,
+    this.width = 120.0,
+    this.height = 88.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -345,6 +360,7 @@ class ChunkData {
     this.turnstiles = const [],
     this.droneCargos = const [],
     this.fireEscapes = const [],
+    this.foodTruckSlicks = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -367,6 +383,7 @@ class ChunkData {
   final List<SubwayTurnstileData> turnstiles;
   final List<DroneCargoData> droneCargos;
   final List<FireEscapeData> fireEscapes;
+  final List<FoodTruckSlickData> foodTruckSlicks;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -1180,6 +1197,40 @@ class WorldChunkManager {
       }
     }
 
+    final List<FoodTruckSlickData> foodTruckSlicks = [];
+
+    // Gourmet Food Truck Grease Slick (after 90m, outside subway stations, scaffolding, and carts)
+    if (distanceMeters >= 90.0 &&
+        _random.nextDouble() < 0.32 &&
+        subwayStations.isEmpty &&
+        scaffoldings.isEmpty &&
+        foodCarts.isEmpty) {
+      const truckWidth = 120.0;
+      for (var offset = 100.0; offset <= chunkWidth - 190.0; offset += 55.0) {
+        final ftsX = startX + offset;
+        final isClear = obstacles.every(
+          (o) => (ftsX + truckWidth < o.x - 30.0) || (ftsX > o.x + o.width + 30.0),
+        ) && crosswalks.every(
+          (cw) => (ftsX + truckWidth < cw.x - 20.0) || (ftsX > cw.x + cw.width + 20.0),
+        ) && turnstiles.every(
+          (t) => (ftsX + truckWidth < t.x - 20.0) || (ftsX > t.x + t.width + 20.0),
+        ) && fireEscapes.every(
+          (fe) => (ftsX + truckWidth < fe.x - 20.0) || (ftsX > fe.x + fe.width + 20.0),
+        );
+        if (isClear) {
+          foodTruckSlicks.add(
+            FoodTruckSlickData(
+              x: ftsX,
+              y: groundY - 88.0,
+              width: truckWidth,
+              height: 88.0,
+            ),
+          );
+          break;
+        }
+      }
+    }
+
     return ChunkData(
       obstacles: obstacles,
       pickups: pickups,
@@ -1201,6 +1252,7 @@ class WorldChunkManager {
       turnstiles: turnstiles,
       droneCargos: droneCargos,
       fireEscapes: fireEscapes,
+      foodTruckSlicks: foodTruckSlicks,
     );
   }
 }

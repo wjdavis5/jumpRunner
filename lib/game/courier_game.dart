@@ -17,6 +17,7 @@ import 'components/drop_zone_component.dart';
 import 'components/fire_escape_ladder_component.dart';
 import 'components/floating_text_component.dart';
 import 'components/food_cart_component.dart';
+import 'components/food_truck_slick_component.dart';
 import 'components/grind_rail_component.dart';
 import 'components/hvac_wind_tunnel_component.dart';
 import 'components/obstacle_component.dart';
@@ -146,6 +147,7 @@ class CourierGame extends FlameGame
   final List<SubwayTurnstileComponent> activeTurnstiles = [];
   final List<DroneCargoComponent> activeDroneCargos = [];
   final List<FireEscapeLadderComponent> activeFireEscapes = [];
+  final List<FoodTruckSlickComponent> activeFoodTruckSlicks = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
@@ -585,6 +587,17 @@ class CourierGame extends FlameGame
       world.add(feComp);
     }
 
+    for (final fts in chunk.foodTruckSlicks) {
+      final ftsComp = FoodTruckSlickComponent(
+        position: Vector2(fts.x, fts.y),
+        width: fts.width,
+        height: fts.height,
+        groundY: groundY,
+      );
+      activeFoodTruckSlicks.add(ftsComp);
+      world.add(ftsComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -792,6 +805,12 @@ class CourierGame extends FlameGame
     for (final fe in world.children.whereType<FireEscapeLadderComponent>().toList()) {
       fe.removeFromParent();
     }
+    for (final fts in activeFoodTruckSlicks.toList()) {
+      fts.removeFromParent();
+    }
+    for (final fts in world.children.whereType<FoodTruckSlickComponent>().toList()) {
+      fts.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -810,6 +829,7 @@ class CourierGame extends FlameGame
     activeTurnstiles.clear();
     activeDroneCargos.clear();
     activeFireEscapes.clear();
+    activeFoodTruckSlicks.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
@@ -1040,6 +1060,9 @@ class CourierGame extends FlameGame
     }
     for (final fe in activeFireEscapes) {
       fe.position.x -= scrollDelta;
+    }
+    for (final fts in activeFoodTruckSlicks) {
+      fts.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -1526,6 +1549,15 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4u. Evaluate Street Food Truck Grease Slick Drift Slides
+    for (final fts in activeFoodTruckSlicks) {
+      if (!fts.hasDrifted) {
+        if (fts.checkDrift(player.position, player.size, player.simulator)) {
+          _handleFoodTruckDrift(fts);
+        }
+      }
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -1692,6 +1724,13 @@ class CourierGame extends FlameGame
     activeFireEscapes.removeWhere((fe) {
       if (fe.shouldRecycle || fe.isRemoved) {
         if (fe.isMounted) fe.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeFoodTruckSlicks.removeWhere((fts) {
+      if (fts.shouldRecycle || fts.isRemoved) {
+        if (fts.isMounted) fts.removeFromParent();
         return true;
       }
       return false;
@@ -2218,6 +2257,35 @@ class CourierGame extends FlameGame
       addEffect(
         ParticleEffectComponent.fireEscapeSparks(
           position: fireEscape.ladderGrabWorldPosition,
+          count: 18,
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handleFoodTruckDrift(FoodTruckSlickComponent foodTruck) {
+    final event = gameState.recordFoodTruckDrift();
+    if (event != null) {
+      audio.playCoin();
+      audio.playCourierBark(
+        CourierBarkType.stunt,
+        line: 'Slick grease drift!',
+      );
+      triggerScreenShake(0.12);
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+
+      addEffect(
+        FloatingTextComponent(
+          text: 'GREASE DRIFT SLIDE! $multStr+\$${event.totalTips}',
+          position: Vector2(player.position.x - 15.0, player.position.y - 35.0),
+          color: const Color(0xFFFFB300),
+        ),
+      );
+      addEffect(
+        ParticleEffectComponent.greaseSpray(
+          position: foodTruck.slickCenterWorldPosition,
           count: 18,
         ),
       );
