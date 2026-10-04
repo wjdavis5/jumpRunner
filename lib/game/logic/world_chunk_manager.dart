@@ -524,6 +524,21 @@ class ClotheslineData {
   final double roofY;
 }
 
+/// Data model for a sidewalk subway ventilation exhaust grate fixture.
+class SubwayExhaustGrateData {
+  const SubwayExhaustGrateData({
+    required this.x,
+    required this.y,
+    this.width = 88.0,
+    this.height = 14.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -559,6 +574,7 @@ class ChunkData {
     this.streetBuskers = const [],
     this.fireHydrants = const [],
     this.clotheslines = const [],
+    this.subwayExhaustGrates = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -594,6 +610,7 @@ class ChunkData {
   final List<StreetBuskerData> streetBuskers;
   final List<FireHydrantData> fireHydrants;
   final List<ClotheslineData> clotheslines;
+  final List<SubwayExhaustGrateData> subwayExhaustGrates;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -2042,6 +2059,45 @@ class WorldChunkManager {
       }
     }
 
+    final List<SubwayExhaustGrateData> subwayExhaustGrates = [];
+    if (distanceMeters >= 80.0 && _random.nextDouble() < 0.28) {
+      const grateWidth = 88.0;
+      const grateHeight = 14.0;
+
+      for (var attempt = 0; attempt < 8; attempt++) {
+        final grX = startX + 80.0 + _random.nextDouble() * (chunkWidth - 220.0);
+        final isClear = obstacles.every(
+          (o) => (grX + grateWidth < o.x - 30.0) || (grX > o.x + o.width + 30.0),
+        ) && flowerKiosks.every(
+          (fk) => (grX + grateWidth < fk.x - 30.0) || (grX > fk.x + fk.width + 30.0),
+        ) && waterTowers.every(
+          (wt) => (grX + grateWidth < wt.x - 30.0) || (grX > wt.x + wt.width + 30.0),
+        ) && newsstands.every(
+          (ns) => (grX + grateWidth < ns.x - 30.0) || (grX > ns.x + ns.width + 30.0),
+        ) && cafeBistros.every(
+          (cb) => (grX + grateWidth < cb.x - 30.0) || (grX > cb.x + cb.width + 30.0),
+        ) && streetBuskers.every(
+          (sb) => (grX + grateWidth < sb.x - 30.0) || (grX > sb.x + sb.width + 30.0),
+        ) && fireHydrants.every(
+          (fh) => (grX + grateWidth < fh.x - 30.0) || (grX > fh.x + fh.width + 30.0),
+        ) && clotheslines.every(
+          (cl) => (grX + grateWidth < cl.x - 30.0) || (grX > cl.x + cl.width + 30.0),
+        );
+
+        if (isClear) {
+          subwayExhaustGrates.add(
+            SubwayExhaustGrateData(
+              x: grX,
+              y: groundY - grateHeight,
+              width: grateWidth,
+              height: grateHeight,
+            ),
+          );
+          break;
+        }
+      }
+    }
+
     return ChunkData(
       obstacles: obstacles,
       pickups: pickups,
@@ -2076,6 +2132,7 @@ class WorldChunkManager {
       streetBuskers: streetBuskers,
       fireHydrants: fireHydrants,
       clotheslines: clotheslines,
+      subwayExhaustGrates: subwayExhaustGrates,
     );
   }
 }

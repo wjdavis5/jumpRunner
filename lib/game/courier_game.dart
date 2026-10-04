@@ -28,6 +28,7 @@ import 'components/cafe_bistro_component.dart';
 import 'components/street_busker_component.dart';
 import 'components/fire_hydrant_component.dart';
 import 'components/clothesline_component.dart';
+import 'components/subway_exhaust_grate_component.dart';
 import 'components/lightning_flash_component.dart';
 import 'components/grind_rail_component.dart';
 import 'components/hvac_wind_tunnel_component.dart';
@@ -174,6 +175,7 @@ class CourierGame extends FlameGame
   final List<StreetBuskerComponent> activeStreetBuskers = [];
   final List<FireHydrantComponent> activeFireHydrants = [];
   final List<ClotheslineComponent> activeClotheslines = [];
+  final List<SubwayExhaustGrateComponent> activeSubwayExhaustGrates = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
@@ -766,6 +768,17 @@ class CourierGame extends FlameGame
       world.add(clComp);
     }
 
+    for (final seg in chunk.subwayExhaustGrates) {
+      final segComp = SubwayExhaustGrateComponent(
+        position: Vector2(seg.x, seg.y),
+        width: seg.width,
+        height: seg.height,
+        groundY: groundY,
+      );
+      activeSubwayExhaustGrates.add(segComp);
+      world.add(segComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -1051,6 +1064,12 @@ class CourierGame extends FlameGame
     for (final cl in world.children.whereType<ClotheslineComponent>().toList()) {
       cl.removeFromParent();
     }
+    for (final seg in activeSubwayExhaustGrates.toList()) {
+      seg.removeFromParent();
+    }
+    for (final seg in world.children.whereType<SubwayExhaustGrateComponent>().toList()) {
+      seg.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -1082,6 +1101,7 @@ class CourierGame extends FlameGame
     activeStreetBuskers.clear();
     activeFireHydrants.clear();
     activeClotheslines.clear();
+    activeSubwayExhaustGrates.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
@@ -1172,8 +1192,10 @@ class CourierGame extends FlameGame
     gameState.updateCaffeineSurgeTimer(dt);
     gameState.updateUrbanGrooveTimer(dt);
     gameState.updateHydroplaneTimer(dt);
+    gameState.updateThermalUpdraftTimer(dt);
     player.isBoosted = gameState.isEnergyBoostActive;
     player.simulator.isHydroplaning = gameState.isHydroplaneActive;
+    player.simulator.isThermalUpdraft = gameState.isThermalUpdraftActive;
 
     // 0b. Spawn / mount companion delivery drone if active
     if (gameState.isDroneActive && (deliveryDrone == null || !deliveryDrone!.isMounted)) {
@@ -1366,6 +1388,9 @@ class CourierGame extends FlameGame
     }
     for (final cl in activeClotheslines) {
       cl.position.x -= scrollDelta;
+    }
+    for (final seg in activeSubwayExhaustGrates) {
+      seg.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -1969,6 +1994,16 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4ah. Evaluate Sidewalk Subway Exhaust Grate Updrafts
+    for (final seg in activeSubwayExhaustGrates) {
+      if (!seg.hasTriggered) {
+        if (seg.checkUpdraft(player.position, player.size, player.simulator)) {
+          _handleSubwayExhaustGrateCatch(seg);
+        }
+      }
+    }
+
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -2226,6 +2261,13 @@ class CourierGame extends FlameGame
     activeClotheslines.removeWhere((cl) {
       if (cl.shouldRecycle || cl.isRemoved) {
         if (cl.isMounted) cl.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeSubwayExhaustGrates.removeWhere((seg) {
+      if (seg.shouldRecycle || seg.isRemoved) {
+        if (seg.isMounted) seg.removeFromParent();
         return true;
       }
       return false;
@@ -3145,6 +3187,36 @@ class CourierGame extends FlameGame
         ParticleEffectComponent.clotheslineLinenScatter(
           position: clothesline.centerApexWorld,
           count: 26,
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handleSubwayExhaustGrateCatch(SubwayExhaustGrateComponent grate) {
+    final event = gameState.recordSubwayExhaustGrateCatch();
+    if (event != null) {
+      player.simulator.isThermalUpdraft = true;
+      audio.playJump();
+      audio.playCourierBark(
+        CourierBarkType.stunt,
+        line: 'Thermal catch!',
+      );
+      triggerScreenShake(0.14);
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+
+      addEffect(
+        FloatingTextComponent(
+          text: 'THERMAL UPDRAFT! $multStr+\$${event.totalTips}',
+          position: Vector2(grate.position.x - 10.0, grate.position.y - 32.0),
+          color: const Color(0xFFFFB74D),
+        ),
+      );
+      addEffect(
+        ParticleEffectComponent.subwayExhaustSteam(
+          position: grate.plumeApexWorld,
+          count: 30,
         ),
       );
       _evaluateAchievements();

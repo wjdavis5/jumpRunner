@@ -1073,6 +1073,49 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Billowing buoyant semi-transparent steam puffs, warm vapor eddies, and cardboard flecks from a sidewalk subway exhaust grate updraft.
+  factory ParticleEffectComponent.subwayExhaustSteam({
+    required Vector2 position,
+    int count = 30,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xCCFFFFFF), // Pure white hot steam core
+      Color(0xB3ECEFF1), // Light vapor cloud
+      Color(0x99CFD8DC), // Cool gray steam condensation
+      Color(0x80B0BEC5), // Street exhaust mist
+      Color(0x80FFF8E1), // Warm underground tunnel ambient glow
+      Color(0xFF8D6E63), // Soggy cardboard fragment
+    ];
+
+    for (var i = 0; i < count; i++) {
+      final angle = -math.pi * 0.5 + (rng.nextDouble() - 0.5) * 1.4;
+      final speed = 70.0 + rng.nextDouble() * 150.0;
+      final velocity = Vector2(
+        math.cos(angle) * speed,
+        math.sin(angle) * speed - 25.0, // Upward buoyant thermal velocity
+      );
+
+      particles.add(
+        GameParticle(
+          position: position.clone() +
+              Vector2((rng.nextDouble() - 0.5) * 28.0, (rng.nextDouble() - 0.5) * 8.0),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 2.2 + rng.nextDouble() * 3.4,
+          maxLife: 0.60 + rng.nextDouble() * 0.45,
+          gravity: -54.0, // Upward buoyant thermal drift
+          drag: 0.92,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.
