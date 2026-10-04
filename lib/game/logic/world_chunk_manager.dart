@@ -148,6 +148,23 @@ class CraneSwingData {
   final double cableLength;
 }
 
+/// Data model for an urban delivery cyclist companion riding in traffic.
+class CyclistData {
+  const CyclistData({
+    required this.x,
+    required this.y,
+    this.width = 76.0,
+    this.height = 54.0,
+    this.relativeSpeed = 0.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+  final double relativeSpeed;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -159,6 +176,7 @@ class ChunkData {
     this.steamVents = const [],
     this.subwayStations = const [],
     this.craneSwings = const [],
+    this.cyclists = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -170,6 +188,7 @@ class ChunkData {
   final List<SteamVentData> steamVents;
   final List<SubwayStationData> subwayStations;
   final List<CraneSwingData> craneSwings;
+  final List<CyclistData> cyclists;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -578,6 +597,34 @@ class WorldChunkManager {
       );
     }
 
+    final List<CyclistData> cyclists = [];
+
+    // Friendly Delivery Cyclist Companion (after 100m, on street outside subway stations and scaffolding)
+    if (distanceMeters >= 100.0 &&
+        _random.nextDouble() < 0.35 &&
+        scaffoldings.isEmpty &&
+        subwayStations.isEmpty &&
+        craneSwings.isEmpty) {
+      final cyclistX = startX + 220.0 + (_random.nextDouble() * 120.0);
+      const cyclistWidth = 76.0;
+      const cyclistHeight = 54.0;
+      final isClearFromObstacles = obstacles.every(
+        (o) => (cyclistX + cyclistWidth < o.x - 70.0) || (cyclistX > o.x + o.width + 70.0),
+      );
+
+      if (isClearFromObstacles) {
+        cyclists.add(
+          CyclistData(
+            x: cyclistX,
+            y: groundY - cyclistHeight,
+            width: cyclistWidth,
+            height: cyclistHeight,
+            relativeSpeed: 15.0 + (_random.nextDouble() * 15.0),
+          ),
+        );
+      }
+    }
+
     return ChunkData(
       obstacles: obstacles,
       pickups: pickups,
@@ -588,6 +635,7 @@ class WorldChunkManager {
       steamVents: steamVents,
       subwayStations: subwayStations,
       craneSwings: craneSwings,
+      cyclists: cyclists,
     );
   }
 }

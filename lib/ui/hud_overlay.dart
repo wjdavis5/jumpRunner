@@ -490,6 +490,42 @@ class HUDOverlay extends StatelessWidget {
             ),
           ),
         ],
+        if (gameState.isDrafting) ...[
+          const SizedBox(height: 6),
+          Container(
+            key: const Key('drafting_stream_badge'),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF00E5FF), Color(0xFF00B4DB)],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF00E5FF).withValues(alpha: 0.65),
+                  blurRadius: 9,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.air, color: Colors.black, size: 16),
+                SizedBox(width: 4),
+                Text(
+                  'DRAFTING 1.2X (+SLINGSHOT READY)',
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }

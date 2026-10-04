@@ -308,6 +308,7 @@ class _CourierDashAppState extends State<CourierDashApp> {
                   subwayStationsCompleted: _gameState.subwayStationsInRun,
                   craneSwingsCompleted: _gameState.craneSwingsInRun,
                   vipDeliveriesCompleted: _gameState.vipDeliveriesInRun,
+                  bikeDraftSlingshotsCompleted: _gameState.bikeDraftSlingshotsInRun,
                   onRestart: _restartGame,
                 ),
           },
