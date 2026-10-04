@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../components/obstacle_component.dart';
 import '../models/daily_shift.dart';
 import '../models/run_booster.dart';
 import '../models/shift_contract.dart';
@@ -127,6 +128,32 @@ class RailClearEvent {
   final int bonusTips;
 }
 
+/// Vault event dispatched when executing an agile parkour vault over a low obstacle.
+class VaultEvent {
+  const VaultEvent({
+    required this.obstacleType,
+    required this.multiplier,
+    required this.baseTips,
+    required this.totalTips,
+    required this.streak,
+  });
+
+  /// Type of low obstacle vaulted (hydrant, mailbox, scooter).
+  final ObstacleType obstacleType;
+
+  /// Active stunt combo multiplier applied to this vault.
+  final double multiplier;
+
+  /// Base tips value ($15).
+  final int baseTips;
+
+  /// Total tips awarded for this vault after multipliers.
+  final int totalTips;
+
+  /// Current consecutive stunt streak count.
+  final int streak;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -249,11 +276,15 @@ class GameState extends ChangeNotifier {
   /// Total rail grinds and trick dismounts performed in current run.
   int grindsInRun = 0;
 
+  /// Total agile parkour obstacle vaults performed in current run.
+  int vaultsInRun = 0;
+
   ValueChanged<MilestoneEvent>? onMilestone;
   ValueChanged<StuntEvent>? onStunt;
   ValueChanged<DeliveryEvent>? onDeliveryCompleted;
   ValueChanged<RailOllieEvent>? onRailOllie;
   ValueChanged<RailClearEvent>? onRailClear;
+  ValueChanged<VaultEvent>? onVault;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -282,6 +313,7 @@ class GameState extends ChangeNotifier {
     deliveriesInRun = 0;
     deliveryStreak = 0;
     grindsInRun = 0;
+    vaultsInRun = 0;
     status = GameStatus.running;
     contractManager.reset();
 
@@ -468,6 +500,41 @@ class GameState extends ChangeNotifier {
     );
 
     onRailClear?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records an agile parkour vault cleanly over a low street obstacle.
+  ///
+  /// Advances the stunt streak, scales bonus tips by stunt multiplier and energy boost,
+  /// and triggers the stunt combo timer.
+  VaultEvent? recordVault({required ObstacleType obstacleType}) {
+    if (status != GameStatus.running) return null;
+
+    vaultsInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    const baseTip = 15;
+    final baseAward = (baseTip * stuntMultiplier).round();
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? baseAward * 2
+        : baseAward;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = VaultEvent(
+      obstacleType: obstacleType,
+      multiplier: stuntMultiplier,
+      baseTips: baseTip,
+      totalTips: awarded,
+      streak: stuntStreak,
+    );
+
+    onVault?.call(event);
     notifyListeners();
     return event;
   }

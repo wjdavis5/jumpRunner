@@ -13,6 +13,7 @@ enum CourierState {
   jumping,
   falling,
   grinding,
+  vaulting,
   hurt,
 }
 
@@ -31,6 +32,8 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
     this.onLand,
     this.onDamage,
     this.onRailOllie,
+    this.checkCanVault,
+    this.onVault,
   })  : skin = skin ?? CourierSkin.standard,
         simulator = JumpPhysicsSimulator(groundY: groundY) {
     size = playerSize ?? Vector2(64, 64);
@@ -44,6 +47,8 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   final VoidCallback? onLand;
   final VoidCallback? onDamage;
   final VoidCallback? onRailOllie;
+  final bool Function()? checkCanVault;
+  final VoidCallback? onVault;
 
   CourierSkin skin;
 
@@ -56,6 +61,12 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
 
   /// Whether the courier is currently sliding along a metallic grind rail.
   bool get isGrinding => state == CourierState.grinding;
+
+  /// Whether the courier is currently executing an agile parkour obstacle vault.
+  bool get isVaulting => state == CourierState.vaulting;
+
+  double _vaultTimer = 0.0;
+  static const double defaultVaultDuration = 0.36;
 
   /// Cumulative distance in meters traveled during the current grind session.
   double grindDistance = 0.0;
@@ -111,12 +122,19 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
 
   /// Triggers a jump. Returns `true` if initiated, `false` if rejected (e.g. airborne).
   /// If initiated while grinding, executes a high-pop Rail Ollie combo jump.
+  /// If initiated while grounded near a low vaultable obstacle, executes an agile parkour vault.
   bool jump() {
     if (state == CourierState.grinding) {
       state = CourierState.jumping;
       simulator.launch(340.0);
       onJump?.call();
       onRailOllie?.call();
+      return true;
+    }
+
+    if (simulator.isGrounded && checkCanVault != null && checkCanVault!()) {
+      startVault();
+      onVault?.call();
       return true;
     }
 
@@ -144,6 +162,13 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
       state = CourierState.running;
     }
     grindDistance = 0.0;
+  }
+
+  /// Initiates an agile parkour speed vault over a low obstacle.
+  void startVault({double impulse = 220.0}) {
+    state = CourierState.vaulting;
+    _vaultTimer = defaultVaultDuration;
+    simulator.launch(impulse);
   }
 
   /// Launches the courier into an aerial trajectory from a ramp.
@@ -200,7 +225,17 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
     }
 
     // State machine updates
-    if (!simulator.isGrounded) {
+    if (state == CourierState.vaulting) {
+      _vaultTimer -= dt;
+      if (_vaultTimer <= 0 || simulator.isGrounded) {
+        if (simulator.isGrounded) {
+          state = CourierState.running;
+          if (wasAirborne) onLand?.call();
+        } else {
+          state = CourierState.falling;
+        }
+      }
+    } else if (!simulator.isGrounded) {
       if (_invulnerabilityTimer > 0 && state == CourierState.hurt) {
         // Retain hurt visual during invulnerability
       } else if (simulator.verticalVelocity > 0) {
@@ -365,6 +400,26 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
       canvas.drawLine(const Offset(10, 61), const Offset(2, 63), sparkPaint);
       canvas.drawLine(const Offset(14, 60), const Offset(6, 65), sparkPaint);
       canvas.drawLine(const Offset(16, 62), const Offset(8, 66), sparkPaint);
+    } else if (state == CourierState.vaulting) {
+      // Parkour Speed Vault: low forward body pitch, planted lead hand, tucked legs
+      canvas.drawRect(const Rect.fromLTWH(14, 40, 18, 8), pantsPaint);
+      canvas.drawRect(const Rect.fromLTWH(26, 42, 16, 7), pantsPaint);
+
+      // Planted right arm vaulting downwards
+      final armPaint = Paint()
+        ..color = skin.primaryColor
+        ..strokeWidth = 4.5
+        ..strokeCap = StrokeCap.round;
+      canvas.drawLine(const Offset(36, 30), const Offset(42, 46), armPaint);
+      canvas.drawCircle(const Offset(42, 47), 2.5, skinPaint);
+
+      // Trailing aerodynamic speed wind lines
+      final streakPaint = Paint()
+        ..color = const Color(0xFF00E5FF).withValues(alpha: 0.75)
+        ..strokeWidth = 2.0
+        ..strokeCap = StrokeCap.round;
+      canvas.drawLine(const Offset(-4, 34), const Offset(10, 34), streakPaint);
+      canvas.drawLine(const Offset(-8, 44), const Offset(6, 44), streakPaint);
     } else {
       // Alternating run stride
       final legOffset = (_currentRunFrame % 2 == 0) ? 4.0 : -4.0;

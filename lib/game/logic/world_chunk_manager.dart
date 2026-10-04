@@ -211,7 +211,7 @@ class WorldChunkManager {
         }
 
         // Place a street-level obstacle underneath the scaffolding
-        final groundType = ObstacleType.values[_random.nextInt(3)]; // scooter, dog, hydrant
+        final groundType = ObstacleType.values[_random.nextInt(4)]; // scooter, dog, hydrant, mailbox
         final gSize = ObstacleComponent.defaultSizeForType(groundType);
         final gX = scaffoldingX + (scaffoldingWidth / 2) - (gSize.x / 2);
         obstacles.add(ObstacleData(
@@ -278,7 +278,7 @@ class WorldChunkManager {
       }
 
       // Ground hazard underneath the rail for player to grind over
-      final groundType = ObstacleType.values[_random.nextInt(3)]; // scooter, dog, hydrant
+      final groundType = ObstacleType.values[_random.nextInt(4)]; // scooter, dog, hydrant, mailbox
       final gSize = ObstacleComponent.defaultSizeForType(groundType);
       final gX = railX + (railWidth / 2) - (gSize.x / 2);
       obstacles.add(ObstacleData(
@@ -300,6 +300,7 @@ class WorldChunkManager {
             ObstacleType.scooter,
             ObstacleType.dog,
             ObstacleType.hydrant,
+            ObstacleType.mailbox,
             ObstacleType.van,
           ];
 

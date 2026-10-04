@@ -303,6 +303,7 @@ class _CourierDashAppState extends State<CourierDashApp> {
                   contractBonusTips: _gameState.contractManager.totalBonusTips,
                   deliveriesCompleted: _gameState.deliveriesInRun,
                   grindsCompleted: _gameState.grindsInRun,
+                  vaultsCompleted: _gameState.vaultsInRun,
                   onRestart: _restartGame,
                 ),
           },
