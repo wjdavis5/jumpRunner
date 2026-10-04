@@ -477,6 +477,21 @@ class CafeBistroData {
   final double height;
 }
 
+/// Data model for a sidewalk street busker jazz musician fixture.
+class StreetBuskerData {
+  const StreetBuskerData({
+    required this.x,
+    required this.y,
+    this.width = 84.0,
+    this.height = 68.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -509,6 +524,7 @@ class ChunkData {
     this.waterTowers = const [],
     this.newsstands = const [],
     this.cafeBistros = const [],
+    this.streetBuskers = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -541,6 +557,7 @@ class ChunkData {
   final List<WaterTowerData> waterTowers;
   final List<NewsstandData> newsstands;
   final List<CafeBistroData> cafeBistros;
+  final List<StreetBuskerData> streetBuskers;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -1816,6 +1833,61 @@ class WorldChunkManager {
       }
     }
 
+    final List<StreetBuskerData> streetBuskers = [];
+    if (distanceMeters >= 110.0 &&
+        _random.nextDouble() < 0.26 &&
+        subwayStations.isEmpty &&
+        scaffoldings.isEmpty) {
+      const buskerWidth = 84.0;
+      const buskerHeight = 68.0;
+      for (var offset = 150.0; offset <= chunkWidth - 180.0; offset += 55.0) {
+        final buskerX = startX + offset;
+        final isClear = obstacles.every(
+          (o) => (buskerX + buskerWidth < o.x - 30.0) || (buskerX > o.x + o.width + 30.0),
+        ) && foodCarts.every(
+          (fc) => (buskerX + buskerWidth < fc.x - 30.0) || (buskerX > fc.x + fc.width + 30.0),
+        ) && crosswalks.every(
+          (cw) => (buskerX + buskerWidth < cw.x - 20.0) || (buskerX > cw.x + cw.width + 20.0),
+        ) && turnstiles.every(
+          (t) => (buskerX + buskerWidth < t.x - 20.0) || (buskerX > t.x + t.width + 20.0),
+        ) && fireEscapes.every(
+          (fe) => (buskerX + buskerWidth < fe.x - 20.0) || (buskerX > fe.x + fe.width + 20.0),
+        ) && foodTruckSlicks.every(
+          (fts) => (buskerX + buskerWidth < fts.x - 30.0) || (buskerX > fts.x + fts.width + 30.0),
+        ) && barricades.every(
+          (b) => (buskerX + buskerWidth < b.x - 30.0) || (buskerX > b.x + b.width + 30.0),
+        ) && satelliteDishes.every(
+          (sd) => (buskerX + buskerWidth < sd.x - 30.0) || (buskerX > sd.x + sd.width + 30.0),
+        ) && postalMailboxes.every(
+          (mb) => (buskerX + buskerWidth < mb.x - 30.0) || (buskerX > mb.x + mb.width + 30.0),
+        ) && acCondensers.every(
+          (ac) => (buskerX + buskerWidth < ac.x - 30.0) || (buskerX > ac.x + ac.width + 30.0),
+        ) && glassSkylights.every(
+          (gs) => (buskerX + buskerWidth < gs.x - 30.0) || (buskerX > gs.x + gs.width + 30.0),
+        ) && flowerKiosks.every(
+          (fk) => (buskerX + buskerWidth < fk.x - 30.0) || (buskerX > fk.x + fk.width + 30.0),
+        ) && waterTowers.every(
+          (wt) => (buskerX + buskerWidth < wt.x - 30.0) || (buskerX > wt.x + wt.width + 30.0),
+        ) && newsstands.every(
+          (ns) => (buskerX + buskerWidth < ns.x - 30.0) || (buskerX > ns.x + ns.width + 30.0),
+        ) && cafeBistros.every(
+          (cb) => (buskerX + buskerWidth < cb.x - 30.0) || (buskerX > cb.x + cb.width + 30.0),
+        );
+
+        if (isClear) {
+          streetBuskers.add(
+            StreetBuskerData(
+              x: buskerX,
+              y: groundY - buskerHeight,
+              width: buskerWidth,
+              height: buskerHeight,
+            ),
+          );
+          break;
+        }
+      }
+    }
+
     return ChunkData(
       obstacles: obstacles,
       pickups: pickups,
@@ -1847,6 +1919,7 @@ class WorldChunkManager {
       waterTowers: waterTowers,
       newsstands: newsstands,
       cafeBistros: cafeBistros,
+      streetBuskers: streetBuskers,
     );
   }
 }

@@ -940,6 +940,51 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Generates an ascending fountain burst of gleaming brass gold, jazz violet,
+  /// electric cyan, and melodic sparkle particles upon encountering a sidewalk jazz saxophonist.
+  factory ParticleEffectComponent.musicalNoteFountain({
+    required Vector2 position,
+    int count = 28,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFFFFD700), // Gleaming alto sax brass gold
+      Color(0xFFFFB300), // Warm amber brass tone
+      Color(0xFF9C27B0), // Jazz club deep violet
+      Color(0xFFBA68C8), // Light jazz lavender
+      Color(0xFF00E5FF), // Electric groove cyan
+      Color(0xFFE91E63), // High-note saxophone magenta
+      Color(0xFFFFFFFF), // Crisp acoustic chime white
+    ];
+
+    for (var i = 0; i < count; i++) {
+      final angle = -math.pi * 0.5 + (rng.nextDouble() - 0.5) * 1.6;
+      final speed = 70.0 + rng.nextDouble() * 150.0;
+      final velocity = Vector2(
+        math.cos(angle) * speed,
+        math.sin(angle) * speed - 20.0,
+      );
+
+      particles.add(
+        GameParticle(
+          position: position.clone() +
+              Vector2((rng.nextDouble() - 0.5) * 16.0, (rng.nextDouble() - 0.5) * 12.0),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 2.0 + rng.nextDouble() * 2.2,
+          maxLife: 0.65 + rng.nextDouble() * 0.35,
+          gravity: -42.0, // Buoyant upward acoustic harmonic drift
+          drag: 1.1,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.
