@@ -37,6 +37,7 @@ class GameOverModal extends StatelessWidget {
     this.skylightsCompleted = 0,
     this.flowerKiosksCompleted = 0,
     this.waterTowersCompleted = 0,
+    this.newsstandsCompleted = 0,
   });
 
   final int distance;
@@ -71,6 +72,7 @@ class GameOverModal extends StatelessWidget {
   final int skylightsCompleted;
   final int flowerKiosksCompleted;
   final int waterTowersCompleted;
+  final int newsstandsCompleted;
   final VoidCallback onRestart;
 
   @override
@@ -958,6 +960,37 @@ class GameOverModal extends StatelessWidget {
                         '$waterTowersCompleted WATER TOWER TRAVERSE${waterTowersCompleted > 1 ? 'S' : ''}',
                         style: const TextStyle(
                           color: Color(0xFF00E5FF),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            if (newsstandsCompleted > 0)
+              Container(
+                key: const Key('game_over_newsstand_badge'),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFB300).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFFB300), width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.newspaper, color: Color(0xFFFFB300), size: 16),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '$newsstandsCompleted NEWSSTAND VAULT${newsstandsCompleted > 1 ? 'S' : ''}',
+                        style: const TextStyle(
+                          color: Color(0xFFFFB300),
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                           letterSpacing: 0.5,

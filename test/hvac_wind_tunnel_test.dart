@@ -309,7 +309,7 @@ void main() {
       var generatedTunnel = false;
 
       // Seed chunks past 160m to verify generation
-      for (var i = 0; i < 40; i++) {
+      for (var i = 0; i < 100; i++) {
         final chunk = manager.generateChunk(
           startX: 400.0 + (i * 960.0),
           speed: 250.0,
