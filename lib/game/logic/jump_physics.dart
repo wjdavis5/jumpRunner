@@ -57,6 +57,10 @@ class JumpPhysicsSimulator {
   /// enhancing aerodynamic glide buoyancy (+25% float duration).
   bool isHydroplaning = false;
 
+  /// Whether courier is actively buoyed by a sidewalk subway exhaust thermal updraft,
+  /// enhancing aerodynamic glide buoyancy (+35% float hang time).
+  bool isThermalUpdraft = false;
+
   /// Elapsed duration in seconds for the current jump hold.
   double holdTimer = 0.0;
 
@@ -130,14 +134,16 @@ class JumpPhysicsSimulator {
     if (isHolding && verticalVelocity > 0) {
       effectiveAcceleration = -gravity + holdAcceleration;
     } else if (isGliding && verticalVelocity < 0) {
-      // Gentle aerodynamic glide descent (buoyant when hydroplaning)
-      effectiveAcceleration = -gravity * (isHydroplaning ? 0.13 : 0.18);
+      // Gentle aerodynamic glide descent (buoyant when hydroplaning or catching thermal updraft)
+      effectiveAcceleration = -gravity * (isThermalUpdraft ? 0.10 : (isHydroplaning ? 0.13 : 0.18));
     } else {
       effectiveAcceleration = -gravity;
     }
 
     verticalVelocity += effectiveAcceleration * dt;
-    final terminalGlideVelocity = isHydroplaning ? -42.0 : -55.0;
+    final terminalGlideVelocity = isThermalUpdraft
+        ? -35.0
+        : (isHydroplaning ? -42.0 : -55.0);
     if (isGliding && verticalVelocity < terminalGlideVelocity) {
       verticalVelocity = terminalGlideVelocity; // Terminal gentle glide descent rate
     }
