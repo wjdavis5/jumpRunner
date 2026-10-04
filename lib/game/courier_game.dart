@@ -20,6 +20,7 @@ import 'components/fire_escape_ladder_component.dart';
 import 'components/floating_text_component.dart';
 import 'components/food_cart_component.dart';
 import 'components/food_truck_slick_component.dart';
+import 'components/glass_skylight_component.dart';
 import 'components/grind_rail_component.dart';
 import 'components/hvac_wind_tunnel_component.dart';
 import 'components/obstacle_component.dart';
@@ -156,6 +157,7 @@ class CourierGame extends FlameGame
   final List<SatelliteDishComponent> activeSatelliteDishes = [];
   final List<PostalMailboxComponent> activeMailboxes = [];
   final List<AcCondenserComponent> activeAcCondensers = [];
+  final List<GlassSkylightComponent> activeGlassSkylights = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
@@ -650,6 +652,17 @@ class CourierGame extends FlameGame
       world.add(acComp);
     }
 
+    for (final gs in chunk.glassSkylights) {
+      final gsComp = GlassSkylightComponent(
+        position: Vector2(gs.x, gs.y),
+        width: gs.width,
+        height: gs.height,
+        groundY: groundY,
+      );
+      activeGlassSkylights.add(gsComp);
+      world.add(gsComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -887,6 +900,12 @@ class CourierGame extends FlameGame
     for (final ac in world.children.whereType<AcCondenserComponent>().toList()) {
       ac.removeFromParent();
     }
+    for (final gs in activeGlassSkylights.toList()) {
+      gs.removeFromParent();
+    }
+    for (final gs in world.children.whereType<GlassSkylightComponent>().toList()) {
+      gs.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -910,6 +929,7 @@ class CourierGame extends FlameGame
     activeSatelliteDishes.clear();
     activeMailboxes.clear();
     activeAcCondensers.clear();
+    activeGlassSkylights.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
@@ -1155,6 +1175,9 @@ class CourierGame extends FlameGame
     }
     for (final ac in activeAcCondensers) {
       ac.position.x -= scrollDelta;
+    }
+    for (final gs in activeGlassSkylights) {
+      gs.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -1686,6 +1709,15 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4z. Evaluate Rooftop Architectural Glass Skylight Smash-Through Leaps
+    for (final gs in activeGlassSkylights) {
+      if (!gs.hasShattered) {
+        if (gs.checkSmashThrough(player.position, player.size, player.simulator)) {
+          _handleGlassSkylightSmash(gs);
+        }
+      }
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -1887,6 +1919,13 @@ class CourierGame extends FlameGame
     activeAcCondensers.removeWhere((ac) {
       if (ac.shouldRecycle || ac.isRemoved) {
         if (ac.isMounted) ac.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeGlassSkylights.removeWhere((gs) {
+      if (gs.shouldRecycle || gs.isRemoved) {
+        if (gs.isMounted) gs.removeFromParent();
         return true;
       }
       return false;
@@ -2560,6 +2599,35 @@ class CourierGame extends FlameGame
         ParticleEffectComponent.condenserMist(
           position: condenser.updraftWorldPosition,
           count: 22,
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handleGlassSkylightSmash(GlassSkylightComponent skylight) {
+    final event = gameState.recordSkylightSmash();
+    if (event != null) {
+      audio.playMilestone();
+      audio.playCourierBark(
+        CourierBarkType.stunt,
+        line: 'Smashing entrance!',
+      );
+      triggerScreenShake(0.20);
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+
+      addEffect(
+        FloatingTextComponent(
+          text: 'SKYLIGHT SMASH! $multStr+\$${event.totalTips}',
+          position: Vector2(player.position.x - 15.0, player.position.y - 35.0),
+          color: const Color(0xFF00E5FF),
+        ),
+      );
+      addEffect(
+        ParticleEffectComponent.glassShatter(
+          position: skylight.shatterWorldPosition,
+          count: 24,
         ),
       );
       _evaluateAchievements();

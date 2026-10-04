@@ -402,6 +402,21 @@ class AcCondenserData {
   final double updraftImpulse;
 }
 
+/// Data model for an elevated rooftop glass skylight atrium dome.
+class GlassSkylightData {
+  const GlassSkylightData({
+    required this.x,
+    required this.y,
+    this.width = 80.0,
+    this.height = 36.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -429,6 +444,7 @@ class ChunkData {
     this.satelliteDishes = const [],
     this.postalMailboxes = const [],
     this.acCondensers = const [],
+    this.glassSkylights = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -456,6 +472,7 @@ class ChunkData {
   final List<SatelliteDishData> satelliteDishes;
   final List<PostalMailboxData> postalMailboxes;
   final List<AcCondenserData> acCondensers;
+  final List<GlassSkylightData> glassSkylights;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -1479,6 +1496,51 @@ class WorldChunkManager {
       }
     }
 
+    final List<GlassSkylightData> glassSkylights = [];
+
+    // Elevated Rooftop Architectural Glass Skylight Dome (after 140m, outside subway stations and scaffolding)
+    if (distanceMeters >= 140.0 &&
+        _random.nextDouble() < 0.35 &&
+        subwayStations.isEmpty &&
+        scaffoldings.isEmpty) {
+      const skylightWidth = 80.0;
+      const skylightHeight = 36.0;
+      for (var offset = 100.0; offset <= chunkWidth - 160.0; offset += 50.0) {
+        final gsX = startX + offset;
+        final isClear = obstacles.every(
+          (o) => (gsX + skylightWidth < o.x - 30.0) || (gsX > o.x + o.width + 30.0),
+        ) && crosswalks.every(
+          (cw) => (gsX + skylightWidth < cw.x - 20.0) || (gsX > cw.x + cw.width + 20.0),
+        ) && turnstiles.every(
+          (t) => (gsX + skylightWidth < t.x - 20.0) || (gsX > t.x + t.width + 20.0),
+        ) && fireEscapes.every(
+          (fe) => (gsX + skylightWidth < fe.x - 20.0) || (gsX > fe.x + fe.width + 20.0),
+        ) && foodTruckSlicks.every(
+          (fts) => (gsX + skylightWidth < fts.x - 30.0) || (gsX > fts.x + fts.width + 30.0),
+        ) && barricades.every(
+          (b) => (gsX + skylightWidth < b.x - 30.0) || (gsX > b.x + b.width + 30.0),
+        ) && satelliteDishes.every(
+          (sd) => (gsX + skylightWidth < sd.x - 30.0) || (gsX > sd.x + sd.width + 30.0),
+        ) && postalMailboxes.every(
+          (mb) => (gsX + skylightWidth < mb.x - 30.0) || (gsX > mb.x + mb.width + 30.0),
+        ) && acCondensers.every(
+          (ac) => (gsX + skylightWidth < ac.x - 30.0) || (gsX > ac.x + ac.width + 30.0),
+        );
+
+        if (isClear) {
+          glassSkylights.add(
+            GlassSkylightData(
+              x: gsX,
+              y: groundY - skylightHeight,
+              width: skylightWidth,
+              height: skylightHeight,
+            ),
+          );
+          break;
+        }
+      }
+    }
+
     return ChunkData(
       obstacles: obstacles,
       pickups: pickups,
@@ -1505,6 +1567,7 @@ class WorldChunkManager {
       satelliteDishes: satelliteDishes,
       postalMailboxes: postalMailboxes,
       acCondensers: acCondensers,
+      glassSkylights: glassSkylights,
     );
   }
 }
