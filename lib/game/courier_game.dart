@@ -8,6 +8,7 @@ import 'audio_controller.dart';
 import '../services/storage_service.dart';
 import 'components/courier_player.dart';
 import 'components/crane_swing_component.dart';
+import 'components/crosswalk_zone_component.dart';
 import 'components/cyclist_companion_component.dart';
 import 'components/delivery_drone_component.dart';
 import 'components/drop_zone_component.dart';
@@ -127,6 +128,7 @@ class CourierGame extends FlameGame
   final List<CraneSwingComponent> activeCranes = [];
   final List<CyclistCompanionComponent> activeCyclists = [];
   final List<PigeonFlockComponent> activePigeonFlocks = [];
+  final List<CrosswalkZoneComponent> activeCrosswalks = [];
   ObstacleComponent? _currentVaultTarget;
   double cameraTargetY = 270.0;
   double _grindSparkTimer = 0.0;
@@ -457,6 +459,17 @@ class CourierGame extends FlameGame
       world.add(flockComp);
     }
 
+    for (final cw in chunk.crosswalks) {
+      final crosswalkComp = CrosswalkZoneComponent(
+        position: Vector2(cw.x, cw.y),
+        width: cw.width,
+        groundY: groundY,
+        signalCountdown: cw.signalCountdown,
+      );
+      activeCrosswalks.add(crosswalkComp);
+      world.add(crosswalkComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -610,6 +623,12 @@ class CourierGame extends FlameGame
     for (final pf in world.children.whereType<PigeonFlockComponent>().toList()) {
       pf.removeFromParent();
     }
+    for (final cw in activeCrosswalks.toList()) {
+      cw.removeFromParent();
+    }
+    for (final cw in world.children.whereType<CrosswalkZoneComponent>().toList()) {
+      cw.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -619,6 +638,7 @@ class CourierGame extends FlameGame
     activeCranes.clear();
     activeCyclists.clear();
     activePigeonFlocks.clear();
+    activeCrosswalks.clear();
     cameraTargetY = virtualResolution.y / 2;
     player.endGrinding();
     player.stopGlide();
@@ -818,6 +838,9 @@ class CourierGame extends FlameGame
     }
     for (final pf in activePigeonFlocks) {
       pf.position.x -= scrollDelta;
+    }
+    for (final cw in activeCrosswalks) {
+      cw.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -1157,6 +1180,13 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4m. Evaluate Urban Street Crosswalk Sprint-by High-Fives
+    for (final cw in activeCrosswalks) {
+      if (!cw.isHighFived && cw.checkHighFiveProximity(player.position, player.size)) {
+        _handleHighFive(cw);
+      }
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -1260,6 +1290,13 @@ class CourierGame extends FlameGame
     activePigeonFlocks.removeWhere((pf) {
       if (pf.shouldRecycle || pf.isRemoved) {
         if (pf.isMounted) pf.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeCrosswalks.removeWhere((cw) {
+      if (cw.shouldRecycle || cw.isRemoved) {
+        if (cw.isMounted) cw.removeFromParent();
         return true;
       }
       return false;
@@ -1514,6 +1551,29 @@ class CourierGame extends FlameGame
           text: 'FLOCK SCATTER! $multStr+\$${event.totalTips}',
           position: Vector2(player.position.x - 10.0, player.position.y - 35.0),
           color: const Color(0xFF80CBC4),
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handleHighFive(CrosswalkZoneComponent cw) {
+    final event = gameState.recordHighFive();
+    if (event != null) {
+      audio.playCoin();
+      audio.playCustomerReaction(CustomerReactionType.fiveStars, line: 'Awesome pace!');
+      triggerScreenShake(0.16);
+      spawnSparkles(
+        cw.handWorldPosition,
+        color: const Color(0xFFFFD700),
+        count: 14,
+      );
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+      addEffect(
+        FloatingTextComponent(
+          text: 'HIGH FIVE! $multStr+\$${event.totalTips}',
+          position: Vector2(player.position.x - 10.0, player.position.y - 35.0),
+          color: const Color(0xFFFFD700),
         ),
       );
       _evaluateAchievements();
