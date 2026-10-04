@@ -942,6 +942,32 @@ class BusShelterEvent {
   final int busSheltersInRun;
 }
 
+/// Event dispatched when performing a wall-kick rebound leap off an industrial roll-up security shutter door.
+class SecurityShutterEvent {
+  const SecurityShutterEvent({
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.stuntStreak,
+    required this.shuttersInRun,
+  });
+
+  /// Base tip value before stunt combo scaling ($32).
+  final int baseTips;
+
+  /// Total tip amount awarded after active combo multipliers.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this event.
+  final double multiplier;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+
+  /// Total security shutters rebounded in this run.
+  final int shuttersInRun;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -1220,6 +1246,9 @@ class GameState extends ChangeNotifier {
   /// Total street transit bus stop shelters vaulted in current run.
   int busSheltersVaultedInRun = 0;
 
+  /// Total industrial roll-up security shutters rebounded in current run.
+  int shuttersReboundedInRun = 0;
+
   /// Remaining duration of the Thermal Updraft Glide buff in seconds.
   double thermalUpdraftTimer = 0.0;
 
@@ -1281,6 +1310,7 @@ class GameState extends ChangeNotifier {
   ValueChanged<SubwayExhaustGrateEvent>? onSubwayExhaustGrateCatch;
   ValueChanged<CatenaryZiplineEvent>? onCatenaryZipline;
   ValueChanged<BusShelterEvent>? onBusShelterVault;
+  ValueChanged<SecurityShutterEvent>? onSecurityShutterRebound;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -1345,6 +1375,7 @@ class GameState extends ChangeNotifier {
     exhaustGratesCaughtInRun = 0;
     ziplinesCompletedInRun = 0;
     busSheltersVaultedInRun = 0;
+    shuttersReboundedInRun = 0;
     floralAromaTimer = 0.0;
     notorietyTimer = 0.0;
     caffeineSurgeTimer = 0.0;
@@ -2852,6 +2883,42 @@ class GameState extends ChangeNotifier {
     );
 
     onBusShelterVault?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records a wall-kick rebound leap off an industrial roll-up security shutter door,
+  /// awarding tips scaled by active multipliers, incrementing shuttersReboundedInRun,
+  /// advancing the stunt streak, and resetting the stunt streak timer.
+  SecurityShutterEvent? recordSecurityShutterRebound({int baseTips = 32}) {
+    if (status != GameStatus.running) return null;
+
+    shuttersReboundedInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    final baseAward = (baseTips * stuntMultiplier).round();
+    final withFloral = isFloralAromaActive ? (baseAward * 1.5).round() : baseAward;
+    final withNotoriety = isNotorietyActive ? (withFloral * 1.5).round() : withFloral;
+    final withGroove = isUrbanGrooveActive ? (withNotoriety * 1.5).round() : withNotoriety;
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? withGroove * 2
+        : withGroove;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = SecurityShutterEvent(
+      baseTips: baseTips,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+      stuntStreak: stuntStreak,
+      shuttersInRun: shuttersReboundedInRun,
+    );
+
+    onSecurityShutterRebound?.call(event);
     notifyListeners();
     return event;
   }

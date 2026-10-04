@@ -575,6 +575,23 @@ class BusShelterData {
   final double groundY;
 }
 
+/// Data model for an alleyway industrial roll-up security shutter door fixture.
+class SecurityShutterData {
+  const SecurityShutterData({
+    required this.x,
+    required this.y,
+    this.width = 48.0,
+    this.height = 80.0,
+    this.groundY = 460.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+  final double groundY;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -613,6 +630,7 @@ class ChunkData {
     this.subwayExhaustGrates = const [],
     this.catenaryZiplines = const [],
     this.busShelters = const [],
+    this.securityShutters = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -651,6 +669,7 @@ class ChunkData {
   final List<SubwayExhaustGrateData> subwayExhaustGrates;
   final List<CatenaryZiplineData> catenaryZiplines;
   final List<BusShelterData> busShelters;
+  final List<SecurityShutterData> securityShutters;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -2204,6 +2223,46 @@ class WorldChunkManager {
       }
     }
 
+    final List<SecurityShutterData> securityShutters = [];
+    if (distanceMeters >= 90.0 && _random.nextDouble() < 0.26) {
+      const shutterWidth = 48.0;
+      const shutterHeight = 80.0;
+
+      for (var attempt = 0; attempt < 8; attempt++) {
+        final sX = startX + 70.0 + _random.nextDouble() * (chunkWidth - 200.0);
+        final isClear = obstacles.every(
+          (o) => (sX + shutterWidth < o.x - 30.0) || (sX > o.x + o.width + 30.0),
+        ) && flowerKiosks.every(
+          (fk) => (sX + shutterWidth < fk.x - 30.0) || (sX > fk.x + fk.width + 30.0),
+        ) && newsstands.every(
+          (ns) => (sX + shutterWidth < ns.x - 30.0) || (sX > ns.x + ns.width + 30.0),
+        ) && cafeBistros.every(
+          (cb) => (sX + shutterWidth < cb.x - 30.0) || (sX > cb.x + cb.width + 30.0),
+        ) && streetBuskers.every(
+          (sb) => (sX + shutterWidth < sb.x - 30.0) || (sX > sb.x + sb.width + 30.0),
+        ) && fireHydrants.every(
+          (fh) => (sX + shutterWidth < fh.x - 30.0) || (sX > fh.x + fh.width + 30.0),
+        ) && subwayExhaustGrates.every(
+          (seg) => (sX + shutterWidth < seg.x - 30.0) || (sX > seg.x + seg.width + 30.0),
+        ) && busShelters.every(
+          (bs) => (sX + shutterWidth < bs.x - 30.0) || (sX > bs.x + bs.width + 30.0),
+        );
+
+        if (isClear) {
+          securityShutters.add(
+            SecurityShutterData(
+              x: sX,
+              y: groundY - shutterHeight,
+              width: shutterWidth,
+              height: shutterHeight,
+              groundY: groundY,
+            ),
+          );
+          break;
+        }
+      }
+    }
+
     return ChunkData(
       obstacles: obstacles,
       pickups: pickups,
@@ -2241,6 +2300,7 @@ class WorldChunkManager {
       subwayExhaustGrates: subwayExhaustGrates,
       catenaryZiplines: catenaryZiplines,
       busShelters: busShelters,
+      securityShutters: securityShutters,
     );
   }
 }

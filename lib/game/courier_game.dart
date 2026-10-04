@@ -31,6 +31,7 @@ import 'components/clothesline_component.dart';
 import 'components/subway_exhaust_grate_component.dart';
 import 'components/catenary_zipline_component.dart';
 import 'components/bus_shelter_component.dart';
+import 'components/security_shutter_component.dart';
 import 'components/lightning_flash_component.dart';
 import 'components/grind_rail_component.dart';
 import 'components/hvac_wind_tunnel_component.dart';
@@ -180,6 +181,7 @@ class CourierGame extends FlameGame
   final List<SubwayExhaustGrateComponent> activeSubwayExhaustGrates = [];
   final List<CatenaryZiplineComponent> activeCatenaryZiplines = [];
   final List<BusShelterComponent> activeBusShelters = [];
+  final List<SecurityShutterComponent> activeSecurityShutters = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
@@ -807,6 +809,17 @@ class CourierGame extends FlameGame
       world.add(bsComp);
     }
 
+    for (final ss in chunk.securityShutters) {
+      final ssComp = SecurityShutterComponent(
+        position: Vector2(ss.x, ss.y),
+        width: ss.width,
+        height: ss.height,
+        groundY: groundY,
+      );
+      activeSecurityShutters.add(ssComp);
+      world.add(ssComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -1110,6 +1123,12 @@ class CourierGame extends FlameGame
     for (final bs in world.children.whereType<BusShelterComponent>().toList()) {
       bs.removeFromParent();
     }
+    for (final ss in activeSecurityShutters.toList()) {
+      ss.removeFromParent();
+    }
+    for (final ss in world.children.whereType<SecurityShutterComponent>().toList()) {
+      ss.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -1144,6 +1163,7 @@ class CourierGame extends FlameGame
     activeSubwayExhaustGrates.clear();
     activeCatenaryZiplines.clear();
     activeBusShelters.clear();
+    activeSecurityShutters.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
@@ -1444,6 +1464,9 @@ class CourierGame extends FlameGame
     }
     for (final bs in activeBusShelters) {
       bs.position.x -= scrollDelta;
+    }
+    for (final ss in activeSecurityShutters) {
+      ss.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -2103,6 +2126,15 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4ak. Evaluate Industrial Roll-Up Security Shutter Rebounds
+    for (final ss in activeSecurityShutters) {
+      if (!ss.hasRebounded) {
+        if (ss.checkShutterRebound(player.position, player.size, player.simulator)) {
+          _handleSecurityShutterRebound(ss);
+        }
+      }
+    }
+
 
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
@@ -2382,6 +2414,13 @@ class CourierGame extends FlameGame
     activeBusShelters.removeWhere((bs) {
       if (bs.shouldRecycle || bs.isRemoved) {
         if (bs.isMounted) bs.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeSecurityShutters.removeWhere((ss) {
+      if (ss.shouldRecycle || ss.isRemoved) {
+        if (ss.isMounted) ss.removeFromParent();
         return true;
       }
       return false;
@@ -3391,6 +3430,36 @@ class CourierGame extends FlameGame
         ParticleEffectComponent.transitLedSparks(
           position: shelter.marqueeApexWorld,
           count: 26,
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handleSecurityShutterRebound(SecurityShutterComponent shutter) {
+    shutter.markRebounded();
+    final event = gameState.recordSecurityShutterRebound();
+    if (event != null) {
+      audio.playJump();
+      audio.playCourierBark(
+        CourierBarkType.stunt,
+        line: 'Off the wall!',
+      );
+      triggerScreenShake(0.16);
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+
+      addEffect(
+        FloatingTextComponent(
+          text: 'SECURITY SHUTTER REBOUND! $multStr+\$${event.totalTips}',
+          position: Vector2(shutter.position.x - 12.0, shutter.position.y - 32.0),
+          color: const Color(0xFFFF007F),
+        ),
+      );
+      addEffect(
+        ParticleEffectComponent.securityShutterSparks(
+          position: shutter.reboundApexWorld,
+          count: 28,
         ),
       );
       _evaluateAchievements();

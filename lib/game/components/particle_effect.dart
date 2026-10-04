@@ -1202,6 +1202,50 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Vibrant aerosol spray paint flecks and metallic friction sparks from an industrial security shutter wall kick rebound.
+  factory ParticleEffectComponent.securityShutterSparks({
+    required Vector2 position,
+    int count = 28,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFFFF007F), // Neon hot magenta spray paint
+      Color(0xFF00E5FF), // Electric cyan graffiti aerosol
+      Color(0xFFFFD600), // Vivid chrome yellow tag paint
+      Color(0xFF76FF03), // Lime spray splatter
+      Color(0xFFFFFFFF), // Galvanized steel friction spark
+      Color(0xFFB0BEC5), // Metallic zinc flake
+      Color(0xFFFF1744), // Crimson aerosol mist
+    ];
+
+    for (var i = 0; i < count; i++) {
+      final angle = -math.pi * 0.5 + (rng.nextDouble() - 0.5) * 2.2;
+      final speed = 90.0 + rng.nextDouble() * 170.0;
+      final velocity = Vector2(
+        math.cos(angle) * speed,
+        math.sin(angle) * speed - 40.0,
+      );
+
+      particles.add(
+        GameParticle(
+          position: position.clone() +
+              Vector2((rng.nextDouble() - 0.5) * 16.0, (rng.nextDouble() - 0.5) * 16.0),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 1.8 + rng.nextDouble() * 2.6,
+          maxLife: 0.38 + rng.nextDouble() * 0.32,
+          gravity: 140.0,
+          drag: 0.92,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.

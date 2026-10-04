@@ -45,6 +45,7 @@ class GameOverModal extends StatelessWidget {
     this.subwayGratesCompleted = 0,
     this.ziplinesCompleted = 0,
     this.busSheltersCompleted = 0,
+    this.securityShuttersCompleted = 0,
   });
 
   final int distance;
@@ -87,6 +88,7 @@ class GameOverModal extends StatelessWidget {
   final int subwayGratesCompleted;
   final int ziplinesCompleted;
   final int busSheltersCompleted;
+  final int securityShuttersCompleted;
   final VoidCallback onRestart;
 
   @override
@@ -1222,6 +1224,37 @@ class GameOverModal extends StatelessWidget {
                         '$busSheltersCompleted TRANSIT SHELTER VAULT${busSheltersCompleted > 1 ? 'S' : ''}',
                         style: const TextStyle(
                           color: Color(0xFFFFF8E1),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            if (securityShuttersCompleted > 0)
+              Container(
+                key: const Key('game_over_security_shutter_badge'),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF007F).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFF007F), width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.door_sliding, color: Color(0xFFFF007F), size: 16),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '$securityShuttersCompleted SECURITY SHUTTER REBOUND${securityShuttersCompleted > 1 ? 'S' : ''}',
+                        style: const TextStyle(
+                          color: Color(0xFFFFE0EB),
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                           letterSpacing: 0.5,
