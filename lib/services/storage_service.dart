@@ -20,6 +20,7 @@ class LocalStorageService {
   static const String _keyDailyStars = 'courier_daily_stars';
   static const String _keyBoosterPrefix = 'courier_booster_';
   static const String _keyLifetimeDeliveries = 'courier_lifetime_deliveries';
+  static const String _keyReduceFlash = 'courier_reduce_flash';
 
   SharedPreferences? _prefs;
 
@@ -43,6 +44,14 @@ class LocalStorageService {
 
   /// Whether audio is muted by player preference.
   bool get isSoundMuted => _prefs?.getBool(_keySoundMuted) ?? false;
+
+  /// Whether lightning and strobe flashes are dimmed for photosensitivity accessibility.
+  bool get isReduceFlash => _prefs?.getBool(_keyReduceFlash) ?? false;
+
+  /// Saves photosensitive screen flash reduction preference.
+  Future<void> setReduceFlash(bool reduce) async {
+    await _prefs?.setBool(_keyReduceFlash, reduce);
+  }
 
   /// List of skin identifiers unlocked by the player.
   List<String> get unlockedSkins =>

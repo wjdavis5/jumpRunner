@@ -262,10 +262,14 @@ class ParallaxCityComponent extends PositionComponent {
   }
 
   /// Updates ambient lighting and sky colors according to courier distance and weather.
-  void updateLighting(double meters, [double dt = 0.0, double rain = 0.0]) {
+  /// High-specular reflection boost applied during thunderstorm lightning flashes.
+  double lightningSpecularBoost = 0.0;
+
+  void updateLighting(double meters, [double dt = 0.0, double rain = 0.0, double lightningBoost = 0.0]) {
     distanceMeters = meters;
     elapsedTime += dt;
     rainIntensity = rain.clamp(0.0, 1.0);
+    lightningSpecularBoost = lightningBoost.clamp(0.0, 1.0);
     currentPalette = calculatePaletteForDistance(meters);
   }
 
@@ -425,12 +429,15 @@ class ParallaxCityComponent extends PositionComponent {
       streetPaint,
     );
 
-    // 3b. Wet asphalt sheen glaze when raining
-    if (rainIntensity > 0.08) {
-      final wetSheenAlpha =
-          (0.10 * rainIntensity + 0.08 * rainIntensity * currentPalette.lampGlow).clamp(0.0, 1.0);
+    // 3b. Wet asphalt sheen glaze when raining (boosted by lightning flashes)
+    if (rainIntensity > 0.08 || lightningSpecularBoost > 0.01) {
+      final baseSheen = 0.10 * rainIntensity + 0.08 * rainIntensity * currentPalette.lampGlow;
+      final wetSheenAlpha = (baseSheen + (lightningSpecularBoost * 0.40)).clamp(0.0, 1.0);
       final sheenPaint = Paint()
-        ..color = const Color(0xFF81D4FA).withValues(alpha: wetSheenAlpha);
+        ..color = (lightningSpecularBoost > 0.1)
+            ? Color.lerp(const Color(0xFF81D4FA), const Color(0xFFE1F5FE), lightningSpecularBoost)!
+                .withValues(alpha: wetSheenAlpha)
+            : const Color(0xFF81D4FA).withValues(alpha: wetSheenAlpha);
       canvas.drawRect(
         Rect.fromLTWH(-bleed, groundY + 24, w + bleed * 2, h - (groundY + 24) + bleed),
         sheenPaint,

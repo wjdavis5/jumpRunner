@@ -21,6 +21,7 @@ import 'components/floating_text_component.dart';
 import 'components/food_cart_component.dart';
 import 'components/food_truck_slick_component.dart';
 import 'components/glass_skylight_component.dart';
+import 'components/lightning_flash_component.dart';
 import 'components/grind_rail_component.dart';
 import 'components/hvac_wind_tunnel_component.dart';
 import 'components/obstacle_component.dart';
@@ -124,6 +125,7 @@ class CourierGame extends FlameGame
 
   late final ParallaxCityComponent parallaxCity;
   late final RainComponent rainComponent;
+  late final LightningFlashComponent lightningComponent;
   late final CourierPlayer player;
 
   double currentSpeed = 200.0;
@@ -240,6 +242,16 @@ class CourierGame extends FlameGame
 
     rainComponent = RainComponent(size: virtualResolution);
     world.add(rainComponent);
+
+    lightningComponent = LightningFlashComponent(
+      size: virtualResolution,
+      reduceFlash: storage?.isReduceFlash ?? false,
+      onThunderRumble: () {
+        audio.playThunder();
+        triggerScreenShake(0.18);
+      },
+    );
+    world.add(lightningComponent);
 
     player = CourierPlayer(
       groundY: groundY,
@@ -965,6 +977,8 @@ class CourierGame extends FlameGame
     chunkManager.reset();
     weatherController.reset();
     rainComponent.rainIntensity = 0.0;
+    lightningComponent.reset();
+    lightningComponent.reduceFlash = storage?.isReduceFlash ?? false;
     audio.updateWeather(0.0);
     cameraJuice.reset();
     final baseCenter = Vector2(virtualResolution.x / 2, virtualResolution.y / 2);
@@ -980,6 +994,8 @@ class CourierGame extends FlameGame
     if (dailyShift?.modifier == DailyModifier.rainyRush) {
       weatherController.rainIntensity = 0.8;
       rainComponent.rainIntensity = 0.8;
+      lightningComponent.rainIntensity = 0.8;
+      lightningComponent.isRaining = true;
     }
     player.position = Vector2(120.0, groundY - player.size.y);
     player.simulator.currentY = groundY;
@@ -1076,6 +1092,8 @@ class CourierGame extends FlameGame
     weatherController.update(gameState.distanceMeters);
     rainComponent.rainIntensity = weatherController.rainIntensity;
     rainComponent.horizontalScrollSpeed = currentSpeed;
+    lightningComponent.rainIntensity = weatherController.rainIntensity;
+    lightningComponent.isRaining = weatherController.isRaining;
     audio.updateWeather(weatherController.rainIntensity);
 
     // 3. Update parallax city velocity & dynamic environment lighting
@@ -1084,6 +1102,7 @@ class CourierGame extends FlameGame
       gameState.distanceMeters,
       dt,
       weatherController.rainIntensity,
+      lightningComponent.currentSpecularBoost,
     );
 
     // 3b. Update camera trauma shake, velocity framing zoom, and vertical aerial tracking

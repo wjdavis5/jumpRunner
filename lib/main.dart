@@ -71,11 +71,13 @@ class _CourierDashAppState extends State<CourierDashApp> {
   int _lastDistance = 0;
   int _lastTips = 0;
   Set<RunBooster> _equippedBoosters = {};
+  bool _isReduceFlash = false;
 
   @override
   void initState() {
     super.initState();
     _gameState = GameState();
+    _isReduceFlash = widget.storageService.isReduceFlash;
     final equippedSkin = CourierSkin.findById(widget.storageService.equippedSkin);
     _game = CourierGame(
       gameState: _gameState,
@@ -87,6 +89,14 @@ class _CourierDashAppState extends State<CourierDashApp> {
 
     _game.onRunConcluded = _handleRunConcluded;
     _game.onPauseRequested = _togglePause;
+  }
+
+  void _handleToggleReduceFlash(bool reduce) async {
+    setState(() {
+      _isReduceFlash = reduce;
+    });
+    await widget.storageService.setReduceFlash(reduce);
+    _game.lightningComponent.reduceFlash = reduce;
   }
 
   Future<void> _handleRunConcluded() async {
@@ -291,6 +301,8 @@ class _CourierDashAppState extends State<CourierDashApp> {
                 ),
             'PauseMenu': (context, game) => PauseMenuModal(
                   gameState: _gameState,
+                  isReduceFlash: _isReduceFlash,
+                  onToggleReduceFlash: _handleToggleReduceFlash,
                   onResume: _resumeGame,
                   onQuit: _quitToTitle,
                 ),
