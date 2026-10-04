@@ -21,6 +21,7 @@ import 'components/ramp_component.dart';
 import 'components/scaffolding_component.dart';
 import 'components/speech_bubble_component.dart';
 import 'components/steam_vent_component.dart';
+import 'components/subway_station_component.dart';
 import 'logic/achievement_manager.dart';
 import 'logic/camera_juice_controller.dart';
 import 'logic/game_state.dart';
@@ -119,6 +120,7 @@ class CourierGame extends FlameGame
   final List<DropZoneComponent> activeDropZones = [];
   final List<GrindRailComponent> activeGrindRails = [];
   final List<SteamVentComponent> activeSteamVents = [];
+  final List<SubwayStationComponent> activeSubwayStations = [];
   ObstacleComponent? _currentVaultTarget;
   double cameraTargetY = 270.0;
   double _grindSparkTimer = 0.0;
@@ -385,6 +387,17 @@ class CourierGame extends FlameGame
       world.add(svComp);
     }
 
+    for (final st in chunk.subwayStations) {
+      final stComp = SubwayStationComponent(
+        position: Vector2(st.x, groundY - 260.0),
+        size: Vector2(st.width, 260.0),
+        groundY: groundY,
+        stationName: st.stationName,
+      );
+      activeSubwayStations.add(stComp);
+      world.add(stComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -497,11 +510,18 @@ class CourierGame extends FlameGame
     for (final sv in world.children.whereType<SteamVentComponent>().toList()) {
       sv.removeFromParent();
     }
+    for (final st in activeSubwayStations.toList()) {
+      st.removeFromParent();
+    }
+    for (final st in world.children.whereType<SubwayStationComponent>().toList()) {
+      st.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
     activeGrindRails.clear();
     activeSteamVents.clear();
+    activeSubwayStations.clear();
     cameraTargetY = virtualResolution.y / 2;
     player.endGrinding();
     player.stopGlide();
@@ -895,6 +915,32 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4i. Evaluate Subterranean Subway Tunnel Station Entry
+    for (final st in activeSubwayStations) {
+      if (!st.hasTriggeredTransit && player.position.x >= st.position.x) {
+        st.hasTriggeredTransit = true;
+        final event = gameState.recordSubwayTransit(stationName: st.stationName);
+        if (event != null) {
+          audio.playMilestone();
+          audio.playCourierBark(CourierBarkType.stunt, line: 'Subway shortcut!');
+          triggerScreenShake(0.15);
+          spawnSparkles(
+            Vector2(st.position.x + 40.0, groundY - 60.0),
+            color: const Color(0xFF2980B9),
+            count: 14,
+          );
+          final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+          addEffect(
+            FloatingTextComponent(
+              text: 'SUBWAY: ${event.stationName}! $multStr+\$${event.totalTips}',
+              position: Vector2(player.position.x - 10.0, player.position.y - 35.0),
+              color: const Color(0xFF00E5FF),
+            ),
+          );
+        }
+      }
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -970,6 +1016,13 @@ class CourierGame extends FlameGame
     activeSteamVents.removeWhere((sv) {
       if (sv.shouldRecycle || sv.isRemoved) {
         if (sv.isMounted) sv.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeSubwayStations.removeWhere((st) {
+      if (st.shouldRecycle || st.isRemoved) {
+        if (st.isMounted) st.removeFromParent();
         return true;
       }
       return false;

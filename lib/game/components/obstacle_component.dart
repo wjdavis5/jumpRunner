@@ -15,6 +15,8 @@ enum ObstacleType {
   van,
   skateMessenger,
   pigeonFlock,
+  thirdRail,
+  subwayTrain,
 }
 
 /// A street hazard obstacle component in Courier Dash.
@@ -62,7 +64,8 @@ class ObstacleComponent extends PositionComponent with CollisionCallbacks {
   bool get isVaultable =>
       type == ObstacleType.hydrant ||
       type == ObstacleType.mailbox ||
-      type == ObstacleType.scooter;
+      type == ObstacleType.scooter ||
+      type == ObstacleType.thirdRail;
 
   /// Whether the courier has already initiated an agile parkour vault over this obstacle.
   bool hasBeenVaulted = false;
@@ -73,6 +76,8 @@ class ObstacleComponent extends PositionComponent with CollisionCallbacks {
     switch (type) {
       case ObstacleType.skateMessenger:
         return 65.0;
+      case ObstacleType.subwayTrain:
+        return 80.0;
       default:
         return 0.0;
     }
@@ -91,6 +96,8 @@ class ObstacleComponent extends PositionComponent with CollisionCallbacks {
       case ObstacleType.mailbox:
       case ObstacleType.skateMessenger:
       case ObstacleType.pigeonFlock:
+      case ObstacleType.thirdRail:
+      case ObstacleType.subwayTrain:
         return null;
     }
   }
@@ -111,6 +118,10 @@ class ObstacleComponent extends PositionComponent with CollisionCallbacks {
         return Vector2(46, 42);
       case ObstacleType.pigeonFlock:
         return Vector2(44, 28);
+      case ObstacleType.thirdRail:
+        return Vector2(58, 24);
+      case ObstacleType.subwayTrain:
+        return Vector2(110, 64);
     }
   }
 
@@ -206,6 +217,12 @@ class ObstacleComponent extends PositionComponent with CollisionCallbacks {
         break;
       case ObstacleType.pigeonFlock:
         _renderPigeonFlock(canvas);
+        break;
+      case ObstacleType.thirdRail:
+        _renderThirdRail(canvas);
+        break;
+      case ObstacleType.subwayTrain:
+        _renderSubwayTrain(canvas);
         break;
     }
   }
@@ -483,5 +500,190 @@ class ObstacleComponent extends PositionComponent with CollisionCallbacks {
         canvas.drawLine(Offset(pX + 7, pY + 11), Offset(pX + 7, pY + 13), feetPaint);
       }
     }
+  }
+
+  void _renderThirdRail(Canvas canvas) {
+    // 1. Ceramic Insulator Standoff Pedestals
+    final insulatorPaint = Paint()..color = const Color(0xFFE67E22);
+    final bracketPaint = Paint()..color = const Color(0xFF7F8C8D);
+
+    // Two support brackets along the base
+    canvas.drawRect(Rect.fromLTWH(8, size.y - 8, 10, 8), bracketPaint);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(9, size.y - 14, 8, 8), const Radius.circular(2)),
+      insulatorPaint,
+    );
+
+    canvas.drawRect(Rect.fromLTWH(size.x - 18, size.y - 8, 10, 8), bracketPaint);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(size.x - 17, size.y - 14, 8, 8), const Radius.circular(2)),
+      insulatorPaint,
+    );
+
+    // 2. High-Voltage Steel Conductor Third Rail
+    final railPaint = Paint()..color = const Color(0xFF2C3E50);
+    final railHighlight = Paint()..color = const Color(0xFF7F8C8D);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(0, size.y - 20, size.x, 8), const Radius.circular(2)),
+      railPaint,
+    );
+    canvas.drawLine(
+      Offset(2, size.y - 19),
+      Offset(size.x - 2, size.y - 19),
+      railHighlight..strokeWidth = 1.5,
+    );
+
+    // 3. Wooden / Composite Protective Safety Cover Board
+    final coverPaint = Paint()..color = const Color(0xFF6C3428);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(-2, size.y - 24, size.x + 4, 4), const Radius.circular(1.5)),
+      coverPaint,
+    );
+
+    // 4. Animated Electric Arc Discharge Sparks
+    final sparkPhase = (animationTimer * 12.0).toInt() % 4;
+    final sparkPaint = Paint()
+      ..color = sparkPhase.isEven ? const Color(0xFF00E5FF) : const Color(0xFFFFFF00)
+      ..strokeWidth = 2.0
+      ..style = PaintingStyle.stroke;
+
+    final glowPaint = Paint()
+      ..color = const Color(0x6600E5FF)
+      ..style = PaintingStyle.fill;
+
+    // Glowing electric nodes
+    final sparkX1 = 12.0 + (math.sin(animationTimer * 15.0) * 8.0);
+    final sparkX2 = size.x - 14.0 + (math.cos(animationTimer * 18.0) * 8.0);
+    canvas.drawCircle(Offset(sparkX1, size.y - 16), 3.5, glowPaint);
+    canvas.drawCircle(Offset(sparkX2, size.y - 16), 3.5, glowPaint);
+
+    // Jagged electric spark lines
+    final sparkPath1 = Path()
+      ..moveTo(sparkX1 - 4, size.y - 16)
+      ..lineTo(sparkX1, size.y - 22)
+      ..lineTo(sparkX1 + 3, size.y - 18)
+      ..lineTo(sparkX1 + 7, size.y - 24);
+    canvas.drawPath(sparkPath1, sparkPaint);
+
+    final sparkPath2 = Path()
+      ..moveTo(sparkX2 - 5, size.y - 16)
+      ..lineTo(sparkX2 - 2, size.y - 23)
+      ..lineTo(sparkX2 + 2, size.y - 17)
+      ..lineTo(sparkX2 + 6, size.y - 21);
+    canvas.drawPath(sparkPath2, sparkPaint);
+  }
+
+  void _renderSubwayTrain(Canvas canvas) {
+    final w = size.x;
+    final h = size.y;
+
+    // 1. Heavy Steel Undercarriage & Wheels
+    final chassisPaint = Paint()..color = const Color(0xFF1A1A1D);
+    final wheelPaint = Paint()..color = const Color(0xFF2C3E50);
+    final wheelRim = Paint()
+      ..color = const Color(0xFF7F8C8D)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+
+    // Undercarriage base
+    canvas.drawRect(Rect.fromLTWH(6, h - 8, w - 12, 5), chassisPaint);
+
+    // Steel wheels
+    for (final x in [14.0, 32.0, w - 36.0, w - 18.0]) {
+      canvas.drawCircle(Offset(x, h - 5), 5.0, wheelPaint);
+      canvas.drawCircle(Offset(x, h - 5), 5.0, wheelRim);
+    }
+
+    // 2. Stainless Steel Car Body
+    final bodyPaint = Paint()..color = const Color(0xFFBDC3C7);
+    final bodyRect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 4, w, h - 12),
+      const Radius.circular(6),
+    );
+    canvas.drawRRect(bodyRect, bodyPaint);
+
+    // Roof curve cap
+    final roofPaint = Paint()..color = const Color(0xFF7F8C8D);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, w, 8), const Radius.circular(4)),
+      roofPaint,
+    );
+
+    // 3. Corrugated Horizontal Fluting Panels
+    final flutingPaint = Paint()
+      ..color = const Color(0xFF7F8C8D)
+      ..strokeWidth = 1.5;
+    for (double y = h - 28.0; y <= h - 14.0; y += 4.0) {
+      canvas.drawLine(Offset(4, y), Offset(w - 4, y), flutingPaint);
+    }
+
+    // 4. Front Cab Windshield
+    final windowPaint = Paint()..color = const Color(0xFF1C2833);
+    final cabWindowRect = RRect.fromRectAndRadius(
+      const Rect.fromLTWH(4, 10, 26, 18),
+      const Radius.circular(3),
+    );
+    canvas.drawRRect(cabWindowRect, windowPaint);
+
+    // Passenger Side Windows with Warm Interior Glow
+    final interiorLightPaint = Paint()..color = const Color(0xFFFFF9C4);
+    for (double wx = 36.0; wx < w - 16.0; wx += 22.0) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(Rect.fromLTWH(wx, 12, 16, 14), const Radius.circular(2)),
+        interiorLightPaint,
+      );
+      // Window frame
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(Rect.fromLTWH(wx, 12, 16, 14), const Radius.circular(2)),
+        Paint()
+          ..color = const Color(0xFF2C3E50)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2,
+      );
+    }
+
+    // 5. Destination Rollsign ("EXP 1")
+    final signBg = Paint()..color = const Color(0xFFC0392B);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(const Rect.fromLTWH(6, 4, 30, 6), const Radius.circular(2)),
+      signBg,
+    );
+    final signTextPainter = TextPainter(
+      text: const TextSpan(
+        text: 'EXP 1',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 4.5,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 0.5,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    signTextPainter.paint(canvas, const Offset(8, 4.5));
+
+    // 6. High-Beam Halogen Headlights & Forward Light Cones
+    final headlightGlow = Paint()
+      ..color = const Color(0x33FFF59D)
+      ..style = PaintingStyle.fill;
+    final headlightBulb = Paint()..color = const Color(0xFFFFF176);
+
+    // Leftward forward light beam projection
+    final lightBeam = Path()
+      ..moveTo(4, h - 18)
+      ..lineTo(-35, h - 30)
+      ..lineTo(-35, h + 4)
+      ..lineTo(4, h - 12)
+      ..close();
+    canvas.drawPath(lightBeam, headlightGlow);
+
+    // Twin front headlight bulbs
+    canvas.drawCircle(Offset(4, h - 18), 3.0, headlightBulb);
+    canvas.drawCircle(Offset(4, h - 12), 3.0, headlightBulb);
+
+    // Red safety clearance lights at top corners
+    final redMarker = Paint()..color = const Color(0xFFFF3838);
+    canvas.drawCircle(const Offset(2, 6), 1.5, redMarker);
+    canvas.drawCircle(Offset(w - 2, 6), 1.5, redMarker);
   }
 }
