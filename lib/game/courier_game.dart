@@ -27,6 +27,7 @@ import 'components/newsstand_component.dart';
 import 'components/cafe_bistro_component.dart';
 import 'components/street_busker_component.dart';
 import 'components/fire_hydrant_component.dart';
+import 'components/clothesline_component.dart';
 import 'components/lightning_flash_component.dart';
 import 'components/grind_rail_component.dart';
 import 'components/hvac_wind_tunnel_component.dart';
@@ -172,6 +173,7 @@ class CourierGame extends FlameGame
   final List<CafeBistroComponent> activeCafeBistros = [];
   final List<StreetBuskerComponent> activeStreetBuskers = [];
   final List<FireHydrantComponent> activeFireHydrants = [];
+  final List<ClotheslineComponent> activeClotheslines = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
@@ -753,6 +755,17 @@ class CourierGame extends FlameGame
       world.add(fhComp);
     }
 
+    for (final cl in chunk.clotheslines) {
+      final clComp = ClotheslineComponent(
+        position: Vector2(cl.x, cl.y),
+        width: cl.width,
+        height: cl.height,
+        roofY: cl.roofY,
+      );
+      activeClotheslines.add(clComp);
+      world.add(clComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -1032,6 +1045,12 @@ class CourierGame extends FlameGame
     for (final fh in world.children.whereType<FireHydrantComponent>().toList()) {
       fh.removeFromParent();
     }
+    for (final cl in activeClotheslines.toList()) {
+      cl.removeFromParent();
+    }
+    for (final cl in world.children.whereType<ClotheslineComponent>().toList()) {
+      cl.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -1062,6 +1081,7 @@ class CourierGame extends FlameGame
     activeCafeBistros.clear();
     activeStreetBuskers.clear();
     activeFireHydrants.clear();
+    activeClotheslines.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
@@ -1343,6 +1363,9 @@ class CourierGame extends FlameGame
     }
     for (final fh in activeFireHydrants) {
       fh.position.x -= scrollDelta;
+    }
+    for (final cl in activeClotheslines) {
+      cl.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -1937,6 +1960,15 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4ag. Evaluate Rooftop Tenement Laundry Clothesline Hurdles
+    for (final cl in activeClotheslines) {
+      if (!cl.hasHurdled) {
+        if (cl.checkHurdle(player.position, player.size, player.simulator)) {
+          _handleClotheslineHurdle(cl);
+        }
+      }
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -2187,6 +2219,13 @@ class CourierGame extends FlameGame
     activeFireHydrants.removeWhere((fh) {
       if (fh.shouldRecycle || fh.isRemoved) {
         if (fh.isMounted) fh.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeClotheslines.removeWhere((cl) {
+      if (cl.shouldRecycle || cl.isRemoved) {
+        if (cl.isMounted) cl.removeFromParent();
         return true;
       }
       return false;
@@ -3077,6 +3116,35 @@ class CourierGame extends FlameGame
         ParticleEffectComponent.hydrantWaterPlume(
           position: hydrant.sprayApexWorld,
           count: 32,
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handleClotheslineHurdle(ClotheslineComponent clothesline) {
+    final event = gameState.recordClotheslineHurdle();
+    if (event != null) {
+      audio.playJump();
+      audio.playCourierBark(
+        CourierBarkType.stunt,
+        line: 'Fresh out the wash!',
+      );
+      triggerScreenShake(0.14);
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+
+      addEffect(
+        FloatingTextComponent(
+          text: 'CLOTHESLINE REBOUND! $multStr+\$${event.totalTips}',
+          position: Vector2(clothesline.position.x - 10.0, clothesline.ropeSagWorldY - 32.0),
+          color: const Color(0xFFFF8A80),
+        ),
+      );
+      addEffect(
+        ParticleEffectComponent.clotheslineLinenScatter(
+          position: clothesline.centerApexWorld,
+          count: 26,
         ),
       );
       _evaluateAchievements();

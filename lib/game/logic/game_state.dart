@@ -830,6 +830,32 @@ class FireHydrantEvent {
   final double hydroplaneDuration;
 }
 
+/// Event dispatched when hurdle-vaulting or rebounding off a rooftop tenement laundry clothesline.
+class ClotheslineEvent {
+  const ClotheslineEvent({
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.stuntStreak,
+    required this.clotheslinesInRun,
+  });
+
+  /// Base tip value before stunt combo scaling ($30).
+  final int baseTips;
+
+  /// Total tip amount awarded after active combo multipliers.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this event.
+  final double multiplier;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+
+  /// Total rooftop clotheslines cleared in this run.
+  final int clotheslinesInRun;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -1096,6 +1122,9 @@ class GameState extends ChangeNotifier {
   /// Total sidewalk open fire hydrants traversed in current run.
   int hydrantsTraversedInRun = 0;
 
+  /// Total rooftop tenement laundry clotheslines hurdled in current run.
+  int clotheslinesHurdledInRun = 0;
+
   /// Total seconds spent drafting behind companion cyclists in current run.
   double totalDraftDurationInRun = 0.0;
 
@@ -1144,6 +1173,7 @@ class GameState extends ChangeNotifier {
   ValueChanged<CafeBistroEvent>? onCafeBistroVault;
   ValueChanged<StreetBuskerEvent>? onStreetBuskerEncounter;
   ValueChanged<FireHydrantEvent>? onFireHydrantTraverse;
+  ValueChanged<ClotheslineEvent>? onClotheslineHurdle;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -1204,6 +1234,7 @@ class GameState extends ChangeNotifier {
     cafeBistroVaultsInRun = 0;
     buskersEncounteredInRun = 0;
     hydrantsTraversedInRun = 0;
+    clotheslinesHurdledInRun = 0;
     floralAromaTimer = 0.0;
     notorietyTimer = 0.0;
     caffeineSurgeTimer = 0.0;
@@ -2548,6 +2579,42 @@ class GameState extends ChangeNotifier {
     );
 
     onFireHydrantTraverse?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records a hurdle-vault rebound off a rooftop tenement laundry clothesline,
+  /// awarding base tips ($30) scaled by combo multipliers,
+  /// advancing the stunt streak, and resetting the stunt streak timer.
+  ClotheslineEvent? recordClotheslineHurdle({int baseTips = 30}) {
+    if (status != GameStatus.running) return null;
+
+    clotheslinesHurdledInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    final baseAward = (baseTips * stuntMultiplier).round();
+    final withFloral = isFloralAromaActive ? (baseAward * 1.5).round() : baseAward;
+    final withNotoriety = isNotorietyActive ? (withFloral * 1.5).round() : withFloral;
+    final withGroove = isUrbanGrooveActive ? (withNotoriety * 1.5).round() : withNotoriety;
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? withGroove * 2
+        : withGroove;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = ClotheslineEvent(
+      baseTips: baseTips,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+      stuntStreak: stuntStreak,
+      clotheslinesInRun: clotheslinesHurdledInRun,
+    );
+
+    onClotheslineHurdle?.call(event);
     notifyListeners();
     return event;
   }
