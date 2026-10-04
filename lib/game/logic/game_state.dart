@@ -674,6 +674,32 @@ class GlassSkylightEvent {
   final int stuntStreak;
 }
 
+/// Event dispatched when hurdling or vaulting across a sidewalk flower vendor kiosk.
+class FlowerKioskEvent {
+  const FlowerKioskEvent({
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.stuntStreak,
+    required this.floralAromaDuration,
+  });
+
+  /// Base tip value before stunt combo scaling ($25).
+  final int baseTips;
+
+  /// Total tip amount awarded after active combo multipliers.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this event.
+  final double multiplier;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+
+  /// Duration of the floral aroma multiplier buff in seconds.
+  final double floralAromaDuration;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -739,6 +765,15 @@ class GameState extends ChangeNotifier {
 
   /// Returns true if the Companion Delivery Drone is currently active and assisting.
   bool get isDroneActive => droneTimer > 0;
+
+  /// Remaining duration in seconds for the Floral Aroma score multiplier buff.
+  double floralAromaTimer = 0.0;
+
+  /// Duration of the Floral Aroma score multiplier buff in seconds.
+  static const double floralAromaDuration = 4.0;
+
+  /// Returns true if the Floral Aroma score multiplier (+1.5x) is actively buffing stunts.
+  bool get isFloralAromaActive => floralAromaTimer > 0;
 
   /// The active milestone event being celebrated by the UI banner.
   MilestoneEvent? activeMilestone;
@@ -877,6 +912,9 @@ class GameState extends ChangeNotifier {
   /// Total rooftop glass skylight domes smashed through in current run.
   int skylightSmashesInRun = 0;
 
+  /// Total sidewalk flower vendor kiosks vaulted in current run.
+  int flowerKioskVaultsInRun = 0;
+
   /// Total seconds spent drafting behind companion cyclists in current run.
   double totalDraftDurationInRun = 0.0;
 
@@ -919,6 +957,7 @@ class GameState extends ChangeNotifier {
   ValueChanged<PostalMailboxEvent>? onPostalMailboxVault;
   ValueChanged<AcCondenserEvent>? onAcCondenserUpdraft;
   ValueChanged<GlassSkylightEvent>? onGlassSkylightSmash;
+  ValueChanged<FlowerKioskEvent>? onFlowerKioskVault;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -973,6 +1012,8 @@ class GameState extends ChangeNotifier {
     mailboxVaultsInRun = 0;
     acUpdraftsInRun = 0;
     skylightSmashesInRun = 0;
+    flowerKioskVaultsInRun = 0;
+    floralAromaTimer = 0.0;
     totalDraftDurationInRun = 0.0;
     isDrafting = false;
     status = GameStatus.running;
@@ -1106,6 +1147,17 @@ class GameState extends ChangeNotifier {
     }
   }
 
+  /// Updates the active Floral Aroma score multiplier countdown timer.
+  void updateFloralAromaTimer(double dt) {
+    if (floralAromaTimer > 0) {
+      floralAromaTimer -= dt;
+      if (floralAromaTimer <= 0) {
+        floralAromaTimer = 0.0;
+      }
+      notifyListeners();
+    }
+  }
+
   /// Records a successful near-miss stunt leap over a street hazard.
   void recordStunt({double clearance = 20.0}) {
     if (status != GameStatus.running) return;
@@ -1114,9 +1166,10 @@ class GameState extends ChangeNotifier {
     stuntStreakTimer = stuntComboDuration;
 
     final baseAward = (baseStuntTip * stuntMultiplier).round();
+    final withFloral = isFloralAromaActive ? (baseAward * 1.5).round() : baseAward;
     final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
-        ? baseAward * 2
-        : baseAward;
+        ? withFloral * 2
+        : withFloral;
     final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
     tips += awarded;
 
@@ -2033,6 +2086,41 @@ class GameState extends ChangeNotifier {
     );
 
     onGlassSkylightSmash?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records an agile hurdle vault across a sidewalk flower vendor kiosk,
+  /// awarding base tips ($25) scaled by stunt combo multipliers, granting a 4-second
+  /// Floral Aroma +1.5x score multiplier, advancing the stunt streak,
+  /// and resetting the stunt streak timer.
+  FlowerKioskEvent? recordFlowerKioskVault({int baseTips = 25}) {
+    if (status != GameStatus.running) return null;
+
+    flowerKioskVaultsInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+    floralAromaTimer = floralAromaDuration;
+
+    final baseAward = (baseTips * stuntMultiplier).round();
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? baseAward * 2
+        : baseAward;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = FlowerKioskEvent(
+      baseTips: baseTips,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+      stuntStreak: stuntStreak,
+      floralAromaDuration: floralAromaDuration,
+    );
+
+    onFlowerKioskVault?.call(event);
     notifyListeners();
     return event;
   }

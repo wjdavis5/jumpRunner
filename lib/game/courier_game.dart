@@ -21,6 +21,7 @@ import 'components/floating_text_component.dart';
 import 'components/food_cart_component.dart';
 import 'components/food_truck_slick_component.dart';
 import 'components/glass_skylight_component.dart';
+import 'components/flower_kiosk_component.dart';
 import 'components/lightning_flash_component.dart';
 import 'components/grind_rail_component.dart';
 import 'components/hvac_wind_tunnel_component.dart';
@@ -160,6 +161,7 @@ class CourierGame extends FlameGame
   final List<PostalMailboxComponent> activeMailboxes = [];
   final List<AcCondenserComponent> activeAcCondensers = [];
   final List<GlassSkylightComponent> activeGlassSkylights = [];
+  final List<FlowerKioskComponent> activeFlowerKiosks = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
@@ -675,6 +677,17 @@ class CourierGame extends FlameGame
       world.add(gsComp);
     }
 
+    for (final fk in chunk.flowerKiosks) {
+      final fkComp = FlowerKioskComponent(
+        position: Vector2(fk.x, fk.y),
+        width: fk.width,
+        height: fk.height,
+        groundY: groundY,
+      );
+      activeFlowerKiosks.add(fkComp);
+      world.add(fkComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -918,6 +931,12 @@ class CourierGame extends FlameGame
     for (final gs in world.children.whereType<GlassSkylightComponent>().toList()) {
       gs.removeFromParent();
     }
+    for (final fk in activeFlowerKiosks.toList()) {
+      fk.removeFromParent();
+    }
+    for (final fk in world.children.whereType<FlowerKioskComponent>().toList()) {
+      fk.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -942,6 +961,7 @@ class CourierGame extends FlameGame
     activeMailboxes.clear();
     activeAcCondensers.clear();
     activeGlassSkylights.clear();
+    activeFlowerKiosks.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
@@ -1027,6 +1047,7 @@ class CourierGame extends FlameGame
     gameState.updateContractTimer(dt);
     gameState.updateStuntTimer(dt);
     gameState.updateVipTimer(dt);
+    gameState.updateFloralAromaTimer(dt);
     player.isBoosted = gameState.isEnergyBoostActive;
 
     // 0b. Spawn / mount companion delivery drone if active
@@ -1197,6 +1218,9 @@ class CourierGame extends FlameGame
     }
     for (final gs in activeGlassSkylights) {
       gs.position.x -= scrollDelta;
+    }
+    for (final fk in activeFlowerKiosks) {
+      fk.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -1737,6 +1761,15 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4aa. Evaluate Sidewalk Flower Vendor Kiosk Hurdle Vaults
+    for (final fk in activeFlowerKiosks) {
+      if (!fk.hasVaulted) {
+        if (fk.checkVault(player.position, player.size, player.simulator)) {
+          _handleFlowerKioskVault(fk);
+        }
+      }
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -1945,6 +1978,13 @@ class CourierGame extends FlameGame
     activeGlassSkylights.removeWhere((gs) {
       if (gs.shouldRecycle || gs.isRemoved) {
         if (gs.isMounted) gs.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeFlowerKiosks.removeWhere((fk) {
+      if (fk.shouldRecycle || fk.isRemoved) {
+        if (fk.isMounted) fk.removeFromParent();
         return true;
       }
       return false;
@@ -2647,6 +2687,35 @@ class CourierGame extends FlameGame
         ParticleEffectComponent.glassShatter(
           position: skylight.shatterWorldPosition,
           count: 24,
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handleFlowerKioskVault(FlowerKioskComponent kiosk) {
+    final event = gameState.recordFlowerKioskVault();
+    if (event != null) {
+      audio.playCoin();
+      audio.playCourierBark(
+        CourierBarkType.stunt,
+        line: 'Fresh blooms!',
+      );
+      triggerScreenShake(0.12);
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+
+      addEffect(
+        FloatingTextComponent(
+          text: 'FLOWER KIOSK VAULT! $multStr+\$${event.totalTips}',
+          position: Vector2(player.position.x - 15.0, player.position.y - 35.0),
+          color: const Color(0xFFE91E63),
+        ),
+      );
+      addEffect(
+        ParticleEffectComponent.petalBurst(
+          position: kiosk.canopyApexWorld,
+          count: 22,
         ),
       );
       _evaluateAchievements();
