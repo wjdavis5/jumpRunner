@@ -26,6 +26,7 @@ import 'components/parallax_city.dart';
 import 'components/particle_effect.dart';
 import 'components/pickup_component.dart';
 import 'components/pigeon_flock_component.dart';
+import 'components/postal_mailbox_component.dart';
 import 'components/pr_marker_component.dart';
 import 'components/puddle_component.dart';
 import 'components/rain_component.dart';
@@ -152,6 +153,7 @@ class CourierGame extends FlameGame
   final List<FoodTruckSlickComponent> activeFoodTruckSlicks = [];
   final List<BarricadeSawhorseComponent> activeBarricades = [];
   final List<SatelliteDishComponent> activeSatelliteDishes = [];
+  final List<PostalMailboxComponent> activeMailboxes = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
@@ -624,6 +626,17 @@ class CourierGame extends FlameGame
       world.add(sdComp);
     }
 
+    for (final mb in chunk.postalMailboxes) {
+      final mbComp = PostalMailboxComponent(
+        position: Vector2(mb.x, mb.y),
+        width: mb.width,
+        height: mb.height,
+        groundY: groundY,
+      );
+      activeMailboxes.add(mbComp);
+      world.add(mbComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -849,6 +862,12 @@ class CourierGame extends FlameGame
     for (final sd in world.children.whereType<SatelliteDishComponent>().toList()) {
       sd.removeFromParent();
     }
+    for (final mb in activeMailboxes.toList()) {
+      mb.removeFromParent();
+    }
+    for (final mb in world.children.whereType<PostalMailboxComponent>().toList()) {
+      mb.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -870,6 +889,7 @@ class CourierGame extends FlameGame
     activeFoodTruckSlicks.clear();
     activeBarricades.clear();
     activeSatelliteDishes.clear();
+    activeMailboxes.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
@@ -1109,6 +1129,9 @@ class CourierGame extends FlameGame
     }
     for (final sd in activeSatelliteDishes) {
       sd.position.x -= scrollDelta;
+    }
+    for (final mb in activeMailboxes) {
+      mb.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -1622,6 +1645,15 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4x. Evaluate Street Postal Collection Mailbox Hurdle Vaults
+    for (final mb in activeMailboxes) {
+      if (!mb.hasVaulted) {
+        if (mb.checkVault(player.position, player.size, player.simulator)) {
+          _handlePostalMailboxVault(mb);
+        }
+      }
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -1809,6 +1841,13 @@ class CourierGame extends FlameGame
     activeSatelliteDishes.removeWhere((sd) {
       if (sd.shouldRecycle || sd.isRemoved) {
         if (sd.isMounted) sd.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeMailboxes.removeWhere((mb) {
+      if (mb.shouldRecycle || mb.isRemoved) {
+        if (mb.isMounted) mb.removeFromParent();
         return true;
       }
       return false;
@@ -2423,6 +2462,35 @@ class CourierGame extends FlameGame
         ParticleEffectComponent.satellitePulse(
           position: dish.feedHornWorldPosition,
           count: 20,
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handlePostalMailboxVault(PostalMailboxComponent mailbox) {
+    final event = gameState.recordMailboxVault();
+    if (event != null) {
+      audio.playCoin();
+      audio.playCourierBark(
+        CourierBarkType.stunt,
+        line: 'Priority delivery!',
+      );
+      triggerScreenShake(0.08);
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+
+      addEffect(
+        FloatingTextComponent(
+          text: 'EXPRESS MAIL VAULT! $multStr+\$${event.totalTips}',
+          position: Vector2(player.position.x - 15.0, player.position.y - 35.0),
+          color: const Color(0xFF1976D2),
+        ),
+      );
+      addEffect(
+        ParticleEffectComponent.mailScatter(
+          position: mailbox.chuteWorldPosition,
+          count: 18,
         ),
       );
       _evaluateAchievements();

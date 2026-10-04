@@ -644,6 +644,45 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Fluttering priority airmail envelopes, golden wax seals, and postage stamp flecks
+  /// from a street postal collection mailbox hurdle vault.
+  factory ParticleEffectComponent.mailScatter({
+    required Vector2 position,
+    int count = 18,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFFFFFFFF), // Crisp white priority mail envelope
+      Color(0xFFD32F2F), // Express airmail red border
+      Color(0xFF1976D2), // Municipal post office blue
+      Color(0xFFFFD700), // Golden certification wax seal
+      Color(0xFFFFCA28), // Perforated postage stamp amber
+    ];
+
+    for (var i = 0; i < count; i++) {
+      final angle = rng.nextDouble() * 2 * math.pi;
+      final speed = 80.0 + rng.nextDouble() * 170.0;
+      final velocity = Vector2(math.cos(angle) * speed, math.sin(angle) * speed - 80.0);
+
+      particles.add(
+        GameParticle(
+          position: position.clone(),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 1.8 + rng.nextDouble() * 2.2,
+          maxLife: 0.38 + rng.nextDouble() * 0.32,
+          gravity: 190.0,
+          drag: 0.91,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.
