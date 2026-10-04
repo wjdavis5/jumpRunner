@@ -16,6 +16,7 @@ class GameOverModal extends StatelessWidget {
     this.vaultsCompleted = 0,
     this.glidesCompleted = 0,
     this.subwayStationsCompleted = 0,
+    this.craneSwingsCompleted = 0,
   });
 
   final int distance;
@@ -29,6 +30,7 @@ class GameOverModal extends StatelessWidget {
   final int vaultsCompleted;
   final int glidesCompleted;
   final int subwayStationsCompleted;
+  final int craneSwingsCompleted;
   final VoidCallback onRestart;
 
   @override
@@ -265,6 +267,37 @@ class GameOverModal extends StatelessWidget {
                         '$subwayStationsCompleted SUBWAY TRANSIT${subwayStationsCompleted > 1 ? 'S' : ''}',
                         style: const TextStyle(
                           color: Color(0xFF9B59B6),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            if (craneSwingsCompleted > 0)
+              Container(
+                key: const Key('game_over_crane_badge'),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF39C12).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFF39C12), width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.precision_manufacturing, color: Color(0xFFF39C12), size: 16),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '$craneSwingsCompleted CRANE SWING${craneSwingsCompleted > 1 ? 'S' : ''}',
+                        style: const TextStyle(
+                          color: Color(0xFFF39C12),
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                           letterSpacing: 0.5,

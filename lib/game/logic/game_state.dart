@@ -224,6 +224,32 @@ class SubwayTransitEvent {
   final double multiplier;
 }
 
+/// Event dispatched when catapulting off an industrial construction crane swing cable.
+class CraneSwingEvent {
+  const CraneSwingEvent({
+    required this.swingAngle,
+    required this.multiplier,
+    required this.baseTips,
+    required this.totalTips,
+    required this.streak,
+  });
+
+  /// Deflection angle in radians at moment of release.
+  final double swingAngle;
+
+  /// Active stunt combo multiplier applied to this launch.
+  final double multiplier;
+
+  /// Base tips awarded for crane swing traversal ($35).
+  final int baseTips;
+
+  /// Total tips awarded after combo multipliers.
+  final int totalTips;
+
+  /// Current consecutive stunt streak count.
+  final int streak;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -358,6 +384,9 @@ class GameState extends ChangeNotifier {
   /// Total subterranean subway stations traversed in current run.
   int subwayStationsInRun = 0;
 
+  /// Total construction crane swing traversals executed in current run.
+  int craneSwingsInRun = 0;
+
   ValueChanged<MilestoneEvent>? onMilestone;
   ValueChanged<StuntEvent>? onStunt;
   ValueChanged<DeliveryEvent>? onDeliveryCompleted;
@@ -367,6 +396,7 @@ class GameState extends ChangeNotifier {
   ValueChanged<SteamVentEvent>? onSteamVent;
   ValueChanged<GlideEvent>? onGlide;
   ValueChanged<SubwayTransitEvent>? onSubwayTransit;
+  ValueChanged<CraneSwingEvent>? onCraneSwing;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -399,6 +429,7 @@ class GameState extends ChangeNotifier {
     steamBoostsInRun = 0;
     glidesInRun = 0;
     subwayStationsInRun = 0;
+    craneSwingsInRun = 0;
     status = GameStatus.running;
     contractManager.reset();
 
@@ -715,6 +746,41 @@ class GameState extends ChangeNotifier {
     );
 
     onSubwayTransit?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records launching off an industrial construction crane swing cable.
+  ///
+  /// Increments stunt streak, awards bonus tips scaled by combo multipliers,
+  /// and resets the stunt combo timer.
+  CraneSwingEvent? recordCraneSwing({required double swingAngle}) {
+    if (status != GameStatus.running) return null;
+
+    craneSwingsInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    const baseTip = 35;
+    final baseAward = (baseTip * stuntMultiplier).round();
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? baseAward * 2
+        : baseAward;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = CraneSwingEvent(
+      swingAngle: swingAngle,
+      multiplier: stuntMultiplier,
+      baseTips: baseTip,
+      totalTips: awarded,
+      streak: stuntStreak,
+    );
+
+    onCraneSwing?.call(event);
     notifyListeners();
     return event;
   }

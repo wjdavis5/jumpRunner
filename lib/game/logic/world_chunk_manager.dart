@@ -129,6 +129,23 @@ class SubwayStationData {
   final String stationName;
 }
 
+/// Data for spawning an overhead industrial construction crane swing.
+class CraneSwingData {
+  const CraneSwingData({
+    required this.x,
+    this.y = 40.0,
+    this.width = 260.0,
+    this.height = 320.0,
+    this.cableLength = 175.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+  final double cableLength;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -139,6 +156,7 @@ class ChunkData {
     this.grindRails = const [],
     this.steamVents = const [],
     this.subwayStations = const [],
+    this.craneSwings = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -149,6 +167,7 @@ class ChunkData {
   final List<GrindRailData> grindRails;
   final List<SteamVentData> steamVents;
   final List<SubwayStationData> subwayStations;
+  final List<CraneSwingData> craneSwings;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -525,6 +544,26 @@ class WorldChunkManager {
       );
     }
 
+    final List<CraneSwingData> craneSwings = [];
+
+    // Industrial Construction Crane Swings (after 240m, exclusive with aerial scaffolding, rails, and subway)
+    if (distanceMeters >= 240.0 &&
+        _random.nextDouble() < 0.35 &&
+        scaffoldings.isEmpty &&
+        grindRails.isEmpty &&
+        subwayStations.isEmpty) {
+      final craneX = startX + 160.0 + (_random.nextDouble() * 80.0);
+      craneSwings.add(
+        CraneSwingData(
+          x: craneX,
+          y: 40.0,
+          width: 260.0,
+          height: 320.0,
+          cableLength: 175.0,
+        ),
+      );
+    }
+
     return ChunkData(
       obstacles: obstacles,
       pickups: pickups,
@@ -534,6 +573,7 @@ class WorldChunkManager {
       grindRails: grindRails,
       steamVents: steamVents,
       subwayStations: subwayStations,
+      craneSwings: craneSwings,
     );
   }
 }

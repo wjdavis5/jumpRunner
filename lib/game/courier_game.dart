@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'audio_controller.dart';
 import '../services/storage_service.dart';
 import 'components/courier_player.dart';
+import 'components/crane_swing_component.dart';
 import 'components/delivery_drone_component.dart';
 import 'components/drop_zone_component.dart';
 import 'components/floating_text_component.dart';
@@ -121,6 +122,7 @@ class CourierGame extends FlameGame
   final List<GrindRailComponent> activeGrindRails = [];
   final List<SteamVentComponent> activeSteamVents = [];
   final List<SubwayStationComponent> activeSubwayStations = [];
+  final List<CraneSwingComponent> activeCranes = [];
   ObstacleComponent? _currentVaultTarget;
   double cameraTargetY = 270.0;
   double _grindSparkTimer = 0.0;
@@ -221,6 +223,7 @@ class CourierGame extends FlameGame
       onVault: _handleParkourVault,
       onGlideStarted: _handleGlideStarted,
       onGlideEnded: _handleGlideEnded,
+      onCraneLaunch: _handleCraneLaunch,
     );
     world.add(player);
 
@@ -398,6 +401,16 @@ class CourierGame extends FlameGame
       world.add(stComp);
     }
 
+    for (final cs in chunk.craneSwings) {
+      final craneComp = CraneSwingComponent(
+        position: Vector2(cs.x, cs.y),
+        size: Vector2(cs.width, cs.height),
+        cableLength: cs.cableLength,
+      );
+      activeCranes.add(craneComp);
+      world.add(craneComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -516,15 +529,26 @@ class CourierGame extends FlameGame
     for (final st in world.children.whereType<SubwayStationComponent>().toList()) {
       st.removeFromParent();
     }
+    for (final c in activeCranes.toList()) {
+      c.removeFromParent();
+    }
+    for (final c in world.children.whereType<CraneSwingComponent>().toList()) {
+      c.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
     activeGrindRails.clear();
     activeSteamVents.clear();
     activeSubwayStations.clear();
+    activeCranes.clear();
     cameraTargetY = virtualResolution.y / 2;
     player.endGrinding();
     player.stopGlide();
+    if (player.isSwinging) {
+      player.state = CourierState.running;
+      player.attachedCrane = null;
+    }
     player.resetTargetSurfaceY();
     _footstepTimer = 0.0;
     _grindSparkTimer = 0.0;
@@ -706,6 +730,9 @@ class CourierGame extends FlameGame
     }
     for (final sv in activeSteamVents) {
       sv.position.x -= scrollDelta;
+    }
+    for (final c in activeCranes) {
+      c.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -941,6 +968,31 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4j. Evaluate Industrial Construction Crane Swing Traversal
+    if (!player.isSwinging) {
+      if (!player.simulator.isGrounded && player.state != CourierState.hurt) {
+        for (final c in activeCranes) {
+          if (c.canGrabHook(player.position, player.size)) {
+            player.attachToCrane(c);
+            audio.playJump();
+            triggerScreenShake(0.15);
+            spawnSparkles(
+              c.hookPosition,
+              color: const Color(0xFF00E5FF),
+              count: 12,
+            );
+            break;
+          }
+        }
+      }
+    } else if (player.attachedCrane != null) {
+      final crane = player.attachedCrane!;
+      // Auto-release at forward apex crest (+0.62 rad) or if swing reverses
+      if (crane.swingAngle >= 0.62 || (crane.swingAngle > 0.32 && crane.angularVelocity < -0.12)) {
+        player.releaseCraneSwing();
+      }
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -1023,6 +1075,13 @@ class CourierGame extends FlameGame
     activeSubwayStations.removeWhere((st) {
       if (st.shouldRecycle || st.isRemoved) {
         if (st.isMounted) st.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeCranes.removeWhere((c) {
+      if (c.shouldRecycle || c.isRemoved) {
+        if (c.isMounted) c.removeFromParent();
         return true;
       }
       return false;
@@ -1205,6 +1264,31 @@ class CourierGame extends FlameGame
         );
         _evaluateAchievements();
       }
+    }
+  }
+
+  void _handleCraneLaunch(double swingAngle) {
+    final event = gameState.recordCraneSwing(swingAngle: swingAngle);
+    if (event != null) {
+      audio.playMilestone();
+      audio.playCourierBark(CourierBarkType.stunt, line: 'Catch you on the flip side!');
+      triggerScreenShake(0.3);
+      spawnSparkles(
+        Vector2(player.position.x + (player.size.x / 2), player.position.y),
+        color: const Color(0xFFF1C40F),
+        count: 16,
+      );
+
+      final multiplierStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+      addEffect(
+        FloatingTextComponent(
+          text: 'CRANE SWING! $multiplierStr+\$${event.totalTips}',
+          position: Vector2(player.position.x - 10.0, player.position.y - 35.0),
+          color: const Color(0xFFF1C40F),
+        ),
+      );
+
+      _evaluateAchievements();
     }
   }
 
