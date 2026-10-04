@@ -416,6 +416,28 @@ class SolarSurgeEvent {
   final int coinsHarvested;
 }
 
+/// Event dispatched when cleanly skimming or leaping over an urban sidewalk puddle.
+class PuddleSkimEvent {
+  const PuddleSkimEvent({
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.stuntStreak,
+  });
+
+  /// Base tip value before stunt combo scaling ($20).
+  final int baseTips;
+
+  /// Total tip amount awarded after active combo multipliers.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this event.
+  final double multiplier;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -586,6 +608,9 @@ class GameState extends ChangeNotifier {
   /// Total rooftop solar panel kinetic skate slides and surge discharges in current run.
   int solarSurgesInRun = 0;
 
+  /// Total urban sidewalk puddle skims executed in current run.
+  int puddleSkimsInRun = 0;
+
   /// Total seconds spent drafting behind companion cyclists in current run.
   double totalDraftDurationInRun = 0.0;
 
@@ -617,6 +642,7 @@ class GameState extends ChangeNotifier {
   ValueChanged<FoodCartBounceEvent>? onFoodCartBounce;
   ValueChanged<StormDrainEvent>? onStormDrain;
   ValueChanged<SolarSurgeEvent>? onSolarSurge;
+  ValueChanged<PuddleSkimEvent>? onPuddleSkim;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -660,6 +686,7 @@ class GameState extends ChangeNotifier {
     foodCartBouncesInRun = 0;
     drainGeysersInRun = 0;
     solarSurgesInRun = 0;
+    puddleSkimsInRun = 0;
     totalDraftDurationInRun = 0.0;
     isDrafting = false;
     status = GameStatus.running;
@@ -1356,6 +1383,37 @@ class GameState extends ChangeNotifier {
     );
 
     onSolarSurge?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records cleanly leaping or skimming over an urban sidewalk puddle,
+  /// awarding base tips scaled by combo multipliers and advancing the stunt streak.
+  PuddleSkimEvent? recordPuddleSkim({int baseTips = 20}) {
+    if (status != GameStatus.running) return null;
+
+    puddleSkimsInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    final baseAward = (baseTips * stuntMultiplier).round();
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? baseAward * 2
+        : baseAward;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = PuddleSkimEvent(
+      baseTips: baseTips,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+      stuntStreak: stuntStreak,
+    );
+
+    onPuddleSkim?.call(event);
     notifyListeners();
     return event;
   }

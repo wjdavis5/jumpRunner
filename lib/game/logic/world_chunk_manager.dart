@@ -242,6 +242,21 @@ class SolarPanelData {
   final double height;
 }
 
+/// Data model for an urban sidewalk rainwater puddle.
+class PuddleData {
+  const PuddleData({
+    required this.x,
+    required this.y,
+    this.width = 74.0,
+    this.height = 14.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -259,6 +274,7 @@ class ChunkData {
     this.foodCarts = const [],
     this.stormDrains = const [],
     this.solarPanels = const [],
+    this.puddles = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -276,6 +292,7 @@ class ChunkData {
   final List<FoodCartData> foodCarts;
   final List<StormDrainData> stormDrains;
   final List<SolarPanelData> solarPanels;
+  final List<PuddleData> puddles;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -917,6 +934,39 @@ class WorldChunkManager {
       }
     }
 
+    final List<PuddleData> puddles = [];
+
+    // Sidewalk Water Puddles (after 50m, on street outside subway stations and scaffolding)
+    if (distanceMeters >= 50.0 &&
+        _random.nextDouble() < 0.40 &&
+        subwayStations.isEmpty &&
+        scaffoldings.isEmpty) {
+      const puddleWidth = 74.0;
+      for (var offset = 90.0; offset <= chunkWidth - 140.0; offset += 45.0) {
+        final pudX = startX + offset;
+        final isClear = obstacles.every(
+          (o) => (pudX + puddleWidth < o.x - 25.0) || (pudX > o.x + o.width + 25.0),
+        ) && crosswalks.every(
+          (cw) => (pudX + puddleWidth < cw.x - 20.0) || (pudX > cw.x + cw.width + 20.0),
+        ) && foodCarts.every(
+          (fc) => (pudX + puddleWidth < fc.x - 20.0) || (pudX > fc.x + fc.width + 20.0),
+        ) && stormDrains.every(
+          (sd) => (pudX + puddleWidth < sd.x - 20.0) || (pudX > sd.x + sd.width + 20.0),
+        );
+        if (isClear) {
+          puddles.add(
+            PuddleData(
+              x: pudX,
+              y: groundY - 14.0,
+              width: puddleWidth,
+              height: 14.0,
+            ),
+          );
+          break;
+        }
+      }
+    }
+
     return ChunkData(
       obstacles: obstacles,
       pickups: pickups,
@@ -933,6 +983,7 @@ class WorldChunkManager {
       foodCarts: foodCarts,
       stormDrains: stormDrains,
       solarPanels: solarPanels,
+      puddles: puddles,
     );
   }
 }

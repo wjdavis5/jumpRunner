@@ -104,6 +104,47 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Factory for dynamic urban puddle splash bursts fanning outward with water droplet spray.
+  factory ParticleEffectComponent.waterSpray({
+    required Vector2 position,
+    int count = 14,
+    double direction = -1.0,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFF81D4FA), // Light aqua
+      Color(0xFF4FC3F7), // Droplet blue
+      Color(0xFFB3E5FC), // Pale droplet
+      Color(0xFFE1F5FE), // Foam highlight
+      Color(0xFFFFFFFF), // Pure reflection white
+    ];
+
+    for (var i = 0; i < count; i++) {
+      // Fan upward and outward in directional parabolic arc
+      final angle = -math.pi / 2 + (rng.nextDouble() - 0.5) * 1.8 + (direction < 0 ? -0.2 : 0.2);
+      final speed = 60.0 + rng.nextDouble() * 110.0;
+      final velocity = Vector2(math.cos(angle) * speed + (direction * 30.0), math.sin(angle) * speed);
+
+      particles.add(
+        GameParticle(
+          position: position.clone() +
+              Vector2((rng.nextDouble() - 0.5) * 14.0, (rng.nextDouble() - 0.5) * 4.0),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 2.0 + rng.nextDouble() * 2.2,
+          maxLife: 0.35 + rng.nextDouble() * 0.25,
+          gravity: 280.0,
+          drag: 1.1,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   /// Factory for coin and pickup collection sparkles.
   factory ParticleEffectComponent.sparkles({
     required Vector2 position,
