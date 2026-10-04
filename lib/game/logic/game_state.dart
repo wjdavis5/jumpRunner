@@ -486,6 +486,32 @@ class TurnstileEvent {
   final bool isVault;
 }
 
+/// Event dispatched when intercepting an aerial cargo drone container mid-jump.
+class DroneCatchEvent {
+  const DroneCatchEvent({
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.stuntStreak,
+    required this.restoredPackage,
+  });
+
+  /// Base tip value before stunt combo scaling ($35).
+  final int baseTips;
+
+  /// Total tip amount awarded after active combo multipliers.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this event.
+  final double multiplier;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+
+  /// Whether intercepting this cargo crate restored a lost package HP.
+  final bool restoredPackage;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -665,6 +691,9 @@ class GameState extends ChangeNotifier {
   /// Total street subway entrance turnstiles swiped or vaulted in current run.
   int turnstileVaultsInRun = 0;
 
+  /// Total aerial cargo drone crates intercepted in current run.
+  int droneCatchesInRun = 0;
+
   /// Total seconds spent drafting behind companion cyclists in current run.
   double totalDraftDurationInRun = 0.0;
 
@@ -699,6 +728,7 @@ class GameState extends ChangeNotifier {
   ValueChanged<PuddleSkimEvent>? onPuddleSkim;
   ValueChanged<WindTunnelGlideEvent>? onWindTunnelGlide;
   ValueChanged<TurnstileEvent>? onTurnstile;
+  ValueChanged<DroneCatchEvent>? onDroneCatch;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -745,6 +775,7 @@ class GameState extends ChangeNotifier {
     puddleSkimsInRun = 0;
     windTunnelGlidesInRun = 0;
     turnstileVaultsInRun = 0;
+    droneCatchesInRun = 0;
     totalDraftDurationInRun = 0.0;
     isDrafting = false;
     status = GameStatus.running;
@@ -1536,6 +1567,46 @@ class GameState extends ChangeNotifier {
     );
 
     onTurnstile?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records intercepting an aerial cargo drone container mid-jump,
+  /// awarding base tips ($35) scaled by combo multipliers, restoring a lost package HP if damaged,
+  /// advancing the stunt streak, and resetting the stunt streak timer.
+  DroneCatchEvent? recordDroneCatch({int baseTips = 35}) {
+    if (status != GameStatus.running) return null;
+
+    droneCatchesInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    final baseAward = (baseTips * stuntMultiplier).round();
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? baseAward * 2
+        : baseAward;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    var restored = false;
+    if (packages < maxPackages) {
+      packages++;
+      restored = true;
+      onPackageRestored?.call();
+    }
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = DroneCatchEvent(
+      baseTips: baseTips,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+      stuntStreak: stuntStreak,
+      restoredPackage: restored,
+    );
+
+    onDroneCatch?.call(event);
     notifyListeners();
     return event;
   }
