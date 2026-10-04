@@ -5,6 +5,7 @@ import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
 import '../components/crane_swing_component.dart';
+import '../components/catenary_zipline_component.dart';
 import '../logic/jump_physics.dart';
 import '../models/courier_skin.dart';
 
@@ -17,6 +18,7 @@ enum CourierState {
   vaulting,
   gliding,
   swinging,
+  ziplining,
   hurt,
 }
 
@@ -90,6 +92,12 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   /// The active crane component the courier is currently attached to.
   CraneSwingComponent? attachedCrane;
 
+  /// Whether the courier is currently sliding along an aerial catenary power line.
+  bool get isZiplining => state == CourierState.ziplining;
+
+  /// The active catenary zipline component the courier is currently riding.
+  CatenaryZiplineComponent? attachedZipline;
+
   /// Cumulative distance in meters traveled during the active glide session.
   double glideDistance = 0.0;
 
@@ -155,6 +163,10 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   bool jump({double impulseMultiplier = 1.0}) {
     if (state == CourierState.swinging) {
       return releaseCraneSwing();
+    }
+
+    if (state == CourierState.ziplining) {
+      return releaseZipline();
     }
 
     if (state == CourierState.grinding) {
@@ -301,6 +313,29 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
     return true;
   }
 
+  /// Attaches the courier to an overhead catenary power line zipline.
+  void attachToZipline(CatenaryZiplineComponent zipline) {
+    if (isZiplining || isSwinging) return;
+    if (isGliding) stopGlide();
+    attachedZipline = zipline;
+    state = CourierState.ziplining;
+    simulator.isGrounded = false;
+    simulator.verticalVelocity = 0.0;
+    zipline.attachCourier();
+  }
+
+  /// Releases the courier from the catenary wire, catapulting with forward and upward momentum.
+  bool releaseZipline({Vector2? launchImpulse}) {
+    if (state != CourierState.ziplining || attachedZipline == null) return false;
+    final zipline = attachedZipline!;
+    attachedZipline = null;
+    state = CourierState.jumping;
+    final impulse = launchImpulse ?? zipline.releaseCourier();
+    simulator.launch(impulse.y);
+    onJump?.call();
+    return true;
+  }
+
   /// Releases jump hold to shorten trajectory.
   void stopJump() {
     simulator.stopJump();
@@ -310,7 +345,7 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   ///
   /// Returns `true` if damage was registered; `false` if ignored due to invulnerability.
   bool takeDamage() {
-    if (isInvulnerable || isSwinging) return false;
+    if (isInvulnerable || isSwinging || isZiplining) return false;
 
     if (isGliding) {
       stopGlide();
@@ -332,6 +367,12 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
       position.x = hookPos.x - (size.x / 2);
       position.y = hookPos.y - 12.0;
       simulator.currentY = position.y + size.y;
+    } else if (state == CourierState.ziplining && attachedZipline != null) {
+      final footX = position.x + (size.x * 0.5);
+      final wireY = attachedZipline!.cableYAt(footX);
+      position.y = wireY - 14.0;
+      simulator.currentY = position.y + size.y;
+      simulator.verticalVelocity = 0.0;
     } else {
       simulator.update(dt);
       position.y = simulator.currentY - size.y;
@@ -373,6 +414,8 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
       }
     } else if (state == CourierState.swinging) {
       // Retain swinging state while attached to crane hook
+    } else if (state == CourierState.ziplining) {
+      // Retain ziplining state while sliding on catenary wire
     } else if (!simulator.isGrounded) {
       if (_invulnerabilityTimer > 0 && state == CourierState.hurt) {
         // Retain hurt visual during invulnerability
@@ -612,6 +655,31 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
       // Trailing wind-swept legs swinging with pendulum momentum
       canvas.drawRect(const Rect.fromLTWH(18, 46, 8, 14), pantsPaint);
       canvas.drawRect(const Rect.fromLTWH(28, 48, 8, 14), pantsPaint);
+    } else if (state == CourierState.ziplining) {
+      // Arms reaching overhead gripping insulated catenary trolley handle
+      final armPaint = Paint()
+        ..color = skin.primaryColor
+        ..strokeWidth = 4.0
+        ..strokeCap = StrokeCap.round;
+      canvas.drawLine(const Offset(24, 22), const Offset(28, 4), armPaint);
+      canvas.drawLine(const Offset(32, 22), const Offset(36, 4), armPaint);
+
+      // Insulated carbon-fiber grip gloves
+      final glovePaint = Paint()
+        ..color = const Color(0xFF263238)
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(const Offset(28, 3), 3.0, glovePaint);
+      canvas.drawCircle(const Offset(36, 3), 3.0, glovePaint);
+
+      // Electric contact corona sparks
+      final sparkPaint = Paint()
+        ..color = const Color(0xFF00E5FF)
+        ..strokeWidth = 1.5;
+      canvas.drawLine(const Offset(24, 1), const Offset(40, 1), sparkPaint);
+
+      // Trailing aerodynamic legs
+      canvas.drawRect(const Rect.fromLTWH(14, 46, 8, 14), pantsPaint);
+      canvas.drawRect(const Rect.fromLTWH(24, 48, 8, 14), pantsPaint);
     } else {
       // Alternating run stride
       final legOffset = (_currentRunFrame % 2 == 0) ? 4.0 : -4.0;

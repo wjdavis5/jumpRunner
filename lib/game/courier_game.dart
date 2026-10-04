@@ -29,6 +29,7 @@ import 'components/street_busker_component.dart';
 import 'components/fire_hydrant_component.dart';
 import 'components/clothesline_component.dart';
 import 'components/subway_exhaust_grate_component.dart';
+import 'components/catenary_zipline_component.dart';
 import 'components/lightning_flash_component.dart';
 import 'components/grind_rail_component.dart';
 import 'components/hvac_wind_tunnel_component.dart';
@@ -176,9 +177,11 @@ class CourierGame extends FlameGame
   final List<FireHydrantComponent> activeFireHydrants = [];
   final List<ClotheslineComponent> activeClotheslines = [];
   final List<SubwayExhaustGrateComponent> activeSubwayExhaustGrates = [];
+  final List<CatenaryZiplineComponent> activeCatenaryZiplines = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
+  double _ziplineSparkTimer = 0.0;
   ObstacleComponent? _currentVaultTarget;
   double cameraTargetY = 270.0;
   double _grindSparkTimer = 0.0;
@@ -779,6 +782,18 @@ class CourierGame extends FlameGame
       world.add(segComp);
     }
 
+    for (final cz in chunk.catenaryZiplines) {
+      final czComp = CatenaryZiplineComponent(
+        position: Vector2(cz.x, cz.y),
+        spanWidth: cz.spanWidth,
+        cableDrop: cz.cableDrop,
+        sag: cz.sag,
+        groundY: groundY,
+      );
+      activeCatenaryZiplines.add(czComp);
+      world.add(czComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -1070,6 +1085,12 @@ class CourierGame extends FlameGame
     for (final seg in world.children.whereType<SubwayExhaustGrateComponent>().toList()) {
       seg.removeFromParent();
     }
+    for (final cz in activeCatenaryZiplines.toList()) {
+      cz.removeFromParent();
+    }
+    for (final cz in world.children.whereType<CatenaryZiplineComponent>().toList()) {
+      cz.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -1102,15 +1123,21 @@ class CourierGame extends FlameGame
     activeFireHydrants.clear();
     activeClotheslines.clear();
     activeSubwayExhaustGrates.clear();
+    activeCatenaryZiplines.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
+    _ziplineSparkTimer = 0.0;
     cameraTargetY = virtualResolution.y / 2;
     player.endGrinding();
     player.stopGlide();
     if (player.isSwinging) {
       player.state = CourierState.running;
       player.attachedCrane = null;
+    }
+    if (player.isZiplining) {
+      player.state = CourierState.running;
+      player.attachedZipline = null;
     }
     player.resetTargetSurfaceY();
     _footstepTimer = 0.0;
@@ -1391,6 +1418,9 @@ class CourierGame extends FlameGame
     }
     for (final seg in activeSubwayExhaustGrates) {
       seg.position.x -= scrollDelta;
+    }
+    for (final cz in activeCatenaryZiplines) {
+      cz.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -2003,6 +2033,44 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4ai. Evaluate Aerial Catenary Power Line Zipline Slides
+    if (!player.isZiplining) {
+      if (!player.simulator.isGrounded && player.state != CourierState.hurt && !player.isSwinging) {
+        for (final cz in activeCatenaryZiplines) {
+          if (cz.canGrabWire(player.position, player.size, player.simulator)) {
+            player.attachToZipline(cz);
+            audio.playJump();
+            triggerScreenShake(0.14);
+            addEffect(
+              ParticleEffectComponent.ziplineSparks(
+                position: Vector2(player.position.x + (player.size.x * 0.5), player.position.y + 10.0),
+                count: 18,
+              ),
+            );
+            break;
+          }
+        }
+      }
+    } else if (player.attachedZipline != null) {
+      final zipline = player.attachedZipline!;
+      final footX = player.position.x + (player.size.x * 0.5);
+
+      _ziplineSparkTimer += dt;
+      if (_ziplineSparkTimer >= 0.06) {
+        _ziplineSparkTimer = 0.0;
+        addEffect(
+          ParticleEffectComponent.ziplineSparks(
+            position: Vector2(footX, zipline.cableYAt(footX)),
+            count: 6,
+          ),
+        );
+      }
+
+      if (zipline.isPastForwardEdge(footX)) {
+        _handleCatenaryZiplineDismount(zipline);
+      }
+    }
+
 
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
@@ -2268,6 +2336,13 @@ class CourierGame extends FlameGame
     activeSubwayExhaustGrates.removeWhere((seg) {
       if (seg.shouldRecycle || seg.isRemoved) {
         if (seg.isMounted) seg.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeCatenaryZiplines.removeWhere((cz) {
+      if (cz.shouldRecycle || cz.isRemoved) {
+        if (cz.isMounted) cz.removeFromParent();
         return true;
       }
       return false;
@@ -3217,6 +3292,36 @@ class CourierGame extends FlameGame
         ParticleEffectComponent.subwayExhaustSteam(
           position: grate.plumeApexWorld,
           count: 30,
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handleCatenaryZiplineDismount(CatenaryZiplineComponent zipline) {
+    player.releaseZipline();
+    final event = gameState.recordCatenaryZipline(distanceMeters: zipline.spanWidth / 10.0);
+    if (event != null) {
+      audio.playMilestone();
+      audio.playCourierBark(
+        CourierBarkType.stunt,
+        line: 'High-voltage zip!',
+      );
+      triggerScreenShake(0.18);
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+
+      addEffect(
+        FloatingTextComponent(
+          text: 'AERIAL CATENARY ZIPLINE! $multStr+\$${event.totalTips}',
+          position: Vector2(player.position.x - 15.0, player.position.y - 35.0),
+          color: const Color(0xFF00E5FF),
+        ),
+      );
+      addEffect(
+        ParticleEffectComponent.ziplineSparks(
+          position: Vector2(player.position.x + (player.size.x * 0.5), player.position.y + 10.0),
+          count: 28,
         ),
       );
       _evaluateAchievements();

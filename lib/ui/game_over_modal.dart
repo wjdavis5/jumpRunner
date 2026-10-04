@@ -43,6 +43,7 @@ class GameOverModal extends StatelessWidget {
     this.hydrantsCompleted = 0,
     this.clotheslinesCompleted = 0,
     this.subwayGratesCompleted = 0,
+    this.ziplinesCompleted = 0,
   });
 
   final int distance;
@@ -83,6 +84,7 @@ class GameOverModal extends StatelessWidget {
   final int hydrantsCompleted;
   final int clotheslinesCompleted;
   final int subwayGratesCompleted;
+  final int ziplinesCompleted;
   final VoidCallback onRestart;
 
   @override
@@ -1156,6 +1158,37 @@ class GameOverModal extends StatelessWidget {
                         '$subwayGratesCompleted SUBWAY EXHAUST UPDRAFT${subwayGratesCompleted > 1 ? 'S' : ''}',
                         style: const TextStyle(
                           color: Color(0xFFFFCC80),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            if (ziplinesCompleted > 0)
+              Container(
+                key: const Key('game_over_zipline_badge'),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00E5FF).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF00E5FF), width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.electric_bolt, color: Color(0xFF00E5FF), size: 16),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '$ziplinesCompleted AERIAL CATENARY ZIPLINE SLIDE${ziplinesCompleted > 1 ? 'S' : ''}',
+                        style: const TextStyle(
+                          color: Color(0xFFE0F7FA),
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                           letterSpacing: 0.5,

@@ -539,6 +539,25 @@ class SubwayExhaustGrateData {
   final double height;
 }
 
+/// Data model for an aerial high-voltage catenary power line zipline.
+class CatenaryZiplineData {
+  const CatenaryZiplineData({
+    required this.x,
+    required this.y,
+    this.spanWidth = 240.0,
+    this.cableDrop = 24.0,
+    this.sag = 10.0,
+    this.groundY = 460.0,
+  });
+
+  final double x;
+  final double y;
+  final double spanWidth;
+  final double cableDrop;
+  final double sag;
+  final double groundY;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -575,6 +594,7 @@ class ChunkData {
     this.fireHydrants = const [],
     this.clotheslines = const [],
     this.subwayExhaustGrates = const [],
+    this.catenaryZiplines = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -611,6 +631,7 @@ class ChunkData {
   final List<FireHydrantData> fireHydrants;
   final List<ClotheslineData> clotheslines;
   final List<SubwayExhaustGrateData> subwayExhaustGrates;
+  final List<CatenaryZiplineData> catenaryZiplines;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -2098,6 +2119,34 @@ class WorldChunkManager {
       }
     }
 
+    final List<CatenaryZiplineData> catenaryZiplines = [];
+    if (distanceMeters >= 120.0 && _random.nextDouble() < 0.28) {
+      const zipSpan = 240.0;
+      const zipDrop = 24.0;
+
+      for (var attempt = 0; attempt < 8; attempt++) {
+        final zX = startX + 60.0 + _random.nextDouble() * (chunkWidth - 360.0);
+        final zY = 200.0 + _random.nextDouble() * 40.0;
+
+        final isClear = craneSwings.every(
+          (c) => (zX + zipSpan < c.x - 40.0) || (zX > c.x + 260.0 + 40.0),
+        );
+
+        if (isClear) {
+          catenaryZiplines.add(
+            CatenaryZiplineData(
+              x: zX,
+              y: zY,
+              spanWidth: zipSpan,
+              cableDrop: zipDrop,
+              groundY: groundY,
+            ),
+          );
+          break;
+        }
+      }
+    }
+
     return ChunkData(
       obstacles: obstacles,
       pickups: pickups,
@@ -2133,6 +2182,7 @@ class WorldChunkManager {
       fireHydrants: fireHydrants,
       clotheslines: clotheslines,
       subwayExhaustGrates: subwayExhaustGrates,
+      catenaryZiplines: catenaryZiplines,
     );
   }
 }
