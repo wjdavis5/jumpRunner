@@ -292,6 +292,19 @@ class CourierGame extends FlameGame
       onRunConcluded?.call();
     };
 
+    gameState.onVipMissionExpired = () {
+      audio.playFumble();
+      triggerScreenShake(0.25);
+      addEffect(
+        FloatingTextComponent(
+          text: 'VIP TIMER EXPIRED!',
+          position: Vector2(player.position.x - 10.0, player.position.y - 35.0),
+          color: const Color(0xFFE74C3C),
+        ),
+      );
+      audio.playCourierBark(CourierBarkType.damage, line: 'Lost the VIP bonus!');
+    };
+
     if (dailyShift != null || activeBoosters.isNotEmpty) {
       gameState.startRun(dailyShift: dailyShift, equippedBoosters: activeBoosters);
       if (dailyShift?.modifier == DailyModifier.rainyRush) {
@@ -311,6 +324,7 @@ class CourierGame extends FlameGame
       speed: currentSpeed,
       groundY: groundY,
       distanceMeters: gameState.distanceMeters,
+      isVipActive: gameState.isVipMissionActive,
     );
 
     for (final o in chunk.obstacles) {
@@ -363,6 +377,7 @@ class CourierGame extends FlameGame
         position: Vector2(dz.x, dz.y),
         size: Vector2(dz.width, dz.height),
         groundY: groundY,
+        isVip: dz.isVip,
       );
       activeDropZones.add(dzComp);
       world.add(dzComp);
@@ -431,6 +446,9 @@ class CourierGame extends FlameGame
         case PickupType.drone:
           sparkColor = const Color(0xFF00E5FF);
           break;
+        case PickupType.vipPackage:
+          sparkColor = const Color(0xFFFFD700);
+          break;
       }
       spawnSparkles(pos, color: sparkColor);
     }
@@ -460,6 +478,20 @@ class CourierGame extends FlameGame
             text: 'DRONE DEPLOYED!',
             position: Vector2(player.position.x - 10, player.position.y - 30),
             color: const Color(0xFF00E5FF),
+          ),
+        );
+        break;
+      case PickupType.vipPackage:
+        gameState.startVipMission();
+        audio.playMilestone();
+        audio.playCourierBark(CourierBarkType.stunt, line: 'VIP Express incoming! Time to hustle!');
+        triggerScreenShake(0.2);
+        spawnConfetti(Vector2(player.position.x + 30.0, player.position.y - 20.0), count: 16);
+        world.add(
+          FloatingTextComponent(
+            text: 'VIP EXPRESS DISPATCH! 14s (3X SURGE)',
+            position: Vector2(player.position.x - 20, player.position.y - 35),
+            color: const Color(0xFFFFD700),
           ),
         );
         break;
@@ -619,6 +651,7 @@ class CourierGame extends FlameGame
     gameState.updateMilestoneTimer(dt);
     gameState.updateContractTimer(dt);
     gameState.updateStuntTimer(dt);
+    gameState.updateVipTimer(dt);
     player.isBoosted = gameState.isEnergyBoostActive;
 
     // 0b. Spawn / mount companion delivery drone if active
@@ -869,45 +902,75 @@ class CourierGame extends FlameGame
     for (final dz in activeDropZones) {
       if (!dz.hasDelivered && dz.checkCollisionWith(player)) {
         dz.hasDelivered = true;
-        final event = gameState.recordDoorstepDelivery(
-          speedMultiplier: currentSpeed / 200.0,
-        );
-        if (event != null) {
-          audio.playCoin();
-          if (event.ratingStars >= 5) {
-            audio.playCustomerReaction(CustomerReactionType.fiveStars);
-          } else {
-            audio.playCustomerReaction(CustomerReactionType.thankYou);
-          }
-          triggerScreenShake(0.15);
-          spawnSparkles(
-            Vector2(dz.position.x + (dz.size.x / 2), dz.position.y + dz.size.y - 10.0),
-            color: const Color(0xFFF1C40F),
-            count: 14,
-          );
-
-          final stars = '★' * event.ratingStars;
-          final streakMsg = event.streak > 1 ? '${event.streak}x STREAK ' : '';
-          addEffect(
-            FloatingTextComponent(
-              text: '$stars $streakMsg+\$${event.totalTips}',
-              position: Vector2(player.position.x - 10.0, player.position.y - 35.0),
-              color: const Color(0xFFF1C40F),
-            ),
-          );
-
-          if (event.didRestockPackage) {
+        if (dz.isVip || gameState.isVipMissionActive) {
+          final event = gameState.recordVipDelivery();
+          if (event != null) {
             audio.playMilestone();
+            audio.playCustomerReaction(CustomerReactionType.fiveStars);
+            triggerScreenShake(0.25);
+            spawnSparkles(
+              Vector2(dz.position.x + (dz.size.x / 2), dz.position.y + dz.size.y - 10.0),
+              color: const Color(0xFFFFD700),
+              count: 24,
+            );
+            spawnConfetti(
+              Vector2(dz.position.x + (dz.size.x / 2), dz.position.y - 20.0),
+              count: 20,
+            );
+
+            final multStr = '${event.multiplier.toStringAsFixed(1)}x';
             addEffect(
               FloatingTextComponent(
-                text: '3x STREAK RESTOCK! +1 PKG',
-                position: Vector2(player.position.x - 10.0, player.position.y - 55.0),
-                color: const Color(0xFF2ECC71),
+                text: 'VIP EXPRESS DELIVERED! ★★★★★ ($multStr) +\$${event.totalTips}',
+                position: Vector2(player.position.x - 20.0, player.position.y - 45.0),
+                color: const Color(0xFFFFD700),
               ),
             );
-          }
 
-          storage?.recordDeliveries(1);
+            audio.playCourierBark(CourierBarkType.stunt, line: 'VIP delivery secured!');
+            storage?.recordDeliveries(1);
+          }
+        } else {
+          final event = gameState.recordDoorstepDelivery(
+            speedMultiplier: currentSpeed / 200.0,
+          );
+          if (event != null) {
+            audio.playCoin();
+            if (event.ratingStars >= 5) {
+              audio.playCustomerReaction(CustomerReactionType.fiveStars);
+            } else {
+              audio.playCustomerReaction(CustomerReactionType.thankYou);
+            }
+            triggerScreenShake(0.15);
+            spawnSparkles(
+              Vector2(dz.position.x + (dz.size.x / 2), dz.position.y + dz.size.y - 10.0),
+              color: const Color(0xFFF1C40F),
+              count: 14,
+            );
+
+            final stars = '★' * event.ratingStars;
+            final streakMsg = event.streak > 1 ? '${event.streak}x STREAK ' : '';
+            addEffect(
+              FloatingTextComponent(
+                text: '$stars $streakMsg+\$${event.totalTips}',
+                position: Vector2(player.position.x - 10.0, player.position.y - 35.0),
+                color: const Color(0xFFF1C40F),
+              ),
+            );
+
+            if (event.didRestockPackage) {
+              audio.playMilestone();
+              addEffect(
+                FloatingTextComponent(
+                  text: '3x STREAK RESTOCK! +1 PKG',
+                  position: Vector2(player.position.x - 10.0, player.position.y - 55.0),
+                  color: const Color(0xFF2ECC71),
+                ),
+              );
+            }
+
+            storage?.recordDeliveries(1);
+          }
         }
       }
     }

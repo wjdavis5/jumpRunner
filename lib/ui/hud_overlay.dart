@@ -445,6 +445,51 @@ class HUDOverlay extends StatelessWidget {
             ),
           ),
         ],
+        if (gameState.isVipMissionActive) ...[
+          const SizedBox(height: 6),
+          Container(
+            key: const Key('vip_mission_badge'),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: gameState.vipTimer < 3.5
+                    ? const [Color(0xFFE74C3C), Color(0xFFC0392B)]
+                    : const [Color(0xFFFFD700), Color(0xFFFFA500)],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: (gameState.vipTimer < 3.5
+                          ? const Color(0xFFE74C3C)
+                          : const Color(0xFFFFD700))
+                      .withValues(alpha: 0.7),
+                  blurRadius: 10,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.stars,
+                  color: gameState.vipTimer < 3.5 ? Colors.white : Colors.black,
+                  size: 16,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'VIP EXPRESS: ${gameState.vipTimer.toStringAsFixed(1)}s (3.0x SURGE)',
+                  style: TextStyle(
+                    color: gameState.vipTimer < 3.5 ? Colors.white : Colors.black,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }
