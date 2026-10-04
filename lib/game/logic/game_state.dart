@@ -364,6 +364,32 @@ class FoodCartBounceEvent {
   final int stuntStreak;
 }
 
+/// Event dispatched when a street storm drain vault grate erupts with steam and coins.
+class StormDrainEvent {
+  const StormDrainEvent({
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.stuntStreak,
+    this.coinsSpawned = 3,
+  });
+
+  /// Base tip value before stunt combo scaling ($30).
+  final int baseTips;
+
+  /// Total tip amount awarded after active combo multipliers.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this event.
+  final double multiplier;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+
+  /// Number of golden coins erupted into the sky.
+  final int coinsSpawned;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -528,6 +554,9 @@ class GameState extends ChangeNotifier {
   /// Total street food cart umbrella bounce cushion leaps executed in current run.
   int foodCartBouncesInRun = 0;
 
+  /// Total street storm drain vault grate steam geyser eruptions triggered in current run.
+  int drainGeysersInRun = 0;
+
   /// Total seconds spent drafting behind companion cyclists in current run.
   double totalDraftDurationInRun = 0.0;
 
@@ -557,6 +586,7 @@ class GameState extends ChangeNotifier {
   ValueChanged<FlockScatterEvent>? onPigeonScatter;
   ValueChanged<HighFiveEvent>? onHighFive;
   ValueChanged<FoodCartBounceEvent>? onFoodCartBounce;
+  ValueChanged<StormDrainEvent>? onStormDrain;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -598,6 +628,7 @@ class GameState extends ChangeNotifier {
     pigeonScattersInRun = 0;
     highFivesInRun = 0;
     foodCartBouncesInRun = 0;
+    drainGeysersInRun = 0;
     totalDraftDurationInRun = 0.0;
     isDrafting = false;
     status = GameStatus.running;
@@ -1228,6 +1259,39 @@ class GameState extends ChangeNotifier {
     );
 
     onFoodCartBounce?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records triggering a street storm drain vault grate steam geyser eruption,
+  /// awarding base tips scaled by combo multipliers, advancing the stunt streak,
+  /// and launching airborne coins.
+  StormDrainEvent? recordDrainGeyser({int baseTips = 30, int coinsSpawned = 3}) {
+    if (status != GameStatus.running) return null;
+
+    drainGeysersInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    final baseAward = (baseTips * stuntMultiplier).round();
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? baseAward * 2
+        : baseAward;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = StormDrainEvent(
+      baseTips: baseTips,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+      stuntStreak: stuntStreak,
+      coinsSpawned: coinsSpawned,
+    );
+
+    onStormDrain?.call(event);
     notifyListeners();
     return event;
   }
