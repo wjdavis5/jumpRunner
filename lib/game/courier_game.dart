@@ -30,6 +30,7 @@ import 'components/pr_marker_component.dart';
 import 'components/puddle_component.dart';
 import 'components/rain_component.dart';
 import 'components/ramp_component.dart';
+import 'components/satellite_dish_component.dart';
 import 'components/scaffolding_component.dart';
 import 'components/speech_bubble_component.dart';
 import 'components/solar_panel_component.dart';
@@ -150,6 +151,7 @@ class CourierGame extends FlameGame
   final List<FireEscapeLadderComponent> activeFireEscapes = [];
   final List<FoodTruckSlickComponent> activeFoodTruckSlicks = [];
   final List<BarricadeSawhorseComponent> activeBarricades = [];
+  final List<SatelliteDishComponent> activeSatelliteDishes = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
@@ -611,6 +613,17 @@ class CourierGame extends FlameGame
       world.add(bComp);
     }
 
+    for (final sd in chunk.satelliteDishes) {
+      final sdComp = SatelliteDishComponent(
+        position: Vector2(sd.x, sd.y),
+        width: sd.width,
+        height: sd.height,
+        launchImpulse: sd.launchImpulse,
+      );
+      activeSatelliteDishes.add(sdComp);
+      world.add(sdComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -830,6 +843,12 @@ class CourierGame extends FlameGame
     for (final b in world.children.whereType<BarricadeSawhorseComponent>().toList()) {
       b.removeFromParent();
     }
+    for (final sd in activeSatelliteDishes.toList()) {
+      sd.removeFromParent();
+    }
+    for (final sd in world.children.whereType<SatelliteDishComponent>().toList()) {
+      sd.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -850,6 +869,7 @@ class CourierGame extends FlameGame
     activeFireEscapes.clear();
     activeFoodTruckSlicks.clear();
     activeBarricades.clear();
+    activeSatelliteDishes.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
@@ -1086,6 +1106,9 @@ class CourierGame extends FlameGame
     }
     for (final b in activeBarricades) {
       b.position.x -= scrollDelta;
+    }
+    for (final sd in activeSatelliteDishes) {
+      sd.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -1590,6 +1613,15 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4w. Evaluate Rooftop Parabolic Satellite Dish Leap Pad Launches
+    for (final sd in activeSatelliteDishes) {
+      if (!sd.hasLaunched) {
+        if (sd.checkLaunch(player.position, player.size, player.simulator)) {
+          _handleSatelliteLaunch(sd);
+        }
+      }
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -1770,6 +1802,13 @@ class CourierGame extends FlameGame
     activeBarricades.removeWhere((b) {
       if (b.shouldRecycle || b.isRemoved) {
         if (b.isMounted) b.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeSatelliteDishes.removeWhere((sd) {
+      if (sd.shouldRecycle || sd.isRemoved) {
+        if (sd.isMounted) sd.removeFromParent();
         return true;
       }
       return false;
@@ -2355,6 +2394,35 @@ class CourierGame extends FlameGame
         ParticleEffectComponent.sawhorseSparks(
           position: barricade.flasherWorldPosition,
           count: 18,
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handleSatelliteLaunch(SatelliteDishComponent dish) {
+    final event = gameState.recordSatelliteLaunch(launchImpulse: dish.launchImpulse);
+    if (event != null) {
+      audio.playJump();
+      audio.playCourierBark(
+        CourierBarkType.stunt,
+        line: 'High-gain launch!',
+      );
+      triggerScreenShake(0.14);
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+
+      addEffect(
+        FloatingTextComponent(
+          text: 'HIGH-GAIN LAUNCH! $multStr+\$${event.totalTips}',
+          position: Vector2(player.position.x - 15.0, player.position.y - 35.0),
+          color: const Color(0xFF00E5FF),
+        ),
+      );
+      addEffect(
+        ParticleEffectComponent.satellitePulse(
+          position: dish.feedHornWorldPosition,
+          count: 20,
         ),
       );
       _evaluateAchievements();
