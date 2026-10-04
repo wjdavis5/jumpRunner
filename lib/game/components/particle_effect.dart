@@ -985,6 +985,51 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Generates a high-pressure kinetic plume of foaming water droplets, cyan spray beads,
+  /// and shimmering rainbow sunlight prism particles upon a fire hydrant spray traverse.
+  factory ParticleEffectComponent.hydrantWaterPlume({
+    required Vector2 position,
+    int count = 28,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFF00E5FF), // Electric cyan water droplet
+      Color(0xFF40C4FF), // Sky blue water bead
+      Color(0xFF80D8FF), // Light translucent water bead
+      Color(0xFFFFFFFF), // Foaming white spray crest
+      Color(0xFFE0F7FA), // Soft mist white
+      Color(0xFFFFD54F), // Refracted sunlight amber prism
+      Color(0xFFFF80AB), // Refracted sunlight pink prism
+    ];
+
+    for (var i = 0; i < count; i++) {
+      final angle = -math.pi * 0.45 + (rng.nextDouble() - 0.5) * 1.8;
+      final speed = 80.0 + rng.nextDouble() * 160.0;
+      final velocity = Vector2(
+        math.cos(angle) * speed + 30.0, // Forward-downward rushing arc
+        math.sin(angle) * speed - 15.0,
+      );
+
+      particles.add(
+        GameParticle(
+          position: position.clone() +
+              Vector2((rng.nextDouble() - 0.5) * 16.0, (rng.nextDouble() - 0.5) * 10.0),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 1.8 + rng.nextDouble() * 2.2,
+          maxLife: 0.50 + rng.nextDouble() * 0.35,
+          gravity: 220.0, // Kinetic downward splash arc
+          drag: 0.96,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.

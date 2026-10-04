@@ -492,6 +492,21 @@ class StreetBuskerData {
   final double height;
 }
 
+/// Data model for a sidewalk street corner open fire hydrant fixture.
+class FireHydrantData {
+  const FireHydrantData({
+    required this.x,
+    required this.y,
+    this.width = 86.0,
+    this.height = 54.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -525,6 +540,7 @@ class ChunkData {
     this.newsstands = const [],
     this.cafeBistros = const [],
     this.streetBuskers = const [],
+    this.fireHydrants = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -558,6 +574,7 @@ class ChunkData {
   final List<NewsstandData> newsstands;
   final List<CafeBistroData> cafeBistros;
   final List<StreetBuskerData> streetBuskers;
+  final List<FireHydrantData> fireHydrants;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -1888,6 +1905,63 @@ class WorldChunkManager {
       }
     }
 
+    final List<FireHydrantData> fireHydrants = [];
+    if (distanceMeters >= 85.0 &&
+        _random.nextDouble() < 0.28 &&
+        subwayStations.isEmpty &&
+        scaffoldings.isEmpty) {
+      const hydrantWidth = 86.0;
+      const hydrantHeight = 54.0;
+      for (var offset = 130.0; offset <= chunkWidth - 190.0; offset += 50.0) {
+        final hydX = startX + offset;
+        final isClear = obstacles.every(
+          (o) => (hydX + hydrantWidth < o.x - 30.0) || (hydX > o.x + o.width + 30.0),
+        ) && foodCarts.every(
+          (fc) => (hydX + hydrantWidth < fc.x - 30.0) || (hydX > fc.x + fc.width + 30.0),
+        ) && crosswalks.every(
+          (cw) => (hydX + hydrantWidth < cw.x - 20.0) || (hydX > cw.x + cw.width + 20.0),
+        ) && turnstiles.every(
+          (t) => (hydX + hydrantWidth < t.x - 20.0) || (hydX > t.x + t.width + 20.0),
+        ) && fireEscapes.every(
+          (fe) => (hydX + hydrantWidth < fe.x - 20.0) || (hydX > fe.x + fe.width + 20.0),
+        ) && foodTruckSlicks.every(
+          (fts) => (hydX + hydrantWidth < fts.x - 30.0) || (hydX > fts.x + fts.width + 30.0),
+        ) && barricades.every(
+          (b) => (hydX + hydrantWidth < b.x - 30.0) || (hydX > b.x + b.width + 30.0),
+        ) && satelliteDishes.every(
+          (sd) => (hydX + hydrantWidth < sd.x - 30.0) || (hydX > sd.x + sd.width + 30.0),
+        ) && postalMailboxes.every(
+          (mb) => (hydX + hydrantWidth < mb.x - 30.0) || (hydX > mb.x + mb.width + 30.0),
+        ) && acCondensers.every(
+          (ac) => (hydX + hydrantWidth < ac.x - 30.0) || (hydX > ac.x + ac.width + 30.0),
+        ) && glassSkylights.every(
+          (gs) => (hydX + hydrantWidth < gs.x - 30.0) || (hydX > gs.x + gs.width + 30.0),
+        ) && flowerKiosks.every(
+          (fk) => (hydX + hydrantWidth < fk.x - 30.0) || (hydX > fk.x + fk.width + 30.0),
+        ) && waterTowers.every(
+          (wt) => (hydX + hydrantWidth < wt.x - 30.0) || (hydX > wt.x + wt.width + 30.0),
+        ) && newsstands.every(
+          (ns) => (hydX + hydrantWidth < ns.x - 30.0) || (hydX > ns.x + ns.width + 30.0),
+        ) && cafeBistros.every(
+          (cb) => (hydX + hydrantWidth < cb.x - 30.0) || (hydX > cb.x + cb.width + 30.0),
+        ) && streetBuskers.every(
+          (sb) => (hydX + hydrantWidth < sb.x - 30.0) || (hydX > sb.x + sb.width + 30.0),
+        );
+
+        if (isClear) {
+          fireHydrants.add(
+            FireHydrantData(
+              x: hydX,
+              y: groundY - hydrantHeight,
+              width: hydrantWidth,
+              height: hydrantHeight,
+            ),
+          );
+          break;
+        }
+      }
+    }
+
     return ChunkData(
       obstacles: obstacles,
       pickups: pickups,
@@ -1920,6 +1994,7 @@ class WorldChunkManager {
       newsstands: newsstands,
       cafeBistros: cafeBistros,
       streetBuskers: streetBuskers,
+      fireHydrants: fireHydrants,
     );
   }
 }

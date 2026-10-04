@@ -53,6 +53,10 @@ class JumpPhysicsSimulator {
   /// Whether aerodynamic gliding chute is active, reducing descent speed.
   bool isGliding = false;
 
+  /// Whether courier is actively hydroplaning through hydrant water spray,
+  /// enhancing aerodynamic glide buoyancy (+25% float duration).
+  bool isHydroplaning = false;
+
   /// Elapsed duration in seconds for the current jump hold.
   double holdTimer = 0.0;
 
@@ -126,15 +130,16 @@ class JumpPhysicsSimulator {
     if (isHolding && verticalVelocity > 0) {
       effectiveAcceleration = -gravity + holdAcceleration;
     } else if (isGliding && verticalVelocity < 0) {
-      // Gentle aerodynamic glide descent
-      effectiveAcceleration = -gravity * 0.18;
+      // Gentle aerodynamic glide descent (buoyant when hydroplaning)
+      effectiveAcceleration = -gravity * (isHydroplaning ? 0.13 : 0.18);
     } else {
       effectiveAcceleration = -gravity;
     }
 
     verticalVelocity += effectiveAcceleration * dt;
-    if (isGliding && verticalVelocity < -55.0) {
-      verticalVelocity = -55.0; // Terminal gentle glide descent rate
+    final terminalGlideVelocity = isHydroplaning ? -42.0 : -55.0;
+    if (isGliding && verticalVelocity < terminalGlideVelocity) {
+      verticalVelocity = terminalGlideVelocity; // Terminal gentle glide descent rate
     }
 
     // In screen coordinates, positive vertical velocity moves avatar upward (decreasing Y)

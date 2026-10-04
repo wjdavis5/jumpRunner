@@ -670,6 +670,42 @@ class HUDOverlay extends StatelessWidget {
             ),
           ),
         ],
+        if (gameState.isHydroplaneActive) ...[
+          const SizedBox(height: 6),
+          Container(
+            key: const Key('hydroplane_badge'),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF0097A7), Color(0xFF00E5FF)],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF00B0FF).withValues(alpha: 0.6),
+                  blurRadius: 8,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.water_drop, color: Colors.white, size: 16),
+                const SizedBox(width: 4),
+                Text(
+                  'HYDROPLANE ${gameState.hydroplaneTimer.toStringAsFixed(1)}s (+25%)',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }

@@ -804,6 +804,32 @@ class StreetBuskerEvent {
   final double urbanGrooveDuration;
 }
 
+/// Event dispatched when leaping across or hydroplaning through a sidewalk open fire hydrant spray arc.
+class FireHydrantEvent {
+  const FireHydrantEvent({
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.stuntStreak,
+    required this.hydroplaneDuration,
+  });
+
+  /// Base tip value before stunt combo scaling ($32).
+  final int baseTips;
+
+  /// Total tip amount awarded after active combo multipliers.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this event.
+  final double multiplier;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+
+  /// Duration of the buoyant Hydroplane Glide buff in seconds.
+  final double hydroplaneDuration;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -905,6 +931,15 @@ class GameState extends ChangeNotifier {
 
   /// Returns true if the Urban Groove score multiplier (+1.5x) is actively buffing stunts.
   bool get isUrbanGrooveActive => urbanGrooveTimer > 0;
+
+  /// Remaining duration in seconds for the buoyant Hydroplane Glide buff.
+  double hydroplaneTimer = 0.0;
+
+  /// Duration of the buoyant Hydroplane Glide buff in seconds.
+  static const double hydroplaneDuration = 3.0;
+
+  /// Returns true if the Hydroplane Glide buff (+25% glide buoyancy & +15% speed) is actively buffing the courier.
+  bool get isHydroplaneActive => hydroplaneTimer > 0;
 
   /// The active milestone event being celebrated by the UI banner.
   MilestoneEvent? activeMilestone;
@@ -1058,6 +1093,9 @@ class GameState extends ChangeNotifier {
   /// Total sidewalk street busker jazz saxophonists tipped in current run.
   int buskersEncounteredInRun = 0;
 
+  /// Total sidewalk open fire hydrants traversed in current run.
+  int hydrantsTraversedInRun = 0;
+
   /// Total seconds spent drafting behind companion cyclists in current run.
   double totalDraftDurationInRun = 0.0;
 
@@ -1105,6 +1143,7 @@ class GameState extends ChangeNotifier {
   ValueChanged<NewsstandEvent>? onNewsstandVault;
   ValueChanged<CafeBistroEvent>? onCafeBistroVault;
   ValueChanged<StreetBuskerEvent>? onStreetBuskerEncounter;
+  ValueChanged<FireHydrantEvent>? onFireHydrantTraverse;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -1164,10 +1203,12 @@ class GameState extends ChangeNotifier {
     newsstandsVaultedInRun = 0;
     cafeBistroVaultsInRun = 0;
     buskersEncounteredInRun = 0;
+    hydrantsTraversedInRun = 0;
     floralAromaTimer = 0.0;
     notorietyTimer = 0.0;
     caffeineSurgeTimer = 0.0;
     urbanGrooveTimer = 0.0;
+    hydroplaneTimer = 0.0;
     totalDraftDurationInRun = 0.0;
     isDrafting = false;
     status = GameStatus.running;
@@ -1340,6 +1381,17 @@ class GameState extends ChangeNotifier {
       urbanGrooveTimer -= dt;
       if (urbanGrooveTimer <= 0) {
         urbanGrooveTimer = 0.0;
+      }
+      notifyListeners();
+    }
+  }
+
+  /// Updates the active Hydroplane Glide buff countdown timer.
+  void updateHydroplaneTimer(double dt) {
+    if (hydroplaneTimer > 0) {
+      hydroplaneTimer -= dt;
+      if (hydroplaneTimer <= 0) {
+        hydroplaneTimer = 0.0;
       }
       notifyListeners();
     }
@@ -2458,6 +2510,44 @@ class GameState extends ChangeNotifier {
     );
 
     onStreetBuskerEncounter?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records a traversal through a sidewalk open fire hydrant spray arc,
+  /// awarding base tips ($32) scaled by combo multipliers,
+  /// advancing the stunt streak, activating the 3.0-second Hydroplane Glide buff,
+  /// and resetting the stunt streak timer.
+  FireHydrantEvent? recordFireHydrantTraverse({int baseTips = 32}) {
+    if (status != GameStatus.running) return null;
+
+    hydrantsTraversedInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+    hydroplaneTimer = hydroplaneDuration;
+
+    final baseAward = (baseTips * stuntMultiplier).round();
+    final withFloral = isFloralAromaActive ? (baseAward * 1.5).round() : baseAward;
+    final withNotoriety = isNotorietyActive ? (withFloral * 1.5).round() : withFloral;
+    final withGroove = isUrbanGrooveActive ? (withNotoriety * 1.5).round() : withNotoriety;
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? withGroove * 2
+        : withGroove;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = FireHydrantEvent(
+      baseTips: baseTips,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+      stuntStreak: stuntStreak,
+      hydroplaneDuration: hydroplaneDuration,
+    );
+
+    onFireHydrantTraverse?.call(event);
     notifyListeners();
     return event;
   }

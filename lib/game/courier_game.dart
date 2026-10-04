@@ -26,6 +26,7 @@ import 'components/water_tower_component.dart';
 import 'components/newsstand_component.dart';
 import 'components/cafe_bistro_component.dart';
 import 'components/street_busker_component.dart';
+import 'components/fire_hydrant_component.dart';
 import 'components/lightning_flash_component.dart';
 import 'components/grind_rail_component.dart';
 import 'components/hvac_wind_tunnel_component.dart';
@@ -170,6 +171,7 @@ class CourierGame extends FlameGame
   final List<NewsstandComponent> activeNewsstands = [];
   final List<CafeBistroComponent> activeCafeBistros = [];
   final List<StreetBuskerComponent> activeStreetBuskers = [];
+  final List<FireHydrantComponent> activeFireHydrants = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
@@ -740,6 +742,17 @@ class CourierGame extends FlameGame
       world.add(sbComp);
     }
 
+    for (final fh in chunk.fireHydrants) {
+      final fhComp = FireHydrantComponent(
+        position: Vector2(fh.x, fh.y),
+        width: fh.width,
+        height: fh.height,
+        groundY: groundY,
+      );
+      activeFireHydrants.add(fhComp);
+      world.add(fhComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -1013,6 +1026,12 @@ class CourierGame extends FlameGame
     for (final sb in world.children.whereType<StreetBuskerComponent>().toList()) {
       sb.removeFromParent();
     }
+    for (final fh in activeFireHydrants.toList()) {
+      fh.removeFromParent();
+    }
+    for (final fh in world.children.whereType<FireHydrantComponent>().toList()) {
+      fh.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -1042,6 +1061,7 @@ class CourierGame extends FlameGame
     activeNewsstands.clear();
     activeCafeBistros.clear();
     activeStreetBuskers.clear();
+    activeFireHydrants.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
@@ -1131,7 +1151,9 @@ class CourierGame extends FlameGame
     gameState.updateNotorietyTimer(dt);
     gameState.updateCaffeineSurgeTimer(dt);
     gameState.updateUrbanGrooveTimer(dt);
+    gameState.updateHydroplaneTimer(dt);
     player.isBoosted = gameState.isEnergyBoostActive;
+    player.simulator.isHydroplaning = gameState.isHydroplaneActive;
 
     // 0b. Spawn / mount companion delivery drone if active
     if (gameState.isDroneActive && (deliveryDrone == null || !deliveryDrone!.isMounted)) {
@@ -1158,6 +1180,7 @@ class CourierGame extends FlameGame
     // 1. Calculate dynamic scroll speed based on distance (with energy boost, grind surge, and parkour vault surge)
     final speedMultiplier = (gameState.isEnergyBoostActive ? 1.2 : 1.0) *
         (gameState.isCaffeineSurgeActive ? 1.18 : 1.0) *
+        (gameState.isHydroplaneActive ? 1.15 : 1.0) *
         (player.isGrinding ? 1.20 : 1.0) *
         (player.isVaulting ? 1.25 : 1.0) *
         (player.isDrafting ? 1.20 : 1.0);
@@ -1317,6 +1340,9 @@ class CourierGame extends FlameGame
     }
     for (final sb in activeStreetBuskers) {
       sb.position.x -= scrollDelta;
+    }
+    for (final fh in activeFireHydrants) {
+      fh.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -1902,6 +1928,15 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4af. Evaluate Sidewalk Fire Hydrant Spray Traverses
+    for (final fh in activeFireHydrants) {
+      if (!fh.hasTriggered) {
+        if (fh.checkInteraction(player.position, player.size, player.simulator)) {
+          _handleFireHydrantTraverse(fh);
+        }
+      }
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -2145,6 +2180,13 @@ class CourierGame extends FlameGame
     activeStreetBuskers.removeWhere((sb) {
       if (sb.shouldRecycle || sb.isRemoved) {
         if (sb.isMounted) sb.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeFireHydrants.removeWhere((fh) {
+      if (fh.shouldRecycle || fh.isRemoved) {
+        if (fh.isMounted) fh.removeFromParent();
         return true;
       }
       return false;
@@ -3005,6 +3047,36 @@ class CourierGame extends FlameGame
         ParticleEffectComponent.musicalNoteFountain(
           position: busker.saxBellApexWorld,
           count: 28,
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handleFireHydrantTraverse(FireHydrantComponent hydrant) {
+    final event = gameState.recordFireHydrantTraverse();
+    if (event != null) {
+      player.simulator.isHydroplaning = true;
+      audio.playJump();
+      audio.playCourierBark(
+        CourierBarkType.stunt,
+        line: 'Fresh hydrant blast!',
+      );
+      triggerScreenShake(0.14);
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+
+      addEffect(
+        FloatingTextComponent(
+          text: 'HYDROPLANE! $multStr+\$${event.totalTips}',
+          position: Vector2(hydrant.position.x - 10.0, hydrant.hydrantApexWorldY - 32.0),
+          color: const Color(0xFF00E5FF),
+        ),
+      );
+      addEffect(
+        ParticleEffectComponent.hydrantWaterPlume(
+          position: hydrant.sprayApexWorld,
+          count: 32,
         ),
       );
       _evaluateAchievements();
