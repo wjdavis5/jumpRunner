@@ -22,6 +22,7 @@ import 'components/food_cart_component.dart';
 import 'components/food_truck_slick_component.dart';
 import 'components/glass_skylight_component.dart';
 import 'components/flower_kiosk_component.dart';
+import 'components/water_tower_component.dart';
 import 'components/lightning_flash_component.dart';
 import 'components/grind_rail_component.dart';
 import 'components/hvac_wind_tunnel_component.dart';
@@ -162,6 +163,7 @@ class CourierGame extends FlameGame
   final List<AcCondenserComponent> activeAcCondensers = [];
   final List<GlassSkylightComponent> activeGlassSkylights = [];
   final List<FlowerKioskComponent> activeFlowerKiosks = [];
+  final List<WaterTowerComponent> activeWaterTowers = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
@@ -688,6 +690,17 @@ class CourierGame extends FlameGame
       world.add(fkComp);
     }
 
+    for (final wt in chunk.waterTowers) {
+      final wtComp = WaterTowerComponent(
+        position: Vector2(wt.x, wt.y),
+        width: wt.width,
+        height: wt.height,
+        groundY: groundY,
+      );
+      activeWaterTowers.add(wtComp);
+      world.add(wtComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -937,6 +950,12 @@ class CourierGame extends FlameGame
     for (final fk in world.children.whereType<FlowerKioskComponent>().toList()) {
       fk.removeFromParent();
     }
+    for (final wt in activeWaterTowers.toList()) {
+      wt.removeFromParent();
+    }
+    for (final wt in world.children.whereType<WaterTowerComponent>().toList()) {
+      wt.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -962,6 +981,7 @@ class CourierGame extends FlameGame
     activeAcCondensers.clear();
     activeGlassSkylights.clear();
     activeFlowerKiosks.clear();
+    activeWaterTowers.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
@@ -1221,6 +1241,9 @@ class CourierGame extends FlameGame
     }
     for (final fk in activeFlowerKiosks) {
       fk.position.x -= scrollDelta;
+    }
+    for (final wt in activeWaterTowers) {
+      wt.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -1770,6 +1793,15 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4ab. Evaluate Rooftop Wooden Water Tower Platforms & Deluge Launches
+    for (final wt in activeWaterTowers) {
+      if (!wt.hasTriggered) {
+        if (wt.checkTraverse(player.position, player.size, player.simulator)) {
+          _handleWaterTowerTraverse(wt);
+        }
+      }
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -1985,6 +2017,13 @@ class CourierGame extends FlameGame
     activeFlowerKiosks.removeWhere((fk) {
       if (fk.shouldRecycle || fk.isRemoved) {
         if (fk.isMounted) fk.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeWaterTowers.removeWhere((wt) {
+      if (wt.shouldRecycle || wt.isRemoved) {
+        if (wt.isMounted) wt.removeFromParent();
         return true;
       }
       return false;
@@ -2716,6 +2755,48 @@ class CourierGame extends FlameGame
         ParticleEffectComponent.petalBurst(
           position: kiosk.canopyApexWorld,
           count: 22,
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handleWaterTowerTraverse(WaterTowerComponent tower) {
+    final isBreach = tower.isBreached;
+    final event = gameState.recordWaterTowerTraverse(isBreachCascade: isBreach);
+    if (event != null) {
+      if (isBreach) {
+        audio.playMilestone();
+        audio.playCourierBark(
+          CourierBarkType.stunt,
+          line: 'Deluge unleashed!',
+        );
+        triggerScreenShake(0.25);
+      } else {
+        audio.playJump();
+        audio.playCourierBark(
+          CourierBarkType.stunt,
+          line: 'Catwalk launch!',
+        );
+        triggerScreenShake(0.14);
+        player.startGlide();
+      }
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+      final title = isBreach ? 'WATER TOWER BREACH!' : 'CATWALK LAUNCH!';
+      final textColor = isBreach ? const Color(0xFF00E5FF) : const Color(0xFF26A69A);
+
+      addEffect(
+        FloatingTextComponent(
+          text: '$title $multStr+\$${event.totalTips}',
+          position: Vector2(player.position.x - 15.0, player.position.y - 35.0),
+          color: textColor,
+        ),
+      );
+      addEffect(
+        ParticleEffectComponent.waterTowerDeluge(
+          position: isBreach ? tower.breachWorldPosition : tower.apexWorldPosition,
+          count: isBreach ? 32 : 18,
         ),
       );
       _evaluateAchievements();

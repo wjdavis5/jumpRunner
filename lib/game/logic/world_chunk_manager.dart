@@ -432,6 +432,21 @@ class FlowerKioskData {
   final double height;
 }
 
+/// Data model for an elevated rooftop wooden water tower.
+class WaterTowerData {
+  const WaterTowerData({
+    required this.x,
+    required this.y,
+    this.width = 86.0,
+    this.height = 110.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -461,6 +476,7 @@ class ChunkData {
     this.acCondensers = const [],
     this.glassSkylights = const [],
     this.flowerKiosks = const [],
+    this.waterTowers = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -490,6 +506,7 @@ class ChunkData {
   final List<AcCondenserData> acCondensers;
   final List<GlassSkylightData> glassSkylights;
   final List<FlowerKioskData> flowerKiosks;
+  final List<WaterTowerData> waterTowers;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -1612,6 +1629,55 @@ class WorldChunkManager {
       }
     }
 
+    final List<WaterTowerData> waterTowers = [];
+    if (distanceMeters >= 120.0 &&
+        _random.nextDouble() < 0.26 &&
+        subwayStations.isEmpty &&
+        scaffoldings.isEmpty) {
+      const towerWidth = 86.0;
+      const towerHeight = 110.0;
+      for (var offset = 140.0; offset <= chunkWidth - 220.0; offset += 60.0) {
+        final wtX = startX + offset;
+        final isClear = obstacles.every(
+          (o) => (wtX + towerWidth < o.x - 30.0) || (wtX > o.x + o.width + 30.0),
+        ) && foodCarts.every(
+          (fc) => (wtX + towerWidth < fc.x - 30.0) || (wtX > fc.x + fc.width + 30.0),
+        ) && crosswalks.every(
+          (cw) => (wtX + towerWidth < cw.x - 20.0) || (wtX > cw.x + cw.width + 20.0),
+        ) && turnstiles.every(
+          (t) => (wtX + towerWidth < t.x - 20.0) || (wtX > t.x + t.width + 20.0),
+        ) && fireEscapes.every(
+          (fe) => (wtX + towerWidth < fe.x - 20.0) || (wtX > fe.x + fe.width + 20.0),
+        ) && foodTruckSlicks.every(
+          (fts) => (wtX + towerWidth < fts.x - 30.0) || (wtX > fts.x + fts.width + 30.0),
+        ) && barricades.every(
+          (b) => (wtX + towerWidth < b.x - 30.0) || (wtX > b.x + b.width + 30.0),
+        ) && satelliteDishes.every(
+          (sd) => (wtX + towerWidth < sd.x - 30.0) || (wtX > sd.x + sd.width + 30.0),
+        ) && postalMailboxes.every(
+          (mb) => (wtX + towerWidth < mb.x - 30.0) || (wtX > mb.x + mb.width + 30.0),
+        ) && acCondensers.every(
+          (ac) => (wtX + towerWidth < ac.x - 30.0) || (wtX > ac.x + ac.width + 30.0),
+        ) && glassSkylights.every(
+          (gs) => (wtX + towerWidth < gs.x - 30.0) || (wtX > gs.x + gs.width + 30.0),
+        ) && flowerKiosks.every(
+          (fk) => (wtX + towerWidth < fk.x - 30.0) || (wtX > fk.x + fk.width + 30.0),
+        );
+
+        if (isClear) {
+          waterTowers.add(
+            WaterTowerData(
+              x: wtX,
+              y: groundY - towerHeight,
+              width: towerWidth,
+              height: towerHeight,
+            ),
+          );
+          break;
+        }
+      }
+    }
+
     return ChunkData(
       obstacles: obstacles,
       pickups: pickups,
@@ -1640,6 +1706,7 @@ class WorldChunkManager {
       acCondensers: acCondensers,
       glassSkylights: glassSkylights,
       flowerKiosks: flowerKiosks,
+      waterTowers: waterTowers,
     );
   }
 }
