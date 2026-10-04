@@ -254,6 +254,46 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Factory for hot dog / taco food cart umbrella bounce spice cloud puffs (chili, paprika, turmeric, cumin).
+  factory ParticleEffectComponent.spiceCloud({
+    required Vector2 position,
+    int count = 16,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFFE74C3C), // Chili red
+      Color(0xFFD35400), // Smoked paprika
+      Color(0xFFFF9800), // Cayenne orange
+      Color(0xFFF1C40F), // Turmeric gold
+      Color(0xFFFFE082), // Cumin dust
+    ];
+
+    for (var i = 0; i < count; i++) {
+      // Fan radial outward with upward bias
+      final angle = -math.pi / 2 + (rng.nextDouble() - 0.5) * 1.8;
+      final speed = 50.0 + rng.nextDouble() * 110.0;
+      final velocity = Vector2(math.cos(angle) * speed, math.sin(angle) * speed);
+
+      particles.add(
+        GameParticle(
+          position: position.clone() +
+              Vector2((rng.nextDouble() - 0.5) * 16.0, (rng.nextDouble() - 0.5) * 6.0),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 2.5 + rng.nextDouble() * 2.8,
+          maxLife: 0.45 + rng.nextDouble() * 0.3,
+          gravity: 80.0, // Soft floating drift
+          drag: 1.4, // Air resistance dispersing the dust cloud
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.

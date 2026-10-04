@@ -13,6 +13,7 @@ import 'components/cyclist_companion_component.dart';
 import 'components/delivery_drone_component.dart';
 import 'components/drop_zone_component.dart';
 import 'components/floating_text_component.dart';
+import 'components/food_cart_component.dart';
 import 'components/grind_rail_component.dart';
 import 'components/obstacle_component.dart';
 import 'components/parallax_city.dart';
@@ -129,6 +130,7 @@ class CourierGame extends FlameGame
   final List<CyclistCompanionComponent> activeCyclists = [];
   final List<PigeonFlockComponent> activePigeonFlocks = [];
   final List<CrosswalkZoneComponent> activeCrosswalks = [];
+  final List<FoodCartComponent> activeFoodCarts = [];
   ObstacleComponent? _currentVaultTarget;
   double cameraTargetY = 270.0;
   double _grindSparkTimer = 0.0;
@@ -182,6 +184,11 @@ class CourierGame extends FlameGame
   /// Spawns pigeon flock panic flutter feather bursts.
   void spawnFeathers(Vector2 pos, {int count = 12}) {
     addEffect(ParticleEffectComponent.feathers(position: pos, count: count));
+  }
+
+  /// Spawns food cart umbrella bounce spice cloud puffs (chili, paprika, turmeric, cumin).
+  void spawnSpiceCloud(Vector2 pos, {int count = 16}) {
+    addEffect(ParticleEffectComponent.spiceCloud(position: pos, count: count));
   }
 
   /// Spawns celebratory shift milestone confetti fireworks.
@@ -470,6 +477,18 @@ class CourierGame extends FlameGame
       world.add(crosswalkComp);
     }
 
+    for (final fc in chunk.foodCarts) {
+      final cartComp = FoodCartComponent(
+        position: Vector2(fc.x, fc.y),
+        width: fc.width,
+        height: fc.height,
+        groundY: groundY,
+        bounceImpulse: fc.bounceImpulse,
+      );
+      activeFoodCarts.add(cartComp);
+      world.add(cartComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -629,6 +648,12 @@ class CourierGame extends FlameGame
     for (final cw in world.children.whereType<CrosswalkZoneComponent>().toList()) {
       cw.removeFromParent();
     }
+    for (final fc in activeFoodCarts.toList()) {
+      fc.removeFromParent();
+    }
+    for (final fc in world.children.whereType<FoodCartComponent>().toList()) {
+      fc.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -639,6 +664,7 @@ class CourierGame extends FlameGame
     activeCyclists.clear();
     activePigeonFlocks.clear();
     activeCrosswalks.clear();
+    activeFoodCarts.clear();
     cameraTargetY = virtualResolution.y / 2;
     player.endGrinding();
     player.stopGlide();
@@ -841,6 +867,9 @@ class CourierGame extends FlameGame
     }
     for (final cw in activeCrosswalks) {
       cw.position.x -= scrollDelta;
+    }
+    for (final fc in activeFoodCarts) {
+      fc.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -1187,6 +1216,13 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4n. Evaluate Street Food Cart Umbrella Bounce Cushions
+    for (final fc in activeFoodCarts) {
+      if (fc.checkBounce(player.position, player.size, player.simulator)) {
+        _handleFoodCartBounce(fc);
+      }
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -1297,6 +1333,13 @@ class CourierGame extends FlameGame
     activeCrosswalks.removeWhere((cw) {
       if (cw.shouldRecycle || cw.isRemoved) {
         if (cw.isMounted) cw.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeFoodCarts.removeWhere((fc) {
+      if (fc.shouldRecycle || fc.isRemoved) {
+        if (fc.isMounted) fc.removeFromParent();
         return true;
       }
       return false;
@@ -1574,6 +1617,25 @@ class CourierGame extends FlameGame
           text: 'HIGH FIVE! $multStr+\$${event.totalTips}',
           position: Vector2(player.position.x - 10.0, player.position.y - 35.0),
           color: const Color(0xFFFFD700),
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handleFoodCartBounce(FoodCartComponent fc) {
+    final event = gameState.recordFoodCartBounce();
+    if (event != null) {
+      audio.playJump();
+      audio.playCourierBark(CourierBarkType.stunt, line: 'Spicy bounce!');
+      triggerScreenShake(0.20);
+      spawnSpiceCloud(fc.umbrellaApexWorld, count: 18);
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+      addEffect(
+        FloatingTextComponent(
+          text: 'SPICY BOUNCE! $multStr+\$${event.totalTips}',
+          position: Vector2(player.position.x - 10.0, player.position.y - 35.0),
+          color: const Color(0xFFFF9800),
         ),
       );
       _evaluateAchievements();

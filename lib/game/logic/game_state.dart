@@ -342,6 +342,28 @@ class HighFiveEvent {
   final int stuntStreak;
 }
 
+/// Event dispatched when bouncing atop a street food cart's striped canvas umbrella cushion.
+class FoodCartBounceEvent {
+  const FoodCartBounceEvent({
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.stuntStreak,
+  });
+
+  /// Base tip value before stunt combo scaling ($25).
+  final int baseTips;
+
+  /// Total tip amount awarded after active combo multipliers.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this bounce.
+  final double multiplier;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -503,6 +525,9 @@ class GameState extends ChangeNotifier {
   /// Total crosswalk sprint-by pedestrian high-fives executed in current run.
   int highFivesInRun = 0;
 
+  /// Total street food cart umbrella bounce cushion leaps executed in current run.
+  int foodCartBouncesInRun = 0;
+
   /// Total seconds spent drafting behind companion cyclists in current run.
   double totalDraftDurationInRun = 0.0;
 
@@ -531,6 +556,7 @@ class GameState extends ChangeNotifier {
   ValueChanged<DraftSlingshotEvent>? onBikeDraftSlingshot;
   ValueChanged<FlockScatterEvent>? onPigeonScatter;
   ValueChanged<HighFiveEvent>? onHighFive;
+  ValueChanged<FoodCartBounceEvent>? onFoodCartBounce;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -571,6 +597,7 @@ class GameState extends ChangeNotifier {
     bikeDraftSlingshotsInRun = 0;
     pigeonScattersInRun = 0;
     highFivesInRun = 0;
+    foodCartBouncesInRun = 0;
     totalDraftDurationInRun = 0.0;
     isDrafting = false;
     status = GameStatus.running;
@@ -1170,6 +1197,37 @@ class GameState extends ChangeNotifier {
     );
 
     onHighFive?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records bouncing atop a street food cart's striped canvas umbrella cushion,
+  /// awarding base tips scaled by combo multipliers and advancing the stunt streak.
+  FoodCartBounceEvent? recordFoodCartBounce({int baseTips = 25}) {
+    if (status != GameStatus.running) return null;
+
+    foodCartBouncesInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    final baseAward = (baseTips * stuntMultiplier).round();
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? baseAward * 2
+        : baseAward;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = FoodCartBounceEvent(
+      baseTips: baseTips,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+      stuntStreak: stuntStreak,
+    );
+
+    onFoodCartBounce?.call(event);
     notifyListeners();
     return event;
   }

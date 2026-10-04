@@ -193,6 +193,23 @@ class CrosswalkData {
   final int signalCountdown;
 }
 
+/// Data model for a street food vendor cart with umbrella bounce cushion.
+class FoodCartData {
+  const FoodCartData({
+    required this.x,
+    required this.y,
+    this.width = 88.0,
+    this.height = 78.0,
+    this.bounceImpulse = 400.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+  final double bounceImpulse;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -207,6 +224,7 @@ class ChunkData {
     this.cyclists = const [],
     this.pigeonFlocks = const [],
     this.crosswalks = const [],
+    this.foodCarts = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -221,6 +239,7 @@ class ChunkData {
   final List<CyclistData> cyclists;
   final List<PigeonFlockData> pigeonFlocks;
   final List<CrosswalkData> crosswalks;
+  final List<FoodCartData> foodCarts;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -736,6 +755,35 @@ class WorldChunkManager {
       }
     }
 
+    final List<FoodCartData> foodCarts = [];
+
+    // Street Food Vendor Carts (after 60m, on street outside subway stations and scaffolding)
+    if (distanceMeters >= 60.0 &&
+        _random.nextDouble() < 0.35 &&
+        subwayStations.isEmpty &&
+        scaffoldings.isEmpty &&
+        crosswalks.isEmpty) {
+      const cartWidth = 88.0;
+      for (var offset = 100.0; offset <= chunkWidth - 180.0; offset += 50.0) {
+        final fcX = startX + offset;
+        final isClear = obstacles.every(
+          (o) => (fcX + cartWidth < o.x - 30.0) || (fcX > o.x + o.width + 30.0),
+        );
+        if (isClear) {
+          foodCarts.add(
+            FoodCartData(
+              x: fcX,
+              y: groundY - 78.0,
+              width: cartWidth,
+              height: 78.0,
+              bounceImpulse: 400.0,
+            ),
+          );
+          break;
+        }
+      }
+    }
+
     return ChunkData(
       obstacles: obstacles,
       pickups: pickups,
@@ -749,6 +797,7 @@ class WorldChunkManager {
       cyclists: cyclists,
       pigeonFlocks: pigeonFlocks,
       crosswalks: crosswalks,
+      foodCarts: foodCarts,
     );
   }
 }
