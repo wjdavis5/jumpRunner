@@ -417,6 +417,21 @@ class GlassSkylightData {
   final double height;
 }
 
+/// Data model for a sidewalk flower vendor kiosk.
+class FlowerKioskData {
+  const FlowerKioskData({
+    required this.x,
+    required this.y,
+    this.width = 68.0,
+    this.height = 58.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -445,6 +460,7 @@ class ChunkData {
     this.postalMailboxes = const [],
     this.acCondensers = const [],
     this.glassSkylights = const [],
+    this.flowerKiosks = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -473,6 +489,7 @@ class ChunkData {
   final List<PostalMailboxData> postalMailboxes;
   final List<AcCondenserData> acCondensers;
   final List<GlassSkylightData> glassSkylights;
+  final List<FlowerKioskData> flowerKiosks;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -1541,6 +1558,60 @@ class WorldChunkManager {
       }
     }
 
+    final List<FlowerKioskData> flowerKiosks = [];
+    if (startX > 80.0 && _random.nextDouble() < 0.28) {
+      const kioskWidth = 68.0;
+      const kioskHeight = 58.0;
+      for (var attempt = 0; attempt < 8; attempt++) {
+        final fkX = startX + 120.0 + _random.nextDouble() * (chunkWidth - 260.0);
+        final isClear = obstacles.every(
+          (o) => (fkX + kioskWidth < o.x - 30.0) || (fkX > o.x + o.width + 30.0),
+        ) && foodCarts.every(
+          (fc) => (fkX + kioskWidth < fc.x - 30.0) || (fkX > fc.x + fc.width + 30.0),
+        ) && subwayStations.every(
+          (s) => (fkX + kioskWidth < s.x - 30.0) || (fkX > s.x + s.width + 30.0),
+        ) && crosswalks.every(
+          (cw) => (fkX + kioskWidth < cw.x - 20.0) || (fkX > cw.x + cw.width + 20.0),
+        ) && stormDrains.every(
+          (sd) => (fkX + kioskWidth < sd.x - 20.0) || (fkX > sd.x + sd.width + 20.0),
+        ) && solarPanels.every(
+          (sp) => (fkX + kioskWidth < sp.x - 20.0) || (fkX > sp.x + sp.width + 20.0),
+        ) && puddles.every(
+          (p) => (fkX + kioskWidth < p.x - 20.0) || (fkX > p.x + p.width + 20.0),
+        ) && windTunnels.every(
+          (wt) => (fkX + kioskWidth < wt.x - 20.0) || (fkX > wt.x + wt.housingWidth + 20.0),
+        ) && turnstiles.every(
+          (t) => (fkX + kioskWidth < t.x - 20.0) || (fkX > t.x + t.width + 20.0),
+        ) && fireEscapes.every(
+          (fe) => (fkX + kioskWidth < fe.x - 20.0) || (fkX > fe.x + fe.width + 20.0),
+        ) && foodTruckSlicks.every(
+          (fts) => (fkX + kioskWidth < fts.x - 30.0) || (fkX > fts.x + fts.width + 30.0),
+        ) && barricades.every(
+          (b) => (fkX + kioskWidth < b.x - 30.0) || (fkX > b.x + b.width + 30.0),
+        ) && satelliteDishes.every(
+          (sd) => (fkX + kioskWidth < sd.x - 30.0) || (fkX > sd.x + sd.width + 30.0),
+        ) && postalMailboxes.every(
+          (mb) => (fkX + kioskWidth < mb.x - 30.0) || (fkX > mb.x + mb.width + 30.0),
+        ) && acCondensers.every(
+          (ac) => (fkX + kioskWidth < ac.x - 30.0) || (fkX > ac.x + ac.width + 30.0),
+        ) && glassSkylights.every(
+          (gs) => (fkX + kioskWidth < gs.x - 30.0) || (fkX > gs.x + gs.width + 30.0),
+        );
+
+        if (isClear) {
+          flowerKiosks.add(
+            FlowerKioskData(
+              x: fkX,
+              y: groundY - kioskHeight,
+              width: kioskWidth,
+              height: kioskHeight,
+            ),
+          );
+          break;
+        }
+      }
+    }
+
     return ChunkData(
       obstacles: obstacles,
       pickups: pickups,
@@ -1568,6 +1639,7 @@ class WorldChunkManager {
       postalMailboxes: postalMailboxes,
       acCondensers: acCondensers,
       glassSkylights: glassSkylights,
+      flowerKiosks: flowerKiosks,
     );
   }
 }

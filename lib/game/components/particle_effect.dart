@@ -761,6 +761,50 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Generates swirling multi-colored floral petals, tulip blossoms, and botanical flecks
+  /// erupting from a sidewalk flower vendor kiosk hurdle vault.
+  factory ParticleEffectComponent.petalBurst({
+    required Vector2 position,
+    int count = 22,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFFE91E63), // Vibrant crimson tulip red
+      Color(0xFFFF4081), // Blush rose pink
+      Color(0xFFFFD54F), // Sunflower golden yellow
+      Color(0xFFFF7043), // Marigold orange
+      Color(0xFFAB47BC), // Lavender violet purple
+      Color(0xFF66BB6A), // Fresh botanical leaf green
+    ];
+
+    for (var i = 0; i < count; i++) {
+      final angle = (rng.nextDouble() * math.pi) + math.pi; // Upward fanning hemisphere
+      final speed = 80.0 + rng.nextDouble() * 160.0;
+      final velocity = Vector2(
+        math.cos(angle) * speed,
+        math.sin(angle) * speed * 0.85 - 50.0,
+      );
+
+      particles.add(
+        GameParticle(
+          position: position.clone() +
+              Vector2((rng.nextDouble() - 0.5) * 16.0, (rng.nextDouble() - 0.5) * 8.0),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 2.2 + rng.nextDouble() * 2.4,
+          maxLife: 0.55 + rng.nextDouble() * 0.40,
+          gravity: 80.0,
+          drag: 0.88,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.
