@@ -338,6 +338,21 @@ class FoodTruckSlickData {
   final double height;
 }
 
+/// Data model for a street construction sawhorse barricade.
+class BarricadeSawhorseData {
+  const BarricadeSawhorseData({
+    required this.x,
+    required this.y,
+    this.width = 68.0,
+    this.height = 44.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -361,6 +376,7 @@ class ChunkData {
     this.droneCargos = const [],
     this.fireEscapes = const [],
     this.foodTruckSlicks = const [],
+    this.barricades = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -384,6 +400,7 @@ class ChunkData {
   final List<DroneCargoData> droneCargos;
   final List<FireEscapeData> fireEscapes;
   final List<FoodTruckSlickData> foodTruckSlicks;
+  final List<BarricadeSawhorseData> barricades;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -1231,6 +1248,41 @@ class WorldChunkManager {
       }
     }
 
+    final List<BarricadeSawhorseData> barricades = [];
+
+    // Street Construction Sawhorse Barricade (after 70m, outside subway stations, food trucks, and scaffolding)
+    if (distanceMeters >= 70.0 &&
+        _random.nextDouble() < 0.35 &&
+        subwayStations.isEmpty &&
+        scaffoldings.isEmpty) {
+      const barricadeWidth = 68.0;
+      for (var offset = 80.0; offset <= chunkWidth - 140.0; offset += 50.0) {
+        final bX = startX + offset;
+        final isClear = obstacles.every(
+          (o) => (bX + barricadeWidth < o.x - 30.0) || (bX > o.x + o.width + 30.0),
+        ) && crosswalks.every(
+          (cw) => (bX + barricadeWidth < cw.x - 20.0) || (bX > cw.x + cw.width + 20.0),
+        ) && turnstiles.every(
+          (t) => (bX + barricadeWidth < t.x - 20.0) || (bX > t.x + t.width + 20.0),
+        ) && fireEscapes.every(
+          (fe) => (bX + barricadeWidth < fe.x - 20.0) || (bX > fe.x + fe.width + 20.0),
+        ) && foodTruckSlicks.every(
+          (fts) => (bX + barricadeWidth < fts.x - 30.0) || (bX > fts.x + fts.width + 30.0),
+        );
+        if (isClear) {
+          barricades.add(
+            BarricadeSawhorseData(
+              x: bX,
+              y: groundY - 44.0,
+              width: barricadeWidth,
+              height: 44.0,
+            ),
+          );
+          break;
+        }
+      }
+    }
+
     return ChunkData(
       obstacles: obstacles,
       pickups: pickups,
@@ -1253,6 +1305,7 @@ class WorldChunkManager {
       droneCargos: droneCargos,
       fireEscapes: fireEscapes,
       foodTruckSlicks: foodTruckSlicks,
+      barricades: barricades,
     );
   }
 }

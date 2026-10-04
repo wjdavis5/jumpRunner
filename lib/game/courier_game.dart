@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import 'audio_controller.dart';
 import '../services/storage_service.dart';
+import 'components/barricade_sawhorse_component.dart';
 import 'components/courier_player.dart';
 import 'components/crane_swing_component.dart';
 import 'components/crosswalk_zone_component.dart';
@@ -148,6 +149,7 @@ class CourierGame extends FlameGame
   final List<DroneCargoComponent> activeDroneCargos = [];
   final List<FireEscapeLadderComponent> activeFireEscapes = [];
   final List<FoodTruckSlickComponent> activeFoodTruckSlicks = [];
+  final List<BarricadeSawhorseComponent> activeBarricades = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
@@ -598,6 +600,17 @@ class CourierGame extends FlameGame
       world.add(ftsComp);
     }
 
+    for (final b in chunk.barricades) {
+      final bComp = BarricadeSawhorseComponent(
+        position: Vector2(b.x, b.y),
+        width: b.width,
+        height: b.height,
+        groundY: groundY,
+      );
+      activeBarricades.add(bComp);
+      world.add(bComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -811,6 +824,12 @@ class CourierGame extends FlameGame
     for (final fts in world.children.whereType<FoodTruckSlickComponent>().toList()) {
       fts.removeFromParent();
     }
+    for (final b in activeBarricades.toList()) {
+      b.removeFromParent();
+    }
+    for (final b in world.children.whereType<BarricadeSawhorseComponent>().toList()) {
+      b.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -830,6 +849,7 @@ class CourierGame extends FlameGame
     activeDroneCargos.clear();
     activeFireEscapes.clear();
     activeFoodTruckSlicks.clear();
+    activeBarricades.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
@@ -1063,6 +1083,9 @@ class CourierGame extends FlameGame
     }
     for (final fts in activeFoodTruckSlicks) {
       fts.position.x -= scrollDelta;
+    }
+    for (final b in activeBarricades) {
+      b.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -1558,6 +1581,15 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4v. Evaluate Street Construction Barricade Sawhorse Hurdle Vaults
+    for (final b in activeBarricades) {
+      if (!b.hasVaulted) {
+        if (b.checkVault(player.position, player.size, player.simulator)) {
+          _handleBarricadeVault(b);
+        }
+      }
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -1731,6 +1763,13 @@ class CourierGame extends FlameGame
     activeFoodTruckSlicks.removeWhere((fts) {
       if (fts.shouldRecycle || fts.isRemoved) {
         if (fts.isMounted) fts.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeBarricades.removeWhere((b) {
+      if (b.shouldRecycle || b.isRemoved) {
+        if (b.isMounted) b.removeFromParent();
         return true;
       }
       return false;
@@ -2286,6 +2325,35 @@ class CourierGame extends FlameGame
       addEffect(
         ParticleEffectComponent.greaseSpray(
           position: foodTruck.slickCenterWorldPosition,
+          count: 18,
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handleBarricadeVault(BarricadeSawhorseComponent barricade) {
+    final event = gameState.recordBarricadeVault();
+    if (event != null) {
+      audio.playCoin();
+      audio.playCourierBark(
+        CourierBarkType.stunt,
+        line: 'Clear over the sawhorse!',
+      );
+      triggerScreenShake(0.10);
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+
+      addEffect(
+        FloatingTextComponent(
+          text: 'BARRICADE VAULT! $multStr+\$${event.totalTips}',
+          position: Vector2(player.position.x - 15.0, player.position.y - 35.0),
+          color: const Color(0xFFFF6D00),
+        ),
+      );
+      addEffect(
+        ParticleEffectComponent.sawhorseSparks(
+          position: barricade.flasherWorldPosition,
           count: 18,
         ),
       );

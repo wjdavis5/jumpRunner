@@ -556,6 +556,28 @@ class FoodTruckDriftEvent {
   final int stuntStreak;
 }
 
+/// Event dispatched when hurdle-vaulting over a street construction sawhorse barricade.
+class BarricadeVaultEvent {
+  const BarricadeVaultEvent({
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.stuntStreak,
+  });
+
+  /// Base tip value before stunt combo scaling ($20).
+  final int baseTips;
+
+  /// Total tip amount awarded after active combo multipliers.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this event.
+  final double multiplier;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -744,6 +766,9 @@ class GameState extends ChangeNotifier {
   /// Total street food truck grease slick drift slides performed in current run.
   int foodTruckDriftsInRun = 0;
 
+  /// Total street construction sawhorse barricade hurdle vaults performed in current run.
+  int barricadeVaultsInRun = 0;
+
   /// Total seconds spent drafting behind companion cyclists in current run.
   double totalDraftDurationInRun = 0.0;
 
@@ -781,6 +806,7 @@ class GameState extends ChangeNotifier {
   ValueChanged<DroneCatchEvent>? onDroneCatch;
   ValueChanged<FireEscapeEvent>? onFireEscapeDrop;
   ValueChanged<FoodTruckDriftEvent>? onFoodTruckDrift;
+  ValueChanged<BarricadeVaultEvent>? onBarricadeVault;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -830,6 +856,7 @@ class GameState extends ChangeNotifier {
     droneCatchesInRun = 0;
     fireEscapeDropsInRun = 0;
     foodTruckDriftsInRun = 0;
+    barricadeVaultsInRun = 0;
     totalDraftDurationInRun = 0.0;
     isDrafting = false;
     status = GameStatus.running;
@@ -1725,6 +1752,38 @@ class GameState extends ChangeNotifier {
     );
 
     onFoodTruckDrift?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records a clean hurdle vault over a street construction sawhorse barricade,
+  /// awarding base tips ($20) scaled by combo multipliers, advancing the stunt streak,
+  /// and resetting the stunt streak timer.
+  BarricadeVaultEvent? recordBarricadeVault({int baseTips = 20}) {
+    if (status != GameStatus.running) return null;
+
+    barricadeVaultsInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    final baseAward = (baseTips * stuntMultiplier).round();
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? baseAward * 2
+        : baseAward;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = BarricadeVaultEvent(
+      baseTips: baseTips,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+      stuntStreak: stuntStreak,
+    );
+
+    onBarricadeVault?.call(event);
     notifyListeners();
     return event;
   }
