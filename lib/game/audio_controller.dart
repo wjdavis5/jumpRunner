@@ -168,6 +168,7 @@ class GameAudioController {
   static const String sfxFumble = 'sfx/fumble.ogg';
   static const String sfxMilestone = 'sfx/milestone.ogg';
   static const String sfxRainAmbience = 'sfx/rain_ambience.ogg';
+  static const String sfxThunder = 'sfx/thunder.ogg';
   static const String sfxBarkStunt = 'sfx/bark_stunt.ogg';
   static const String sfxBarkNearMiss = 'sfx/bark_near_miss.ogg';
   static const String sfxBarkDamage = 'sfx/bark_damage.ogg';
@@ -440,6 +441,13 @@ class GameAudioController {
     attemptedPlays.add(sfxMilestone);
     duckForMilestone(duration: duckDuration);
     await _backend.playSfx(sfxMilestone, volume: 1.0);
+  }
+
+  /// Plays rolling thunderstorm rumble audio.
+  Future<void> playThunder({double volume = 0.85}) async {
+    if (isMuted) return;
+    attemptedPlays.add(sfxThunder);
+    await _backend.playSfx(sfxThunder, volume: volume);
   }
 
   /// Starts looping background music track.

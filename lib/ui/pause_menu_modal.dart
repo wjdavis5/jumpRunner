@@ -9,11 +9,15 @@ class PauseMenuModal extends StatelessWidget {
     required this.gameState,
     required this.onResume,
     required this.onQuit,
+    this.isReduceFlash = false,
+    this.onToggleReduceFlash,
   });
 
   final GameState gameState;
   final VoidCallback onResume;
   final VoidCallback onQuit;
+  final bool isReduceFlash;
+  final ValueChanged<bool>? onToggleReduceFlash;
 
   @override
   Widget build(BuildContext context) {
@@ -78,7 +82,50 @@ class PauseMenuModal extends StatelessWidget {
               ],
             ),
 
-            const SizedBox(height: 20),
+            // Photosensitivity flash reduction toggle
+            InkWell(
+              key: const Key('reduce_flash_toggle'),
+              onTap: () => onToggleReduceFlash?.call(!isReduceFlash),
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isReduceFlash ? const Color(0xFF00E5FF) : Colors.white12,
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      isReduceFlash ? Icons.flash_off : Icons.flash_on,
+                      size: 18,
+                      color: isReduceFlash ? const Color(0xFF00E5FF) : Colors.white70,
+                    ),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Reduce Lightning Flash',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    Switch(
+                      value: isReduceFlash,
+                      activeThumbColor: const Color(0xFF00E5FF),
+                      onChanged: onToggleReduceFlash,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
 
             // Resume Button
             SizedBox(
