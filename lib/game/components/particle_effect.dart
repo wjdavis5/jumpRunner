@@ -294,6 +294,46 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Factory for kinetic rooftop solar panel slide and electric surge spark bursts.
+  factory ParticleEffectComponent.electricSparks({
+    required Vector2 position,
+    int count = 12,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFF00E5FF), // Electric cyan
+      Color(0xFF18FFFF), // Neon bright cyan
+      Color(0xFFFFD700), // Voltage gold
+      Color(0xFFFFF176), // Bright voltage yellow
+      Color(0xFFFFFFFF), // Lightning white
+    ];
+
+    for (var i = 0; i < count; i++) {
+      // Erratic multidirectional dispersion with slight upward bias
+      final angle = -math.pi / 2 + (rng.nextDouble() - 0.5) * 2.8;
+      final speed = 80.0 + rng.nextDouble() * 160.0;
+      final velocity = Vector2(math.cos(angle) * speed, math.sin(angle) * speed);
+
+      particles.add(
+        GameParticle(
+          position: position.clone() +
+              Vector2((rng.nextDouble() - 0.5) * 8.0, (rng.nextDouble() - 0.5) * 4.0),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 1.8 + rng.nextDouble() * 2.2,
+          maxLife: 0.22 + rng.nextDouble() * 0.18,
+          gravity: 60.0,
+          drag: 1.5,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.
