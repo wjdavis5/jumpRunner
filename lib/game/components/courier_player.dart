@@ -152,14 +152,14 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   /// If initiated while grinding, executes a high-pop Rail Ollie combo jump.
   /// If initiated while grounded near a low vaultable obstacle, executes an agile parkour vault.
   /// If initiated while airborne, toggles the delivery glide chute.
-  bool jump() {
+  bool jump({double impulseMultiplier = 1.0}) {
     if (state == CourierState.swinging) {
       return releaseCraneSwing();
     }
 
     if (state == CourierState.grinding) {
       state = CourierState.jumping;
-      simulator.launch(340.0);
+      simulator.launch(340.0 * impulseMultiplier);
       onJump?.call();
       onRailOllie?.call();
       return true;
@@ -174,13 +174,13 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
     if (isDrafting && simulator.isGrounded) {
       isDrafting = false;
       state = CourierState.jumping;
-      simulator.launch(360.0);
+      simulator.launch(360.0 * impulseMultiplier);
       onJump?.call();
       onDraftSlingshot?.call();
       return true;
     }
 
-    if (simulator.startJump()) {
+    if (simulator.startJump(impulseMultiplier: impulseMultiplier)) {
       state = CourierState.jumping;
       onJump?.call();
       return true;
