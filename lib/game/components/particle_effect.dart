@@ -492,6 +492,44 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Friction sparks and brick mortar particles when grabbing and dropping a metal fire escape ladder.
+  factory ParticleEffectComponent.fireEscapeSparks({
+    required Vector2 position,
+    int count = 18,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFFFFD54F), // Friction spark yellow
+      Color(0xFFFF9800), // Hot iron amber
+      Color(0xFFFFFFFF), // Specular white hot spark
+      Color(0xFFD84315), // Brick red terracotta dust
+      Color(0xFF795548), // Brownstone mortar flake
+      Color(0xFF455A64), // Cast-iron rust flake
+    ];
+
+    for (var i = 0; i < count; i++) {
+      final vx = (rng.nextDouble() - 0.4) * 220.0;
+      final vy = -40.0 + rng.nextDouble() * 180.0;
+
+      particles.add(
+        GameParticle(
+          position: position.clone(),
+          velocity: Vector2(vx, vy),
+          color: palette[rng.nextInt(palette.length)],
+          radius: 1.8 + rng.nextDouble() * 2.4,
+          maxLife: 0.4 + rng.nextDouble() * 0.35,
+          gravity: 280.0,
+          drag: 0.88,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.

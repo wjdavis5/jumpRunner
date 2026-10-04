@@ -306,6 +306,23 @@ class DroneCargoData {
   final double relativeSpeed;
 }
 
+/// Data model for an apartment building facade fire escape with drop ladder.
+class FireEscapeData {
+  const FireEscapeData({
+    required this.x,
+    required this.y,
+    this.width = 84.0,
+    this.height = 140.0,
+    this.launchImpulse = 420.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+  final double launchImpulse;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -327,6 +344,7 @@ class ChunkData {
     this.windTunnels = const [],
     this.turnstiles = const [],
     this.droneCargos = const [],
+    this.fireEscapes = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -348,6 +366,7 @@ class ChunkData {
   final List<HvacWindTunnelData> windTunnels;
   final List<SubwayTurnstileData> turnstiles;
   final List<DroneCargoData> droneCargos;
+  final List<FireEscapeData> fireEscapes;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -1126,6 +1145,41 @@ class WorldChunkManager {
       );
     }
 
+    final List<FireEscapeData> fireEscapes = [];
+
+    // Building Facade Fire Escape Ladders (after 130m, outside scaffolding, subway, crane)
+    if (distanceMeters >= 130.0 &&
+        _random.nextDouble() < 0.35 &&
+        scaffoldings.isEmpty &&
+        subwayStations.isEmpty &&
+        craneSwings.isEmpty) {
+      const escapeWidth = 84.0;
+      for (var offset = 120.0; offset <= chunkWidth - 180.0; offset += 50.0) {
+        final feX = startX + offset;
+        final isClear = obstacles.every(
+          (o) => (feX + escapeWidth < o.x - 25.0) || (feX > o.x + o.width + 25.0),
+        ) && crosswalks.every(
+          (cw) => (feX + escapeWidth < cw.x - 20.0) || (feX > cw.x + cw.width + 20.0),
+        ) && foodCarts.every(
+          (fc) => (feX + escapeWidth < fc.x - 20.0) || (feX > fc.x + fc.width + 20.0),
+        ) && turnstiles.every(
+          (t) => (feX + escapeWidth < t.x - 20.0) || (feX > t.x + t.width + 20.0),
+        );
+        if (isClear) {
+          fireEscapes.add(
+            FireEscapeData(
+              x: feX,
+              y: groundY - 140.0,
+              width: escapeWidth,
+              height: 140.0,
+              launchImpulse: 420.0,
+            ),
+          );
+          break;
+        }
+      }
+    }
+
     return ChunkData(
       obstacles: obstacles,
       pickups: pickups,
@@ -1146,6 +1200,7 @@ class WorldChunkManager {
       windTunnels: windTunnels,
       turnstiles: turnstiles,
       droneCargos: droneCargos,
+      fireEscapes: fireEscapes,
     );
   }
 }
