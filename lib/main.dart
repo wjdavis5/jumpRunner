@@ -323,6 +323,7 @@ class _CourierDashAppState extends State<CourierDashApp> {
                   barricadesCompleted: _gameState.barricadeVaultsInRun,
                   satelliteLaunchesCompleted: _gameState.satelliteLaunchesInRun,
                   mailboxesCompleted: _gameState.mailboxVaultsInRun,
+                  acCondensersCompleted: _gameState.acUpdraftsInRun,
                   onRestart: _restartGame,
                 ),
           },
