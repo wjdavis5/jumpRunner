@@ -1116,6 +1116,49 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// High-voltage electric blue corona discharge arcs and bright welding sparks from an aerial catenary power line zipline slide.
+  factory ParticleEffectComponent.ziplineSparks({
+    required Vector2 position,
+    int count = 24,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFF00E5FF), // Electric cyan arc discharge
+      Color(0xFF2979FF), // High-voltage cobalt blue
+      Color(0xFF80D8FF), // Glowing plasma light blue
+      Color(0xFFFFFFFF), // Blinding white spark core
+      Color(0xFFE040FB), // High-frequency violet corona
+      Color(0xFFFFD700), // Molten copper wire friction fleck
+    ];
+
+    for (var i = 0; i < count; i++) {
+      final angle = rng.nextDouble() * 2 * math.pi;
+      final speed = 80.0 + rng.nextDouble() * 160.0;
+      final velocity = Vector2(
+        math.cos(angle) * speed,
+        math.sin(angle) * speed - 15.0,
+      );
+
+      particles.add(
+        GameParticle(
+          position: position.clone() +
+              Vector2((rng.nextDouble() - 0.5) * 8.0, (rng.nextDouble() - 0.5) * 6.0),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 1.4 + rng.nextDouble() * 2.2,
+          maxLife: 0.28 + rng.nextDouble() * 0.24,
+          gravity: 80.0,
+          drag: 0.94,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.

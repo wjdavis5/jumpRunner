@@ -886,6 +886,36 @@ class SubwayExhaustGrateEvent {
   final int exhaustGratesInRun;
 }
 
+/// Event dispatched when completing an aerial slide along an overhead catenary power line zipline.
+class CatenaryZiplineEvent {
+  const CatenaryZiplineEvent({
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.stuntStreak,
+    required this.distanceMeters,
+    required this.ziplinesInRun,
+  });
+
+  /// Base tip value before stunt combo scaling ($35).
+  final int baseTips;
+
+  /// Total tip amount awarded after active combo multipliers.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this event.
+  final double multiplier;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+
+  /// Distance navigated along the catenary wire in meters.
+  final double distanceMeters;
+
+  /// Total catenary ziplines navigated in this run.
+  final int ziplinesInRun;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -1158,6 +1188,9 @@ class GameState extends ChangeNotifier {
   /// Total sidewalk subway ventilation exhaust grates caught in current run.
   int exhaustGratesCaughtInRun = 0;
 
+  /// Total aerial catenary power line ziplines navigated in current run.
+  int ziplinesCompletedInRun = 0;
+
   /// Remaining duration of the Thermal Updraft Glide buff in seconds.
   double thermalUpdraftTimer = 0.0;
 
@@ -1217,6 +1250,7 @@ class GameState extends ChangeNotifier {
   ValueChanged<FireHydrantEvent>? onFireHydrantTraverse;
   ValueChanged<ClotheslineEvent>? onClotheslineHurdle;
   ValueChanged<SubwayExhaustGrateEvent>? onSubwayExhaustGrateCatch;
+  ValueChanged<CatenaryZiplineEvent>? onCatenaryZipline;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -1279,6 +1313,7 @@ class GameState extends ChangeNotifier {
     hydrantsTraversedInRun = 0;
     clotheslinesHurdledInRun = 0;
     exhaustGratesCaughtInRun = 0;
+    ziplinesCompletedInRun = 0;
     floralAromaTimer = 0.0;
     notorietyTimer = 0.0;
     caffeineSurgeTimer = 0.0;
@@ -2710,6 +2745,46 @@ class GameState extends ChangeNotifier {
     );
 
     onSubwayExhaustGrateCatch?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records completing an aerial slide along an overhead catenary power line zipline,
+  /// awarding tips scaled by active multipliers, incrementing ziplinesCompletedInRun,
+  /// advancing the stunt streak, and resetting the stunt streak timer.
+  CatenaryZiplineEvent? recordCatenaryZipline({
+    double distanceMeters = 0.0,
+    int baseTips = 35,
+  }) {
+    if (status != GameStatus.running) return null;
+
+    ziplinesCompletedInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    final baseAward = (baseTips * stuntMultiplier).round();
+    final withFloral = isFloralAromaActive ? (baseAward * 1.5).round() : baseAward;
+    final withNotoriety = isNotorietyActive ? (withFloral * 1.5).round() : withFloral;
+    final withGroove = isUrbanGrooveActive ? (withNotoriety * 1.5).round() : withNotoriety;
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? withGroove * 2
+        : withGroove;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = CatenaryZiplineEvent(
+      baseTips: baseTips,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+      stuntStreak: stuntStreak,
+      distanceMeters: distanceMeters,
+      ziplinesInRun: ziplinesCompletedInRun,
+    );
+
+    onCatenaryZipline?.call(event);
     notifyListeners();
     return event;
   }
