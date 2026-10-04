@@ -117,6 +117,18 @@ class SteamVentData {
 /// A generated chunk slice containing obstacles, collectible pickups,
 /// optional elevated aerial routes, customer doorstep drop zones, metallic grind rails,
 /// and thermal steam vents.
+class SubwayStationData {
+  const SubwayStationData({
+    required this.x,
+    required this.width,
+    this.stationName = '8th Ave Express',
+  });
+
+  final double x;
+  final double width;
+  final String stationName;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -126,6 +138,7 @@ class ChunkData {
     this.dropZones = const [],
     this.grindRails = const [],
     this.steamVents = const [],
+    this.subwayStations = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -135,6 +148,7 @@ class ChunkData {
   final List<DropZoneData> dropZones;
   final List<GrindRailData> grindRails;
   final List<SteamVentData> steamVents;
+  final List<SubwayStationData> subwayStations;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -459,6 +473,58 @@ class WorldChunkManager {
       }
     }
 
+    final List<SubwayStationData> subwayStations = [];
+
+    // Subterranean Subway Tunnel Stations (after 200m, exclusive with aerial scaffolding, rails, and steam vents)
+    if (distanceMeters >= 200.0 &&
+        _random.nextDouble() < 0.35 &&
+        scaffoldings.isEmpty &&
+        grindRails.isEmpty &&
+        steamVents.isEmpty &&
+        dropZones.isEmpty) {
+      final stationNames = [
+        '8th Ave Express',
+        'Broadway Metro',
+        'Grand Central Line',
+        'Times Square Transit',
+        'Lexington Ave Local',
+      ];
+      final stationName = stationNames[_random.nextInt(stationNames.length)];
+      subwayStations.add(
+        SubwayStationData(
+          x: startX,
+          width: chunkWidth,
+          stationName: stationName,
+        ),
+      );
+
+      // In a subway station, spawn authentic subterranean hazards:
+      // An electrified third rail on track
+      obstacles.clear();
+      final thirdRailX = startX + 220.0 + (_random.nextDouble() * 80.0);
+      obstacles.add(
+        ObstacleData(
+          type: ObstacleType.thirdRail,
+          x: thirdRailX,
+          y: groundY - 24.0,
+          width: 58.0,
+          height: 24.0,
+        ),
+      );
+
+      // And an oncoming express subway train further along the station with generous clearance
+      final trainX = thirdRailX + 280.0 + (_random.nextDouble() * 60.0);
+      obstacles.add(
+        ObstacleData(
+          type: ObstacleType.subwayTrain,
+          x: trainX,
+          y: groundY - 64.0,
+          width: 110.0,
+          height: 64.0,
+        ),
+      );
+    }
+
     return ChunkData(
       obstacles: obstacles,
       pickups: pickups,
@@ -467,6 +533,7 @@ class WorldChunkManager {
       dropZones: dropZones,
       grindRails: grindRails,
       steamVents: steamVents,
+      subwayStations: subwayStations,
     );
   }
 }

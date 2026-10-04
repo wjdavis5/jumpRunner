@@ -202,6 +202,28 @@ class GlideEvent {
   final int streak;
 }
 
+/// Event dispatched when traversing a subterranean subway tunnel station.
+class SubwayTransitEvent {
+  const SubwayTransitEvent({
+    required this.stationName,
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+  });
+
+  /// Name of the subterranean transit station (e.g. "8th Ave Express").
+  final String stationName;
+
+  /// Base tip value before combo multipliers ($25).
+  final int baseTips;
+
+  /// Total tip amount awarded after all active multipliers.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this transit.
+  final double multiplier;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -333,6 +355,9 @@ class GameState extends ChangeNotifier {
   /// Total sustained aerodynamic glides completed in current run.
   int glidesInRun = 0;
 
+  /// Total subterranean subway stations traversed in current run.
+  int subwayStationsInRun = 0;
+
   ValueChanged<MilestoneEvent>? onMilestone;
   ValueChanged<StuntEvent>? onStunt;
   ValueChanged<DeliveryEvent>? onDeliveryCompleted;
@@ -341,6 +366,7 @@ class GameState extends ChangeNotifier {
   ValueChanged<VaultEvent>? onVault;
   ValueChanged<SteamVentEvent>? onSteamVent;
   ValueChanged<GlideEvent>? onGlide;
+  ValueChanged<SubwayTransitEvent>? onSubwayTransit;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -372,6 +398,7 @@ class GameState extends ChangeNotifier {
     vaultsInRun = 0;
     steamBoostsInRun = 0;
     glidesInRun = 0;
+    subwayStationsInRun = 0;
     status = GameStatus.running;
     contractManager.reset();
 
@@ -660,6 +687,34 @@ class GameState extends ChangeNotifier {
     );
 
     onGlide?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records entering a subterranean subway transit corridor, awarding transit cash tips.
+  SubwayTransitEvent? recordSubwayTransit({String? stationName}) {
+    if (status != GameStatus.running) return null;
+
+    subwayStationsInRun++;
+    final name = stationName ?? '8th Ave Express';
+    const baseTip = 25;
+    final baseAward = (baseTip * stuntMultiplier).round();
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? baseAward * 2
+        : baseAward;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onTipCollected(awarded);
+
+    final event = SubwayTransitEvent(
+      stationName: name,
+      baseTips: baseTip,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+    );
+
+    onSubwayTransit?.call(event);
     notifyListeners();
     return event;
   }
