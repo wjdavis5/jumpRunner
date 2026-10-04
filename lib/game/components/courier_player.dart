@@ -40,6 +40,7 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
     this.onGlideStarted,
     this.onGlideEnded,
     this.onCraneLaunch,
+    this.onDraftSlingshot,
   })  : defaultPlayerX = initialX,
         skin = skin ?? CourierSkin.standard,
         simulator = JumpPhysicsSimulator(groundY: groundY) {
@@ -60,6 +61,7 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   final VoidCallback? onGlideStarted;
   final VoidCallback? onGlideEnded;
   final ValueChanged<double>? onCraneLaunch;
+  final VoidCallback? onDraftSlingshot;
 
   CourierSkin skin;
 
@@ -67,6 +69,9 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   void setSkin(CourierSkin newSkin) {
     skin = newSkin;
   }
+
+  /// Whether the courier is actively tucked inside a companion cyclist's slipstream draft wake.
+  bool isDrafting = false;
 
   CourierState state = CourierState.running;
 
@@ -163,6 +168,15 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
     if (simulator.isGrounded && checkCanVault != null && checkCanVault!()) {
       startVault();
       onVault?.call();
+      return true;
+    }
+
+    if (isDrafting && simulator.isGrounded) {
+      isDrafting = false;
+      state = CourierState.jumping;
+      simulator.launch(360.0);
+      onJump?.call();
+      onDraftSlingshot?.call();
       return true;
     }
 

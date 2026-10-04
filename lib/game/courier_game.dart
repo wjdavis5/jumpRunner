@@ -8,6 +8,7 @@ import 'audio_controller.dart';
 import '../services/storage_service.dart';
 import 'components/courier_player.dart';
 import 'components/crane_swing_component.dart';
+import 'components/cyclist_companion_component.dart';
 import 'components/delivery_drone_component.dart';
 import 'components/drop_zone_component.dart';
 import 'components/floating_text_component.dart';
@@ -123,6 +124,7 @@ class CourierGame extends FlameGame
   final List<SteamVentComponent> activeSteamVents = [];
   final List<SubwayStationComponent> activeSubwayStations = [];
   final List<CraneSwingComponent> activeCranes = [];
+  final List<CyclistCompanionComponent> activeCyclists = [];
   ObstacleComponent? _currentVaultTarget;
   double cameraTargetY = 270.0;
   double _grindSparkTimer = 0.0;
@@ -224,6 +226,7 @@ class CourierGame extends FlameGame
       onGlideStarted: _handleGlideStarted,
       onGlideEnded: _handleGlideEnded,
       onCraneLaunch: _handleCraneLaunch,
+      onDraftSlingshot: _handleDraftSlingshot,
     );
     world.add(player);
 
@@ -426,6 +429,17 @@ class CourierGame extends FlameGame
       world.add(craneComp);
     }
 
+    for (final cy in chunk.cyclists) {
+      final cyclistComp = CyclistCompanionComponent(
+        position: Vector2(cy.x, cy.y),
+        size: Vector2(cy.width, cy.height),
+        groundY: groundY,
+        relativeSpeed: cy.relativeSpeed,
+      );
+      activeCyclists.add(cyclistComp);
+      world.add(cyclistComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -567,6 +581,12 @@ class CourierGame extends FlameGame
     for (final c in world.children.whereType<CraneSwingComponent>().toList()) {
       c.removeFromParent();
     }
+    for (final cy in activeCyclists.toList()) {
+      cy.removeFromParent();
+    }
+    for (final cy in world.children.whereType<CyclistCompanionComponent>().toList()) {
+      cy.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -574,6 +594,7 @@ class CourierGame extends FlameGame
     activeSteamVents.clear();
     activeSubwayStations.clear();
     activeCranes.clear();
+    activeCyclists.clear();
     cameraTargetY = virtualResolution.y / 2;
     player.endGrinding();
     player.stopGlide();
@@ -679,7 +700,8 @@ class CourierGame extends FlameGame
     // 1. Calculate dynamic scroll speed based on distance (with energy boost, grind surge, and parkour vault surge)
     final speedMultiplier = (gameState.isEnergyBoostActive ? 1.2 : 1.0) *
         (player.isGrinding ? 1.20 : 1.0) *
-        (player.isVaulting ? 1.25 : 1.0);
+        (player.isVaulting ? 1.25 : 1.0) *
+        (player.isDrafting ? 1.20 : 1.0);
     currentSpeed = chunkManager.calculateSpeed(gameState.distanceMeters) * speedMultiplier;
     audio.updateSpeed(currentSpeed);
 
@@ -766,6 +788,9 @@ class CourierGame extends FlameGame
     }
     for (final c in activeCranes) {
       c.position.x -= scrollDelta;
+    }
+    for (final cy in activeCyclists) {
+      cy.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -1056,6 +1081,38 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4k. Evaluate Cyclist Companion Aerodynamic Slipstream Drafting
+    CyclistCompanionComponent? draftingCyclist;
+    for (final c in activeCyclists) {
+      if (c.isPlayerInDraftZone(player.position, player.size)) {
+        draftingCyclist = c;
+        break;
+      }
+    }
+    if (draftingCyclist != null) {
+      if (!player.isDrafting) {
+        player.isDrafting = true;
+        audio.playCourierBark(CourierBarkType.stunt, line: 'On your wheel!');
+        spawnSparkles(
+          Vector2(player.position.x + 20.0, player.position.y + player.size.y - 10.0),
+          color: const Color(0xFF00E5FF),
+          count: 8,
+        );
+      }
+      draftingCyclist.isPlayerDrafting = true;
+      draftingCyclist.playerDraftDuration += dt;
+      gameState.totalDraftDurationInRun += dt;
+      gameState.setDrafting(true);
+    } else {
+      if (player.isDrafting) {
+        player.isDrafting = false;
+      }
+      for (final c in activeCyclists) {
+        c.isPlayerDrafting = false;
+      }
+      gameState.setDrafting(false);
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -1143,6 +1200,13 @@ class CourierGame extends FlameGame
       return false;
     });
     activeCranes.removeWhere((c) {
+      if (c.shouldRecycle || c.isRemoved) {
+        if (c.isMounted) c.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeCyclists.removeWhere((c) {
       if (c.shouldRecycle || c.isRemoved) {
         if (c.isMounted) c.removeFromParent();
         return true;
@@ -1351,6 +1415,29 @@ class CourierGame extends FlameGame
         ),
       );
 
+      _evaluateAchievements();
+    }
+  }
+
+  void _handleDraftSlingshot() {
+    final event = gameState.recordDraftSlingshot();
+    if (event != null) {
+      audio.playJump();
+      audio.playCourierBark(CourierBarkType.stunt, line: 'Slingshot launch!');
+      triggerScreenShake(0.2);
+      spawnSparkles(
+        Vector2(player.position.x + 30.0, player.position.y),
+        color: const Color(0xFF00E5FF),
+        count: 14,
+      );
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+      addEffect(
+        FloatingTextComponent(
+          text: 'SLINGSHOT BOOST! $multStr+\$${event.totalTips}',
+          position: Vector2(player.position.x - 10.0, player.position.y - 35.0),
+          color: const Color(0xFF00E5FF),
+        ),
+      );
       _evaluateAchievements();
     }
   }

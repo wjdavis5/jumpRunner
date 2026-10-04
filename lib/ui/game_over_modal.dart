@@ -18,6 +18,7 @@ class GameOverModal extends StatelessWidget {
     this.subwayStationsCompleted = 0,
     this.craneSwingsCompleted = 0,
     this.vipDeliveriesCompleted = 0,
+    this.bikeDraftSlingshotsCompleted = 0,
   });
 
   final int distance;
@@ -33,6 +34,7 @@ class GameOverModal extends StatelessWidget {
   final int subwayStationsCompleted;
   final int craneSwingsCompleted;
   final int vipDeliveriesCompleted;
+  final int bikeDraftSlingshotsCompleted;
   final VoidCallback onRestart;
 
   @override
@@ -331,6 +333,37 @@ class GameOverModal extends StatelessWidget {
                         '$vipDeliveriesCompleted VIP EXPRESS DELIVER${vipDeliveriesCompleted > 1 ? 'IES' : 'Y'} (3X SURGE)',
                         style: const TextStyle(
                           color: Color(0xFFFFD700),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            if (bikeDraftSlingshotsCompleted > 0)
+              Container(
+                key: const Key('game_over_draft_badge'),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00E5FF).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF00E5FF), width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.pedal_bike, color: Color(0xFF00E5FF), size: 16),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '$bikeDraftSlingshotsCompleted BIKE SLINGSHOT CATAPULT${bikeDraftSlingshotsCompleted > 1 ? 'S' : ''}',
+                        style: const TextStyle(
+                          color: Color(0xFF00E5FF),
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                           letterSpacing: 0.5,

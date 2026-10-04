@@ -276,6 +276,28 @@ class VipDeliveryEvent {
   final int stuntStreak;
 }
 
+/// Event dispatched when launching an aerodynamic slingshot leap from a companion cyclist draft wake.
+class DraftSlingshotEvent {
+  const DraftSlingshotEvent({
+    required this.multiplier,
+    required this.baseTips,
+    required this.totalTips,
+    required this.streak,
+  });
+
+  /// Active stunt combo multiplier applied to this slingshot.
+  final double multiplier;
+
+  /// Base tips awarded for the slingshot ($30).
+  final int baseTips;
+
+  /// Total tips awarded after combo scaling.
+  final int totalTips;
+
+  /// Current consecutive stunt streak count.
+  final int streak;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -428,6 +450,23 @@ class GameState extends ChangeNotifier {
   /// Total VIP Express deliveries successfully completed in current run.
   int vipDeliveriesInRun = 0;
 
+  /// Total aerodynamic bike companion draft slingshot leaps executed in current run.
+  int bikeDraftSlingshotsInRun = 0;
+
+  /// Total seconds spent drafting behind companion cyclists in current run.
+  double totalDraftDurationInRun = 0.0;
+
+  /// Whether the courier is actively tucked inside a companion cyclist's slipstream draft wake.
+  bool isDrafting = false;
+
+  /// Updates active drafting state and notifies UI listeners when changed.
+  void setDrafting(bool drafting) {
+    if (isDrafting != drafting) {
+      isDrafting = drafting;
+      notifyListeners();
+    }
+  }
+
   ValueChanged<MilestoneEvent>? onMilestone;
   ValueChanged<StuntEvent>? onStunt;
   ValueChanged<DeliveryEvent>? onDeliveryCompleted;
@@ -439,6 +478,7 @@ class GameState extends ChangeNotifier {
   ValueChanged<SubwayTransitEvent>? onSubwayTransit;
   ValueChanged<CraneSwingEvent>? onCraneSwing;
   ValueChanged<VipDeliveryEvent>? onVipDelivery;
+  ValueChanged<DraftSlingshotEvent>? onBikeDraftSlingshot;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -476,6 +516,9 @@ class GameState extends ChangeNotifier {
     vipDeliveriesInRun = 0;
     isVipMissionActive = false;
     vipTimer = 0.0;
+    bikeDraftSlingshotsInRun = 0;
+    totalDraftDurationInRun = 0.0;
+    isDrafting = false;
     status = GameStatus.running;
     contractManager.reset();
 
@@ -977,6 +1020,40 @@ class GameState extends ChangeNotifier {
     );
 
     onVipDelivery?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records launching an aerodynamic slingshot jump from a companion cyclist draft wake.
+  ///
+  /// Increments stunt streak, awards bonus tips scaled by combo multipliers,
+  /// and resets the stunt combo timer.
+  DraftSlingshotEvent? recordDraftSlingshot() {
+    if (status != GameStatus.running) return null;
+
+    bikeDraftSlingshotsInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    const baseTip = 30;
+    final baseAward = (baseTip * stuntMultiplier).round();
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? baseAward * 2
+        : baseAward;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = DraftSlingshotEvent(
+      multiplier: stuntMultiplier,
+      baseTips: baseTip,
+      totalTips: awarded,
+      streak: stuntStreak,
+    );
+
+    onBikeDraftSlingshot?.call(event);
     notifyListeners();
     return event;
   }
