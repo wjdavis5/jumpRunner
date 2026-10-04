@@ -370,6 +370,21 @@ class SatelliteDishData {
   final double launchImpulse;
 }
 
+/// Data model for a street municipal postal drop collection mailbox.
+class PostalMailboxData {
+  const PostalMailboxData({
+    required this.x,
+    required this.y,
+    this.width = 42.0,
+    this.height = 54.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -395,6 +410,7 @@ class ChunkData {
     this.foodTruckSlicks = const [],
     this.barricades = const [],
     this.satelliteDishes = const [],
+    this.postalMailboxes = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -420,6 +436,7 @@ class ChunkData {
   final List<FoodTruckSlickData> foodTruckSlicks;
   final List<BarricadeSawhorseData> barricades;
   final List<SatelliteDishData> satelliteDishes;
+  final List<PostalMailboxData> postalMailboxes;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -1358,6 +1375,47 @@ class WorldChunkManager {
       }
     }
 
+    final List<PostalMailboxData> postalMailboxes = [];
+
+    // Street Municipal Postal Collection Mailbox (after 60m, outside subway stations, food trucks, barricades)
+    if (distanceMeters >= 60.0 &&
+        _random.nextDouble() < 0.35 &&
+        subwayStations.isEmpty &&
+        scaffoldings.isEmpty) {
+      const mailboxWidth = 42.0;
+      const mailboxHeight = 54.0;
+      for (var offset = 90.0; offset <= chunkWidth - 140.0; offset += 50.0) {
+        final mbX = startX + offset;
+        final isClear = obstacles.every(
+          (o) => (mbX + mailboxWidth < o.x - 30.0) || (mbX > o.x + o.width + 30.0),
+        ) && crosswalks.every(
+          (cw) => (mbX + mailboxWidth < cw.x - 20.0) || (mbX > cw.x + cw.width + 20.0),
+        ) && turnstiles.every(
+          (t) => (mbX + mailboxWidth < t.x - 20.0) || (mbX > t.x + t.width + 20.0),
+        ) && fireEscapes.every(
+          (fe) => (mbX + mailboxWidth < fe.x - 20.0) || (mbX > fe.x + fe.width + 20.0),
+        ) && foodTruckSlicks.every(
+          (fts) => (mbX + mailboxWidth < fts.x - 30.0) || (mbX > fts.x + fts.width + 30.0),
+        ) && barricades.every(
+          (b) => (mbX + mailboxWidth < b.x - 30.0) || (mbX > b.x + b.width + 30.0),
+        ) && satelliteDishes.every(
+          (sd) => (mbX + mailboxWidth < sd.x - 30.0) || (mbX > sd.x + sd.width + 30.0),
+        );
+
+        if (isClear) {
+          postalMailboxes.add(
+            PostalMailboxData(
+              x: mbX,
+              y: groundY - mailboxHeight,
+              width: mailboxWidth,
+              height: mailboxHeight,
+            ),
+          );
+          break;
+        }
+      }
+    }
+
     return ChunkData(
       obstacles: obstacles,
       pickups: pickups,
@@ -1382,6 +1440,7 @@ class WorldChunkManager {
       foodTruckSlicks: foodTruckSlicks,
       barricades: barricades,
       satelliteDishes: satelliteDishes,
+      postalMailboxes: postalMailboxes,
     );
   }
 }
