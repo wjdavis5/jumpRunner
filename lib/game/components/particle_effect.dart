@@ -683,6 +683,45 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Chilled condensation mist plumes, copper radiator fin flecks, and thermal updraft vapor
+  /// from a rooftop industrial air conditioning condenser exhaust fan.
+  factory ParticleEffectComponent.condenserMist({
+    required Vector2 position,
+    int count = 20,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFFE0F7FA), // Chilled condensation white-cyan mist
+      Color(0xFF80DEEA), // Aqua thermal vapor plume
+      Color(0xFFD87D4A), // Metallic copper radiator fin fleck
+      Color(0xFFFFFFFF), // Specular water droplet
+      Color(0xFFFFE082), // Warm ambient exhaust shimmer gold
+    ];
+
+    for (var i = 0; i < count; i++) {
+      final angle = (rng.nextDouble() * math.pi) + math.pi; // Upward hemisphere arc
+      final speed = 90.0 + rng.nextDouble() * 160.0;
+      final velocity = Vector2(math.cos(angle) * speed * 0.7, -70.0 - rng.nextDouble() * 140.0);
+
+      particles.add(
+        GameParticle(
+          position: position.clone(),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 2.0 + rng.nextDouble() * 2.6,
+          maxLife: 0.42 + rng.nextDouble() * 0.35,
+          gravity: 70.0,
+          drag: 0.93,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.

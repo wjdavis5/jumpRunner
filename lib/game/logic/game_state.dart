@@ -626,6 +626,32 @@ class PostalMailboxEvent {
   final int stuntStreak;
 }
 
+/// Event dispatched when catching the thermal exhaust updraft of a rooftop AC condenser unit.
+class AcCondenserEvent {
+  const AcCondenserEvent({
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.stuntStreak,
+    required this.updraftImpulse,
+  });
+
+  /// Base tip value before stunt combo scaling ($30).
+  final int baseTips;
+
+  /// Total tip amount awarded after active combo multipliers.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this event.
+  final double multiplier;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+
+  /// Upward vertical impulse applied by the condenser fan draft.
+  final double updraftImpulse;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -823,6 +849,9 @@ class GameState extends ChangeNotifier {
   /// Total street postal collection mailboxes vaulted in current run.
   int mailboxVaultsInRun = 0;
 
+  /// Total rooftop AC condenser thermal updrafts caught in current run.
+  int acUpdraftsInRun = 0;
+
   /// Total seconds spent drafting behind companion cyclists in current run.
   double totalDraftDurationInRun = 0.0;
 
@@ -863,6 +892,7 @@ class GameState extends ChangeNotifier {
   ValueChanged<BarricadeVaultEvent>? onBarricadeVault;
   ValueChanged<SatelliteLaunchEvent>? onSatelliteLaunch;
   ValueChanged<PostalMailboxEvent>? onPostalMailboxVault;
+  ValueChanged<AcCondenserEvent>? onAcCondenserUpdraft;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -915,6 +945,7 @@ class GameState extends ChangeNotifier {
     barricadeVaultsInRun = 0;
     satelliteLaunchesInRun = 0;
     mailboxVaultsInRun = 0;
+    acUpdraftsInRun = 0;
     totalDraftDurationInRun = 0.0;
     isDrafting = false;
     status = GameStatus.running;
@@ -1910,6 +1941,39 @@ class GameState extends ChangeNotifier {
     );
 
     onPostalMailboxVault?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records a thermal updraft lift caught over a rooftop AC condenser fan unit,
+  /// awarding base tips ($30) scaled by combo multipliers, advancing the stunt streak,
+  /// resetting the stunt streak timer, and initiating aerodynamic glide.
+  AcCondenserEvent? recordAcUpdraft({int baseTips = 30, double updraftImpulse = 380.0}) {
+    if (status != GameStatus.running) return null;
+
+    acUpdraftsInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    final baseAward = (baseTips * stuntMultiplier).round();
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? baseAward * 2
+        : baseAward;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = AcCondenserEvent(
+      baseTips: baseTips,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+      stuntStreak: stuntStreak,
+      updraftImpulse: updraftImpulse,
+    );
+
+    onAcCondenserUpdraft?.call(event);
     notifyListeners();
     return event;
   }

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import 'audio_controller.dart';
 import '../services/storage_service.dart';
+import 'components/ac_condenser_component.dart';
 import 'components/barricade_sawhorse_component.dart';
 import 'components/courier_player.dart';
 import 'components/crane_swing_component.dart';
@@ -154,6 +155,7 @@ class CourierGame extends FlameGame
   final List<BarricadeSawhorseComponent> activeBarricades = [];
   final List<SatelliteDishComponent> activeSatelliteDishes = [];
   final List<PostalMailboxComponent> activeMailboxes = [];
+  final List<AcCondenserComponent> activeAcCondensers = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
@@ -637,6 +639,17 @@ class CourierGame extends FlameGame
       world.add(mbComp);
     }
 
+    for (final ac in chunk.acCondensers) {
+      final acComp = AcCondenserComponent(
+        position: Vector2(ac.x, ac.y),
+        width: ac.width,
+        height: ac.height,
+        updraftImpulse: ac.updraftImpulse,
+      );
+      activeAcCondensers.add(acComp);
+      world.add(acComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -868,6 +881,12 @@ class CourierGame extends FlameGame
     for (final mb in world.children.whereType<PostalMailboxComponent>().toList()) {
       mb.removeFromParent();
     }
+    for (final ac in activeAcCondensers.toList()) {
+      ac.removeFromParent();
+    }
+    for (final ac in world.children.whereType<AcCondenserComponent>().toList()) {
+      ac.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -890,6 +909,7 @@ class CourierGame extends FlameGame
     activeBarricades.clear();
     activeSatelliteDishes.clear();
     activeMailboxes.clear();
+    activeAcCondensers.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
@@ -1132,6 +1152,9 @@ class CourierGame extends FlameGame
     }
     for (final mb in activeMailboxes) {
       mb.position.x -= scrollDelta;
+    }
+    for (final ac in activeAcCondensers) {
+      ac.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -1654,6 +1677,15 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4y. Evaluate Rooftop AC Condenser Fan Updraft Column Lifts
+    for (final ac in activeAcCondensers) {
+      if (!ac.hasLifted) {
+        if (ac.checkUpdraft(player.position, player.size, player.simulator)) {
+          _handleAcCondenserUpdraft(ac);
+        }
+      }
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -1848,6 +1880,13 @@ class CourierGame extends FlameGame
     activeMailboxes.removeWhere((mb) {
       if (mb.shouldRecycle || mb.isRemoved) {
         if (mb.isMounted) mb.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeAcCondensers.removeWhere((ac) {
+      if (ac.shouldRecycle || ac.isRemoved) {
+        if (ac.isMounted) ac.removeFromParent();
         return true;
       }
       return false;
@@ -2491,6 +2530,36 @@ class CourierGame extends FlameGame
         ParticleEffectComponent.mailScatter(
           position: mailbox.chuteWorldPosition,
           count: 18,
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handleAcCondenserUpdraft(AcCondenserComponent condenser) {
+    player.startGlide();
+    final event = gameState.recordAcUpdraft(updraftImpulse: condenser.updraftImpulse);
+    if (event != null) {
+      audio.playJump();
+      audio.playCourierBark(
+        CourierBarkType.stunt,
+        line: 'Thermal vortex catch!',
+      );
+      triggerScreenShake(0.12);
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+
+      addEffect(
+        FloatingTextComponent(
+          text: 'THERMAL VORTEX LIFT! $multStr+\$${event.totalTips}',
+          position: Vector2(player.position.x - 15.0, player.position.y - 35.0),
+          color: const Color(0xFF00E5FF),
+        ),
+      );
+      addEffect(
+        ParticleEffectComponent.condenserMist(
+          position: condenser.updraftWorldPosition,
+          count: 22,
         ),
       );
       _evaluateAchievements();

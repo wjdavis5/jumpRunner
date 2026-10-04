@@ -385,6 +385,23 @@ class PostalMailboxData {
   final double height;
 }
 
+/// Data model for an industrial rooftop air conditioning condenser fan unit with thermal draft updraft.
+class AcCondenserData {
+  const AcCondenserData({
+    required this.x,
+    required this.y,
+    this.width = 72.0,
+    this.height = 48.0,
+    this.updraftImpulse = 380.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+  final double updraftImpulse;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -411,6 +428,7 @@ class ChunkData {
     this.barricades = const [],
     this.satelliteDishes = const [],
     this.postalMailboxes = const [],
+    this.acCondensers = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -437,6 +455,7 @@ class ChunkData {
   final List<BarricadeSawhorseData> barricades;
   final List<SatelliteDishData> satelliteDishes;
   final List<PostalMailboxData> postalMailboxes;
+  final List<AcCondenserData> acCondensers;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -1416,6 +1435,50 @@ class WorldChunkManager {
       }
     }
 
+    final List<AcCondenserData> acCondensers = [];
+
+    // Industrial Rooftop AC Condenser Fan Updraft (after 100m, outside subway stations, food trucks, barricades, satellite dishes, mailboxes)
+    if (distanceMeters >= 100.0 &&
+        _random.nextDouble() < 0.35 &&
+        subwayStations.isEmpty &&
+        scaffoldings.isEmpty) {
+      const condenserWidth = 72.0;
+      const condenserHeight = 48.0;
+      for (var offset = 100.0; offset <= chunkWidth - 160.0; offset += 50.0) {
+        final acX = startX + offset;
+        final isClear = obstacles.every(
+          (o) => (acX + condenserWidth < o.x - 30.0) || (acX > o.x + o.width + 30.0),
+        ) && crosswalks.every(
+          (cw) => (acX + condenserWidth < cw.x - 20.0) || (acX > cw.x + cw.width + 20.0),
+        ) && turnstiles.every(
+          (t) => (acX + condenserWidth < t.x - 20.0) || (acX > t.x + t.width + 20.0),
+        ) && fireEscapes.every(
+          (fe) => (acX + condenserWidth < fe.x - 20.0) || (acX > fe.x + fe.width + 20.0),
+        ) && foodTruckSlicks.every(
+          (fts) => (acX + condenserWidth < fts.x - 30.0) || (acX > fts.x + fts.width + 30.0),
+        ) && barricades.every(
+          (b) => (acX + condenserWidth < b.x - 30.0) || (acX > b.x + b.width + 30.0),
+        ) && satelliteDishes.every(
+          (sd) => (acX + condenserWidth < sd.x - 30.0) || (acX > sd.x + sd.width + 30.0),
+        ) && postalMailboxes.every(
+          (mb) => (acX + condenserWidth < mb.x - 30.0) || (acX > mb.x + mb.width + 30.0),
+        );
+
+        if (isClear) {
+          acCondensers.add(
+            AcCondenserData(
+              x: acX,
+              y: groundY - condenserHeight,
+              width: condenserWidth,
+              height: condenserHeight,
+              updraftImpulse: 380.0,
+            ),
+          );
+          break;
+        }
+      }
+    }
+
     return ChunkData(
       obstacles: obstacles,
       pickups: pickups,
@@ -1441,6 +1504,7 @@ class WorldChunkManager {
       barricades: barricades,
       satelliteDishes: satelliteDishes,
       postalMailboxes: postalMailboxes,
+      acCondensers: acCondensers,
     );
   }
 }
