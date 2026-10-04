@@ -11,6 +11,7 @@ enum ObstacleType {
   scooter,
   dog,
   hydrant,
+  mailbox,
   van,
   skateMessenger,
   pigeonFlock,
@@ -57,6 +58,15 @@ class ObstacleComponent extends PositionComponent with CollisionCallbacks {
   bool hasCollidedWithPlayer = false;
   bool hasTriggeredNearMiss = false;
 
+  /// Whether this obstacle is a low, rigid urban fixture eligible for agile parkour vaulting.
+  bool get isVaultable =>
+      type == ObstacleType.hydrant ||
+      type == ObstacleType.mailbox ||
+      type == ObstacleType.scooter;
+
+  /// Whether the courier has already initiated an agile parkour vault over this obstacle.
+  bool hasBeenVaulted = false;
+
   bool get shouldRecycle => position.x < -200.0 || position.y < -150.0;
 
   static double defaultRelativeVelocityForType(ObstacleType type) {
@@ -78,6 +88,7 @@ class ObstacleComponent extends PositionComponent with CollisionCallbacks {
         return 'hazards/hydrant.png';
       case ObstacleType.van:
         return 'hazards/van.png';
+      case ObstacleType.mailbox:
       case ObstacleType.skateMessenger:
       case ObstacleType.pigeonFlock:
         return null;
@@ -92,6 +103,8 @@ class ObstacleComponent extends PositionComponent with CollisionCallbacks {
         return Vector2(40, 36);
       case ObstacleType.hydrant:
         return Vector2(32, 44);
+      case ObstacleType.mailbox:
+        return Vector2(30, 42);
       case ObstacleType.van:
         return Vector2(120, 68);
       case ObstacleType.skateMessenger:
@@ -157,6 +170,7 @@ class ObstacleComponent extends PositionComponent with CollisionCallbacks {
   ) {
     super.onCollisionStart(intersectionPoints, other);
     if (other is CourierPlayer) {
+      if (hasBeenVaulted || other.isVaulting) return;
       hasCollidedWithPlayer = true;
       other.takeDamage();
     }
@@ -180,6 +194,9 @@ class ObstacleComponent extends PositionComponent with CollisionCallbacks {
         break;
       case ObstacleType.hydrant:
         _renderHydrant(canvas);
+        break;
+      case ObstacleType.mailbox:
+        _renderMailbox(canvas);
         break;
       case ObstacleType.van:
         _renderVan(canvas);
@@ -259,6 +276,66 @@ class ObstacleComponent extends PositionComponent with CollisionCallbacks {
     // Side nozzles
     canvas.drawRect(const Rect.fromLTWH(1, 16, 6, 6), capPaint);
     canvas.drawRect(Rect.fromLTWH(size.x - 7, 16, 6, 6), capPaint);
+  }
+
+  void _renderMailbox(Canvas canvas) {
+    final bodyPaint = Paint()..color = const Color(0xFF003882); // Classic USPS Blue
+    final darkBodyPaint = Paint()..color = const Color(0xFF002255);
+    final handlePaint = Paint()..color = const Color(0xFFBDC3C7);
+    final whitePaint = Paint()..color = Colors.white;
+    final legPaint = Paint()..color = const Color(0xFF2C3E50);
+
+    const legHeight = 4.0;
+    final boxHeight = size.y - legHeight;
+
+    // 1. Support legs at bottom corners
+    canvas.drawRect(Rect.fromLTWH(2, boxHeight, 5, legHeight), legPaint);
+    canvas.drawRect(Rect.fromLTWH(size.x - 7, boxHeight, 5, legHeight), legPaint);
+
+    // 2. Main collection box rounded body
+    canvas.drawRRect(
+      RRect.fromRectAndCorners(
+        Rect.fromLTWH(0, 8, size.x, boxHeight - 8),
+        topLeft: const Radius.circular(4),
+        topRight: const Radius.circular(4),
+        bottomLeft: const Radius.circular(2),
+        bottomRight: const Radius.circular(2),
+      ),
+      bodyPaint,
+    );
+
+    // 3. Rounded top curved hood
+    final domePath = Path()
+      ..moveTo(0, 8)
+      ..quadraticBezierTo(size.x / 2, -2, size.x, 8)
+      ..close();
+    canvas.drawPath(domePath, bodyPaint);
+
+    // Inner shadow under drop chute hood
+    canvas.drawRect(Rect.fromLTWH(3, 10, size.x - 6, 8), darkBodyPaint);
+
+    // 4. Drop-down parcel chute flap
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(4, 11, size.x - 8, 6),
+        const Radius.circular(1.5),
+      ),
+      handlePaint,
+    );
+    // Chute handle grip
+    canvas.drawRect(Rect.fromLTWH((size.x / 2) - 4, 13, 8, 2), whitePaint);
+
+    // 5. White postal collection plaque / emblem
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(6, 22, size.x - 12, 10),
+        const Radius.circular(2),
+      ),
+      whitePaint,
+    );
+    final blueBarPaint = Paint()..color = const Color(0xFF003882);
+    canvas.drawRect(Rect.fromLTWH(8, 24, size.x - 16, 2), blueBarPaint);
+    canvas.drawRect(Rect.fromLTWH(8, 28, size.x - 20, 2), blueBarPaint);
   }
 
   void _renderVan(Canvas canvas) {

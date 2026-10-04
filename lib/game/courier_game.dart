@@ -116,6 +116,7 @@ class CourierGame extends FlameGame
   final List<RampComponent> activeRamps = [];
   final List<DropZoneComponent> activeDropZones = [];
   final List<GrindRailComponent> activeGrindRails = [];
+  ObstacleComponent? _currentVaultTarget;
   double cameraTargetY = 270.0;
   double _grindSparkTimer = 0.0;
 
@@ -210,6 +211,8 @@ class CourierGame extends FlameGame
         gameState.applyHazardDamage();
       },
       onRailOllie: _handleRailOllie,
+      checkCanVault: _canVaultObstacleAhead,
+      onVault: _handleParkourVault,
     );
     world.add(player);
 
@@ -437,6 +440,7 @@ class CourierGame extends FlameGame
     _footstepTimer = 0.0;
     _grindSparkTimer = 0.0;
     _wetHazardsCleared = 0;
+    _currentVaultTarget = null;
 
     for (final m in world.children.whereType<PersonalRecordMarkerComponent>().toList()) {
       m.removeFromParent();
@@ -526,9 +530,10 @@ class CourierGame extends FlameGame
       }
     }
 
-    // 1. Calculate dynamic scroll speed based on distance (with energy boost and grind surge)
+    // 1. Calculate dynamic scroll speed based on distance (with energy boost, grind surge, and parkour vault surge)
     final speedMultiplier = (gameState.isEnergyBoostActive ? 1.2 : 1.0) *
-        (player.isGrinding ? 1.20 : 1.0);
+        (player.isGrinding ? 1.20 : 1.0) *
+        (player.isVaulting ? 1.25 : 1.0);
     currentSpeed = chunkManager.calculateSpeed(gameState.distanceMeters) * speedMultiplier;
     audio.updateSpeed(currentSpeed);
 
@@ -929,6 +934,69 @@ class CourierGame extends FlameGame
 
       _evaluateAchievements();
     }
+  }
+
+  bool _canVaultObstacleAhead() {
+    final courierFrontX = player.position.x + player.size.x;
+    final courierFootY = player.simulator.currentY;
+
+    final obstaclesToCheck = activeObstacles.isNotEmpty
+        ? activeObstacles
+        : world.children.whereType<ObstacleComponent>();
+
+    for (final obs in obstaclesToCheck) {
+      if (!obs.isVaultable || obs.hasBeenVaulted || obs.hasCollidedWithPlayer) {
+        continue;
+      }
+      final dist = obs.position.x - courierFrontX;
+      // Approach window: -16.0px (just reaching/overlapping) to 68.0px ahead
+      if (dist >= -16.0 && dist <= 68.0) {
+        final groundDiff = (courierFootY - (obs.position.y + obs.size.y)).abs();
+        if (groundDiff <= 20.0) {
+          _currentVaultTarget = obs;
+          return true;
+        }
+      }
+    }
+    _currentVaultTarget = null;
+    return false;
+  }
+
+  void _handleParkourVault() {
+    final target = _currentVaultTarget;
+    if (target != null) {
+      target.hasBeenVaulted = true;
+    }
+    audio.playJump();
+    triggerScreenShake(0.18);
+
+    final plantX = target != null
+        ? target.position.x + (target.size.x / 2)
+        : player.position.x + player.size.x;
+    final plantY = target != null ? target.position.y : player.position.y + player.size.y - 20;
+
+    spawnSparkles(
+      Vector2(plantX, plantY),
+      color: const Color(0xFF00E5FF),
+      count: 12,
+    );
+
+    final event = gameState.recordVault(
+      obstacleType: target?.type ?? ObstacleType.hydrant,
+    );
+
+    if (event != null) {
+      final multiplierStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+      addEffect(
+        FloatingTextComponent(
+          text: 'PARKOUR VAULT! $multiplierStr+\$${event.totalTips}',
+          position: Vector2(player.position.x - 10.0, player.position.y - 35.0),
+          color: const Color(0xFF00E5FF),
+        ),
+      );
+    }
+
+    _evaluateAchievements();
   }
 
   void _evaluateAchievements() {
