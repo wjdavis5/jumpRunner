@@ -415,6 +415,45 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Factory for urban subway turnstile magnetic metro card swipe sparkles.
+  factory ParticleEffectComponent.metroSwipe({
+    required Vector2 position,
+    int count = 14,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFF00E5FF), // Magnetic cyan
+      Color(0xFFFFD700), // Gold transit token
+      Color(0xFF00E676), // Validator emerald LED
+      Color(0xFFFFFFFF), // Specular spark
+      Color(0xFF80D8FF), // Metro card strip highlight
+    ];
+
+    for (var i = 0; i < count; i++) {
+      final angle = -math.pi / 2 + (rng.nextDouble() - 0.5) * 1.5; // fan upward
+      final speed = 80.0 + rng.nextDouble() * 160.0;
+      final velocity = Vector2(math.cos(angle) * speed, math.sin(angle) * speed);
+
+      particles.add(
+        GameParticle(
+          position: position.clone() +
+              Vector2((rng.nextDouble() - 0.5) * 10.0, (rng.nextDouble() - 0.5) * 6.0),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 1.8 + rng.nextDouble() * 2.2,
+          maxLife: 0.35 + rng.nextDouble() * 0.25,
+          gravity: 80.0,
+          drag: 1.2,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.

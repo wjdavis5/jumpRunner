@@ -316,6 +316,7 @@ class _CourierDashAppState extends State<CourierDashApp> {
                   solarSurgesCompleted: _gameState.solarSurgesInRun,
                   puddleSkimsCompleted: _gameState.puddleSkimsInRun,
                   windTunnelGlidesCompleted: _gameState.windTunnelGlidesInRun,
+                  turnstilesCompleted: _gameState.turnstileVaultsInRun,
                   onRestart: _restartGame,
                 ),
           },

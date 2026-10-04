@@ -32,6 +32,7 @@ import 'components/solar_panel_component.dart';
 import 'components/steam_vent_component.dart';
 import 'components/storm_drain_component.dart';
 import 'components/subway_station_component.dart';
+import 'components/subway_turnstile_component.dart';
 import 'logic/achievement_manager.dart';
 import 'logic/camera_juice_controller.dart';
 import 'logic/game_state.dart';
@@ -140,6 +141,7 @@ class CourierGame extends FlameGame
   final List<SolarPanelComponent> activeSolarPanels = [];
   final List<PuddleComponent> activePuddles = [];
   final List<HvacWindTunnelComponent> activeWindTunnels = [];
+  final List<SubwayTurnstileComponent> activeTurnstiles = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
@@ -544,6 +546,17 @@ class CourierGame extends FlameGame
       world.add(wtComp);
     }
 
+    for (final t in chunk.turnstiles) {
+      final tComp = SubwayTurnstileComponent(
+        position: Vector2(t.x, t.y),
+        width: t.width,
+        height: t.height,
+        groundY: groundY,
+      );
+      activeTurnstiles.add(tComp);
+      world.add(tComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -733,6 +746,12 @@ class CourierGame extends FlameGame
     for (final wt in world.children.whereType<HvacWindTunnelComponent>().toList()) {
       wt.removeFromParent();
     }
+    for (final t in activeTurnstiles.toList()) {
+      t.removeFromParent();
+    }
+    for (final t in world.children.whereType<SubwayTurnstileComponent>().toList()) {
+      t.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -748,6 +767,7 @@ class CourierGame extends FlameGame
     activeSolarPanels.clear();
     activePuddles.clear();
     activeWindTunnels.clear();
+    activeTurnstiles.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
@@ -969,6 +989,9 @@ class CourierGame extends FlameGame
     }
     for (final wt in activeWindTunnels) {
       wt.position.x -= scrollDelta;
+    }
+    for (final t in activeTurnstiles) {
+      t.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -1426,6 +1449,17 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4r. Evaluate Street Subway Entrance Turnstile Swipes & Hurdle Vaults
+    for (final t in activeTurnstiles) {
+      if (!t.hasVaulted && !t.hasSwiped) {
+        if (t.checkVault(player.position, player.size, player.simulator)) {
+          _handleTurnstilePass(t, isVault: true);
+        } else if (t.checkSwipe(player.position, player.size, player.simulator)) {
+          _handleTurnstilePass(t, isVault: false);
+        }
+      }
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -1571,6 +1605,13 @@ class CourierGame extends FlameGame
     activeWindTunnels.removeWhere((wt) {
       if (wt.shouldRecycle || wt.isRemoved) {
         if (wt.isMounted) wt.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeTurnstiles.removeWhere((t) {
+      if (t.shouldRecycle || t.isRemoved) {
+        if (t.isMounted) t.removeFromParent();
         return true;
       }
       return false;
@@ -2011,6 +2052,34 @@ class CourierGame extends FlameGame
         ParticleEffectComponent.windDebris(
           position: Vector2(player.position.x + (player.size.x / 2), player.position.y + (player.size.y / 2)),
           count: 15,
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handleTurnstilePass(SubwayTurnstileComponent turnstile, {required bool isVault}) {
+    final event = gameState.recordTurnstilePass(isVault: isVault);
+    if (event != null) {
+      audio.playCoin();
+      audio.playCourierBark(CourierBarkType.stunt, line: isVault ? 'Turnstile vaulted!' : 'Metro pass swiped!');
+      triggerScreenShake(0.12);
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+      final title = isVault ? 'TURNSTILE VAULT!' : 'METRO SWIPE!';
+      final color = isVault ? const Color(0xFF00E676) : const Color(0xFFFFD54F);
+
+      addEffect(
+        FloatingTextComponent(
+          text: '$title $multStr+\$${event.totalTips}',
+          position: Vector2(player.position.x - 10.0, player.position.y - 35.0),
+          color: color,
+        ),
+      );
+      addEffect(
+        ParticleEffectComponent.metroSwipe(
+          position: turnstile.cardReaderWorldPosition,
+          count: 14,
         ),
       );
       _evaluateAchievements();
