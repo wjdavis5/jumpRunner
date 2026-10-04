@@ -916,6 +916,32 @@ class CatenaryZiplineEvent {
   final int ziplinesInRun;
 }
 
+/// Event dispatched when performing a parkour canopy roof hurdle or vault across a street transit bus shelter.
+class BusShelterEvent {
+  const BusShelterEvent({
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.stuntStreak,
+    required this.busSheltersInRun,
+  });
+
+  /// Base tip value before stunt combo scaling ($30).
+  final int baseTips;
+
+  /// Total tip amount awarded after active combo multipliers.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this event.
+  final double multiplier;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+
+  /// Total transit bus shelters vaulted in this run.
+  final int busSheltersInRun;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -1191,6 +1217,9 @@ class GameState extends ChangeNotifier {
   /// Total aerial catenary power line ziplines navigated in current run.
   int ziplinesCompletedInRun = 0;
 
+  /// Total street transit bus stop shelters vaulted in current run.
+  int busSheltersVaultedInRun = 0;
+
   /// Remaining duration of the Thermal Updraft Glide buff in seconds.
   double thermalUpdraftTimer = 0.0;
 
@@ -1251,6 +1280,7 @@ class GameState extends ChangeNotifier {
   ValueChanged<ClotheslineEvent>? onClotheslineHurdle;
   ValueChanged<SubwayExhaustGrateEvent>? onSubwayExhaustGrateCatch;
   ValueChanged<CatenaryZiplineEvent>? onCatenaryZipline;
+  ValueChanged<BusShelterEvent>? onBusShelterVault;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -1314,6 +1344,7 @@ class GameState extends ChangeNotifier {
     clotheslinesHurdledInRun = 0;
     exhaustGratesCaughtInRun = 0;
     ziplinesCompletedInRun = 0;
+    busSheltersVaultedInRun = 0;
     floralAromaTimer = 0.0;
     notorietyTimer = 0.0;
     caffeineSurgeTimer = 0.0;
@@ -2785,6 +2816,42 @@ class GameState extends ChangeNotifier {
     );
 
     onCatenaryZipline?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records vaulting or bounding across a street transit bus stop shelter canopy,
+  /// awarding tips scaled by active multipliers, incrementing busSheltersVaultedInRun,
+  /// advancing the stunt streak, and resetting the stunt streak timer.
+  BusShelterEvent? recordBusShelterVault({int baseTips = 30}) {
+    if (status != GameStatus.running) return null;
+
+    busSheltersVaultedInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    final baseAward = (baseTips * stuntMultiplier).round();
+    final withFloral = isFloralAromaActive ? (baseAward * 1.5).round() : baseAward;
+    final withNotoriety = isNotorietyActive ? (withFloral * 1.5).round() : withFloral;
+    final withGroove = isUrbanGrooveActive ? (withNotoriety * 1.5).round() : withNotoriety;
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? withGroove * 2
+        : withGroove;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = BusShelterEvent(
+      baseTips: baseTips,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+      stuntStreak: stuntStreak,
+      busSheltersInRun: busSheltersVaultedInRun,
+    );
+
+    onBusShelterVault?.call(event);
     notifyListeners();
     return event;
   }

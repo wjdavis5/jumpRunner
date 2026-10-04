@@ -558,6 +558,23 @@ class CatenaryZiplineData {
   final double groundY;
 }
 
+/// Data model for a street transit bus stop shelter fixture.
+class BusShelterData {
+  const BusShelterData({
+    required this.x,
+    required this.y,
+    this.width = 96.0,
+    this.height = 54.0,
+    this.groundY = 460.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+  final double groundY;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -595,6 +612,7 @@ class ChunkData {
     this.clotheslines = const [],
     this.subwayExhaustGrates = const [],
     this.catenaryZiplines = const [],
+    this.busShelters = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -632,6 +650,7 @@ class ChunkData {
   final List<ClotheslineData> clotheslines;
   final List<SubwayExhaustGrateData> subwayExhaustGrates;
   final List<CatenaryZiplineData> catenaryZiplines;
+  final List<BusShelterData> busShelters;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -2147,6 +2166,44 @@ class WorldChunkManager {
       }
     }
 
+    final List<BusShelterData> busShelters = [];
+    if (distanceMeters >= 75.0 && _random.nextDouble() < 0.28) {
+      const shelterWidth = 96.0;
+      const shelterHeight = 54.0;
+
+      for (var attempt = 0; attempt < 8; attempt++) {
+        final bsX = startX + 80.0 + _random.nextDouble() * (chunkWidth - 240.0);
+        final isClear = obstacles.every(
+          (o) => (bsX + shelterWidth < o.x - 30.0) || (bsX > o.x + o.width + 30.0),
+        ) && flowerKiosks.every(
+          (fk) => (bsX + shelterWidth < fk.x - 30.0) || (bsX > fk.x + fk.width + 30.0),
+        ) && newsstands.every(
+          (ns) => (bsX + shelterWidth < ns.x - 30.0) || (bsX > ns.x + ns.width + 30.0),
+        ) && cafeBistros.every(
+          (cb) => (bsX + shelterWidth < cb.x - 30.0) || (bsX > cb.x + cb.width + 30.0),
+        ) && streetBuskers.every(
+          (sb) => (bsX + shelterWidth < sb.x - 30.0) || (bsX > sb.x + sb.width + 30.0),
+        ) && fireHydrants.every(
+          (fh) => (bsX + shelterWidth < fh.x - 30.0) || (bsX > fh.x + fh.width + 30.0),
+        ) && subwayExhaustGrates.every(
+          (seg) => (bsX + shelterWidth < seg.x - 30.0) || (bsX > seg.x + seg.width + 30.0),
+        );
+
+        if (isClear) {
+          busShelters.add(
+            BusShelterData(
+              x: bsX,
+              y: groundY - shelterHeight,
+              width: shelterWidth,
+              height: shelterHeight,
+              groundY: groundY,
+            ),
+          );
+          break;
+        }
+      }
+    }
+
     return ChunkData(
       obstacles: obstacles,
       pickups: pickups,
@@ -2183,6 +2240,7 @@ class WorldChunkManager {
       clotheslines: clotheslines,
       subwayExhaustGrates: subwayExhaustGrates,
       catenaryZiplines: catenaryZiplines,
+      busShelters: busShelters,
     );
   }
 }

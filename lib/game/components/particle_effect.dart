@@ -1159,6 +1159,49 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Digital LED route timetable pixel sparks and vibrant amber/cyan illumination bursts from a transit bus stop shelter vault.
+  factory ParticleEffectComponent.transitLedSparks({
+    required Vector2 position,
+    int count = 26,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFFFFD54F), // Amber LED pixel
+      Color(0xFFFFA000), // Deep orange-amber timetable display
+      Color(0xFF00E5FF), // Transit cyan backlight
+      Color(0xFF80D8FF), // Frosted glass highlight
+      Color(0xFFFFFFFF), // Crisp LED white dot
+      Color(0xFF00B0FF), // Metro route blue
+    ];
+
+    for (var i = 0; i < count; i++) {
+      final angle = -math.pi * 0.5 + (rng.nextDouble() - 0.5) * 1.8;
+      final speed = 80.0 + rng.nextDouble() * 150.0;
+      final velocity = Vector2(
+        math.cos(angle) * speed,
+        math.sin(angle) * speed - 20.0,
+      );
+
+      particles.add(
+        GameParticle(
+          position: position.clone() +
+              Vector2((rng.nextDouble() - 0.5) * 18.0, (rng.nextDouble() - 0.5) * 6.0),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 1.8 + rng.nextDouble() * 2.4,
+          maxLife: 0.40 + rng.nextDouble() * 0.30,
+          gravity: 120.0,
+          drag: 0.93,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.
