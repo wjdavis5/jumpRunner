@@ -19,6 +19,7 @@ class GameOverModal extends StatelessWidget {
     this.craneSwingsCompleted = 0,
     this.vipDeliveriesCompleted = 0,
     this.bikeDraftSlingshotsCompleted = 0,
+    this.pigeonScattersCompleted = 0,
   });
 
   final int distance;
@@ -35,6 +36,7 @@ class GameOverModal extends StatelessWidget {
   final int craneSwingsCompleted;
   final int vipDeliveriesCompleted;
   final int bikeDraftSlingshotsCompleted;
+  final int pigeonScattersCompleted;
   final VoidCallback onRestart;
 
   @override
@@ -364,6 +366,37 @@ class GameOverModal extends StatelessWidget {
                         '$bikeDraftSlingshotsCompleted BIKE SLINGSHOT CATAPULT${bikeDraftSlingshotsCompleted > 1 ? 'S' : ''}',
                         style: const TextStyle(
                           color: Color(0xFF00E5FF),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            if (pigeonScattersCompleted > 0)
+              Container(
+                key: const Key('game_over_pigeons_badge'),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF80CBC4).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF80CBC4), width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.flutter_dash, color: Color(0xFF80CBC4), size: 16),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '$pigeonScattersCompleted PIGEON FLOCK SCATTER${pigeonScattersCompleted > 1 ? 'S' : ''}',
+                        style: const TextStyle(
+                          color: Color(0xFF80CBC4),
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                           letterSpacing: 0.5,
