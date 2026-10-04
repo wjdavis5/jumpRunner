@@ -298,6 +298,28 @@ class DraftSlingshotEvent {
   final int streak;
 }
 
+/// Event dispatched when leaping through a scattering pigeon flock mid-air.
+class FlockScatterEvent {
+  const FlockScatterEvent({
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.stuntStreak,
+  });
+
+  /// Base tip value before stunt combo scaling ($25).
+  final int baseTips;
+
+  /// Total tip amount awarded after active stunt combo multiplier.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this scatter.
+  final double multiplier;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -453,6 +475,9 @@ class GameState extends ChangeNotifier {
   /// Total aerodynamic bike companion draft slingshot leaps executed in current run.
   int bikeDraftSlingshotsInRun = 0;
 
+  /// Total rooftop / sidewalk pigeon flock scatters triggered in current run.
+  int pigeonScattersInRun = 0;
+
   /// Total seconds spent drafting behind companion cyclists in current run.
   double totalDraftDurationInRun = 0.0;
 
@@ -479,6 +504,7 @@ class GameState extends ChangeNotifier {
   ValueChanged<CraneSwingEvent>? onCraneSwing;
   ValueChanged<VipDeliveryEvent>? onVipDelivery;
   ValueChanged<DraftSlingshotEvent>? onBikeDraftSlingshot;
+  ValueChanged<FlockScatterEvent>? onPigeonScatter;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -517,6 +543,7 @@ class GameState extends ChangeNotifier {
     isVipMissionActive = false;
     vipTimer = 0.0;
     bikeDraftSlingshotsInRun = 0;
+    pigeonScattersInRun = 0;
     totalDraftDurationInRun = 0.0;
     isDrafting = false;
     status = GameStatus.running;
@@ -1054,6 +1081,37 @@ class GameState extends ChangeNotifier {
     );
 
     onBikeDraftSlingshot?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records leaping through a scattering pigeon flock mid-air,
+  /// awarding base tips scaled by combo multipliers and advancing the stunt streak.
+  FlockScatterEvent? recordPigeonScatter({int baseTips = 25}) {
+    if (status != GameStatus.running) return null;
+
+    pigeonScattersInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    final baseAward = (baseTips * stuntMultiplier).round();
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? baseAward * 2
+        : baseAward;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = FlockScatterEvent(
+      baseTips: baseTips,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+      stuntStreak: stuntStreak,
+    );
+
+    onPigeonScatter?.call(event);
     notifyListeners();
     return event;
   }

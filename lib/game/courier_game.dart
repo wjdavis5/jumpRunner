@@ -17,6 +17,7 @@ import 'components/obstacle_component.dart';
 import 'components/parallax_city.dart';
 import 'components/particle_effect.dart';
 import 'components/pickup_component.dart';
+import 'components/pigeon_flock_component.dart';
 import 'components/pr_marker_component.dart';
 import 'components/rain_component.dart';
 import 'components/ramp_component.dart';
@@ -125,6 +126,7 @@ class CourierGame extends FlameGame
   final List<SubwayStationComponent> activeSubwayStations = [];
   final List<CraneSwingComponent> activeCranes = [];
   final List<CyclistCompanionComponent> activeCyclists = [];
+  final List<PigeonFlockComponent> activePigeonFlocks = [];
   ObstacleComponent? _currentVaultTarget;
   double cameraTargetY = 270.0;
   double _grindSparkTimer = 0.0;
@@ -173,6 +175,11 @@ class CourierGame extends FlameGame
   /// Spawns pickup collection sparkle bursts.
   void spawnSparkles(Vector2 pos, {Color color = const Color(0xFFF1C40F), int count = 12}) {
     addEffect(ParticleEffectComponent.sparkles(position: pos, color: color, count: count));
+  }
+
+  /// Spawns pigeon flock panic flutter feather bursts.
+  void spawnFeathers(Vector2 pos, {int count = 12}) {
+    addEffect(ParticleEffectComponent.feathers(position: pos, count: count));
   }
 
   /// Spawns celebratory shift milestone confetti fireworks.
@@ -440,6 +447,16 @@ class CourierGame extends FlameGame
       world.add(cyclistComp);
     }
 
+    for (final pf in chunk.pigeonFlocks) {
+      final flockComp = PigeonFlockComponent(
+        position: Vector2(pf.x, pf.y),
+        pigeonCount: pf.pigeonCount,
+        groundY: groundY,
+      );
+      activePigeonFlocks.add(flockComp);
+      world.add(flockComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -587,6 +604,12 @@ class CourierGame extends FlameGame
     for (final cy in world.children.whereType<CyclistCompanionComponent>().toList()) {
       cy.removeFromParent();
     }
+    for (final pf in activePigeonFlocks.toList()) {
+      pf.removeFromParent();
+    }
+    for (final pf in world.children.whereType<PigeonFlockComponent>().toList()) {
+      pf.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -595,6 +618,7 @@ class CourierGame extends FlameGame
     activeSubwayStations.clear();
     activeCranes.clear();
     activeCyclists.clear();
+    activePigeonFlocks.clear();
     cameraTargetY = virtualResolution.y / 2;
     player.endGrinding();
     player.stopGlide();
@@ -791,6 +815,9 @@ class CourierGame extends FlameGame
     }
     for (final cy in activeCyclists) {
       cy.position.x -= scrollDelta;
+    }
+    for (final pf in activePigeonFlocks) {
+      pf.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -1113,6 +1140,23 @@ class CourierGame extends FlameGame
       gameState.setDrafting(false);
     }
 
+    // 4l. Evaluate Urban Pigeon Flock Scatter & Mid-Air Leap Stunt
+    for (final pf in activePigeonFlocks) {
+      if (!pf.isScattered) {
+        pf.checkProximity(player.position, player.size);
+        if (pf.isScattered) {
+          audio.playCourierBark(CourierBarkType.stunt, line: 'Out of the way, pigeons!');
+          spawnFeathers(
+            Vector2(pf.position.x + (pf.size.x / 2), pf.position.y + 10.0),
+            count: 14,
+          );
+        }
+      }
+      if (pf.checkCourierIntersection(player.position, player.size)) {
+        _handlePigeonScatter(pf);
+      }
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -1209,6 +1253,13 @@ class CourierGame extends FlameGame
     activeCyclists.removeWhere((c) {
       if (c.shouldRecycle || c.isRemoved) {
         if (c.isMounted) c.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activePigeonFlocks.removeWhere((pf) {
+      if (pf.shouldRecycle || pf.isRemoved) {
+        if (pf.isMounted) pf.removeFromParent();
         return true;
       }
       return false;
@@ -1436,6 +1487,33 @@ class CourierGame extends FlameGame
           text: 'SLINGSHOT BOOST! $multStr+\$${event.totalTips}',
           position: Vector2(player.position.x - 10.0, player.position.y - 35.0),
           color: const Color(0xFF00E5FF),
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handlePigeonScatter(PigeonFlockComponent flock) {
+    final event = gameState.recordPigeonScatter();
+    if (event != null) {
+      audio.playCoin();
+      audio.playCourierBark(CourierBarkType.stunt, line: 'Scram!');
+      triggerScreenShake(0.18);
+      spawnFeathers(
+        Vector2(player.position.x + (player.size.x / 2), player.position.y),
+        count: 16,
+      );
+      spawnSparkles(
+        Vector2(player.position.x + (player.size.x / 2), player.position.y),
+        color: const Color(0xFF80CBC4),
+        count: 12,
+      );
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+      addEffect(
+        FloatingTextComponent(
+          text: 'FLOCK SCATTER! $multStr+\$${event.totalTips}',
+          position: Vector2(player.position.x - 10.0, player.position.y - 35.0),
+          color: const Color(0xFF80CBC4),
         ),
       );
       _evaluateAchievements();

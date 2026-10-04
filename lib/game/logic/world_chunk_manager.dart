@@ -165,6 +165,19 @@ class CyclistData {
   final double relativeSpeed;
 }
 
+/// Data model for an urban pigeon flock roosting on a sidewalk or ledge.
+class PigeonFlockData {
+  const PigeonFlockData({
+    required this.x,
+    required this.y,
+    this.pigeonCount = 6,
+  });
+
+  final double x;
+  final double y;
+  final int pigeonCount;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -177,6 +190,7 @@ class ChunkData {
     this.subwayStations = const [],
     this.craneSwings = const [],
     this.cyclists = const [],
+    this.pigeonFlocks = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -189,6 +203,7 @@ class ChunkData {
   final List<SubwayStationData> subwayStations;
   final List<CraneSwingData> craneSwings;
   final List<CyclistData> cyclists;
+  final List<PigeonFlockData> pigeonFlocks;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -501,21 +516,39 @@ class WorldChunkManager {
     final List<DropZoneData> dropZones = [];
 
     // Customer Doorstep Delivery Drop-off Zones (after 70m, on ground sidewalk outside scaffolding/rails)
-    if ((isVipActive || (distanceMeters >= 70.0 && _random.nextDouble() < 0.45)) &&
-        scaffoldings.isEmpty &&
-        grindRails.isEmpty &&
-        steamVents.isEmpty) {
-      final candidateX = startX + 180.0 + (_random.nextDouble() * (chunkWidth - 360.0));
+    if (isVipActive ||
+        ((distanceMeters >= 70.0 && _random.nextDouble() < 0.45) &&
+            scaffoldings.isEmpty &&
+            grindRails.isEmpty &&
+            steamVents.isEmpty)) {
       const zoneWidth = 68.0;
-      final isClearFromObstacles = obstacles.every(
-        (o) => (candidateX + zoneWidth < o.x - 70.0) || (candidateX > o.x + o.width + 70.0),
-      );
+      double? chosenX;
 
-      if (isClearFromObstacles) {
+      // Scan candidate slots across chunk to find a clear zone
+      for (var offset = 140.0; offset <= chunkWidth - 180.0; offset += 50.0) {
+        final candidateX = startX + offset;
+        final isClear = obstacles.every(
+          (o) => (candidateX + zoneWidth < o.x - 45.0) || (candidateX > o.x + o.width + 45.0),
+        );
+        if (isClear) {
+          chosenX = candidateX;
+          break;
+        }
+      }
+
+      // If VIP mission is active, guarantee a placement even if it means clearing a conflicting obstacle
+      if (chosenX == null && isVipActive) {
+        chosenX = startX + 220.0;
+        obstacles.removeWhere(
+          (o) => (chosenX! + zoneWidth >= o.x - 45.0) && (chosenX <= o.x + o.width + 45.0),
+        );
+      }
+
+      if (chosenX != null) {
         final spawnVip = isVipActive || (distanceMeters >= 220.0 && _random.nextDouble() < 0.25);
         dropZones.add(
           DropZoneData(
-            x: candidateX,
+            x: chosenX,
             y: groundY - 70.0,
             width: zoneWidth,
             height: 70.0,
@@ -601,27 +634,61 @@ class WorldChunkManager {
 
     // Friendly Delivery Cyclist Companion (after 100m, on street outside subway stations and scaffolding)
     if (distanceMeters >= 100.0 &&
-        _random.nextDouble() < 0.35 &&
+        _random.nextDouble() < 0.45 &&
         scaffoldings.isEmpty &&
         subwayStations.isEmpty &&
         craneSwings.isEmpty) {
-      final cyclistX = startX + 220.0 + (_random.nextDouble() * 120.0);
       const cyclistWidth = 76.0;
       const cyclistHeight = 54.0;
-      final isClearFromObstacles = obstacles.every(
-        (o) => (cyclistX + cyclistWidth < o.x - 70.0) || (cyclistX > o.x + o.width + 70.0),
-      );
+      for (var offset = 140.0; offset <= chunkWidth - 180.0; offset += 50.0) {
+        final cyclistX = startX + offset;
+        final isClearFromObstacles = obstacles.every(
+          (o) => (cyclistX + cyclistWidth < o.x - 45.0) || (cyclistX > o.x + o.width + 45.0),
+        );
 
-      if (isClearFromObstacles) {
-        cyclists.add(
-          CyclistData(
-            x: cyclistX,
-            y: groundY - cyclistHeight,
-            width: cyclistWidth,
-            height: cyclistHeight,
-            relativeSpeed: 15.0 + (_random.nextDouble() * 15.0),
+        if (isClearFromObstacles) {
+          cyclists.add(
+            CyclistData(
+              x: cyclistX,
+              y: groundY - cyclistHeight,
+              width: cyclistWidth,
+              height: cyclistHeight,
+              relativeSpeed: 15.0 + (_random.nextDouble() * 15.0),
+            ),
+          );
+          break;
+        }
+      }
+    }
+
+    final List<PigeonFlockData> pigeonFlocks = [];
+
+    // Roosting Urban Pigeon Flocks (after 80m, roosting on sidewalk or scaffolding ledge)
+    if (distanceMeters >= 80.0 && _random.nextDouble() < 0.40) {
+      if (scaffoldings.isNotEmpty && _random.nextBool()) {
+        final sc = scaffoldings.first;
+        pigeonFlocks.add(
+          PigeonFlockData(
+            x: sc.x + 20.0,
+            y: sc.y - 14.0,
+            pigeonCount: 5 + _random.nextInt(3),
           ),
         );
+      } else if (subwayStations.isEmpty) {
+        final flockX = startX + 140.0 + (_random.nextDouble() * 200.0);
+        // Ensure not overlapping directly on an obstacle
+        final isClear = obstacles.every(
+          (o) => (flockX + 70.0 < o.x - 30.0) || (flockX > o.x + o.width + 30.0),
+        );
+        if (isClear) {
+          pigeonFlocks.add(
+            PigeonFlockData(
+              x: flockX,
+              y: groundY - 14.0,
+              pigeonCount: 5 + _random.nextInt(4),
+            ),
+          );
+        }
       }
     }
 
@@ -636,6 +703,7 @@ class WorldChunkManager {
       subwayStations: subwayStations,
       craneSwings: craneSwings,
       cyclists: cyclists,
+      pigeonFlocks: pigeonFlocks,
     );
   }
 }

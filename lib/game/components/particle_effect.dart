@@ -213,6 +213,47 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Factory for flock panic and courier scatter feather bursts.
+  factory ParticleEffectComponent.feathers({
+    required Vector2 position,
+    int count = 12,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFFECEFF1), // Light Pigeon Down
+      Color(0xFFB0BEC5), // Slate Grey
+      Color(0xFF78909C), // Steel Feather
+      Color(0xFF37474F), // Dark Wingtip
+      Color(0xFF80CBC4), // Iridescent Neck Green
+      Color(0xFFCE93D8), // Iridescent Neck Purple
+    ];
+
+    for (var i = 0; i < count; i++) {
+      // Scatter upwards and outward in all directions
+      final angle = -math.pi / 2 + (rng.nextDouble() - 0.5) * 2.2;
+      final speed = 40.0 + rng.nextDouble() * 110.0;
+      final velocity = Vector2(math.cos(angle) * speed, math.sin(angle) * speed);
+
+      particles.add(
+        GameParticle(
+          position: position.clone() +
+              Vector2((rng.nextDouble() - 0.5) * 12, (rng.nextDouble() - 0.5) * 8),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 2.2 + rng.nextDouble() * 2.4,
+          maxLife: 0.65 + rng.nextDouble() * 0.45,
+          gravity: 45.0, // Slow gentle floating drift
+          drag: 1.8, // High air resistance for fluttering feathers
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.
