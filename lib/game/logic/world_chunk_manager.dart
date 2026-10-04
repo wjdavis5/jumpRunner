@@ -95,8 +95,28 @@ class GrindRailData {
   final double height;
 }
 
+/// Data model for an urban sidewalk thermal steam vent.
+class SteamVentData {
+  const SteamVentData({
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+    this.updraftHeight = 220.0,
+    this.updraftVelocity = 380.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+  final double updraftHeight;
+  final double updraftVelocity;
+}
+
 /// A generated chunk slice containing obstacles, collectible pickups,
-/// optional elevated aerial routes, customer doorstep drop zones, and metallic grind rails.
+/// optional elevated aerial routes, customer doorstep drop zones, metallic grind rails,
+/// and thermal steam vents.
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -105,6 +125,7 @@ class ChunkData {
     this.ramps = const [],
     this.dropZones = const [],
     this.grindRails = const [],
+    this.steamVents = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -113,6 +134,7 @@ class ChunkData {
   final List<RampData> ramps;
   final List<DropZoneData> dropZones;
   final List<GrindRailData> grindRails;
+  final List<SteamVentData> steamVents;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -164,6 +186,7 @@ class WorldChunkManager {
     final scaffoldings = <ScaffoldingData>[];
     final ramps = <RampData>[];
     final grindRails = <GrindRailData>[];
+    final steamVents = <SteamVentData>[];
 
     final minClearance = calculateMinClearance(speed);
     final naturalStart = startX + 60.0 + _random.nextDouble() * 40.0;
@@ -293,6 +316,45 @@ class WorldChunkManager {
       cursorX = _lastObstacleEndX + minClearance + 1.0;
     }
 
+    // Urban Sidewalk Steam Vent: Spawns after 150m when no scaffolding or rail occupies the stretch
+    if (scaffoldings.isEmpty &&
+        grindRails.isEmpty &&
+        distanceMeters >= 150.0 &&
+        _random.nextDouble() < 0.25 &&
+        (endX - cursorX) >= 280.0) {
+      final ventX = cursorX;
+      const ventWidth = 48.0;
+      const ventHeight = 16.0;
+      final ventY = groundY - ventHeight;
+
+      steamVents.add(SteamVentData(
+        x: ventX,
+        y: ventY,
+        width: ventWidth,
+        height: ventHeight,
+      ));
+
+      // Updraft trail coins ascending vertically through the plume
+      pickups.add(PickupData(type: PickupType.coin, x: ventX + 16.0, y: groundY - 70.0));
+      pickups.add(PickupData(type: PickupType.coin5, x: ventX + 16.0, y: groundY - 140.0));
+      pickups.add(PickupData(type: PickupType.coin, x: ventX + 16.0, y: groundY - 200.0));
+
+      // Place a wide street hazard downfield to glide over
+      final obstacleX = ventX + 130.0;
+      const obstacleType = ObstacleType.van;
+      final obsSize = ObstacleComponent.defaultSizeForType(obstacleType);
+      obstacles.add(ObstacleData(
+        type: obstacleType,
+        x: obstacleX,
+        y: groundY - obsSize.y,
+        width: obsSize.x,
+        height: obsSize.y,
+      ));
+
+      _lastObstacleEndX = obstacleX + obsSize.x;
+      cursorX = _lastObstacleEndX + minClearance + 1.0;
+    }
+
     // Introduce dynamic hazards (skate messenger, pigeon flock) at distance/speed milestones
     final availableTypes = (distanceMeters >= 800.0 || speed >= 340.0)
         ? ObstacleType.values
@@ -377,7 +439,8 @@ class WorldChunkManager {
     if (distanceMeters >= 70.0 &&
         _random.nextDouble() < 0.45 &&
         scaffoldings.isEmpty &&
-        grindRails.isEmpty) {
+        grindRails.isEmpty &&
+        steamVents.isEmpty) {
       final candidateX = startX + 180.0 + (_random.nextDouble() * (chunkWidth - 360.0));
       const zoneWidth = 68.0;
       final isClearFromObstacles = obstacles.every(
@@ -403,6 +466,7 @@ class WorldChunkManager {
       ramps: ramps,
       dropZones: dropZones,
       grindRails: grindRails,
+      steamVents: steamVents,
     );
   }
 }

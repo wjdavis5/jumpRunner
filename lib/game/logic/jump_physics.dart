@@ -50,6 +50,9 @@ class JumpPhysicsSimulator {
   /// Whether jump input is currently being held down.
   bool isHolding = false;
 
+  /// Whether aerodynamic gliding chute is active, reducing descent speed.
+  bool isGliding = false;
+
   /// Elapsed duration in seconds for the current jump hold.
   double holdTimer = 0.0;
 
@@ -78,6 +81,16 @@ class JumpPhysicsSimulator {
     isHolding = false;
     holdTimer = 0.0;
     verticalVelocity = impulse;
+  }
+
+  /// Applies a continuous or impulse vertical updraft lift (e.g. steam vent).
+  void applyUpdraft(double upwardVelocity, {double maxUpwardSpeed = 420.0}) {
+    isGrounded = false;
+    isHolding = false;
+    holdTimer = 0.0;
+    if (verticalVelocity < upwardVelocity) {
+      verticalVelocity = upwardVelocity.clamp(-maxUpwardSpeed, maxUpwardSpeed);
+    }
   }
 
   /// Initiates a jump from the ground.
@@ -112,11 +125,18 @@ class JumpPhysicsSimulator {
     final double effectiveAcceleration;
     if (isHolding && verticalVelocity > 0) {
       effectiveAcceleration = -gravity + holdAcceleration;
+    } else if (isGliding && verticalVelocity < 0) {
+      // Gentle aerodynamic glide descent
+      effectiveAcceleration = -gravity * 0.18;
     } else {
       effectiveAcceleration = -gravity;
     }
 
     verticalVelocity += effectiveAcceleration * dt;
+    if (isGliding && verticalVelocity < -55.0) {
+      verticalVelocity = -55.0; // Terminal gentle glide descent rate
+    }
+
     // In screen coordinates, positive vertical velocity moves avatar upward (decreasing Y)
     currentY -= verticalVelocity * dt;
 
@@ -125,6 +145,7 @@ class JumpPhysicsSimulator {
       verticalVelocity = 0.0;
       isGrounded = true;
       isHolding = false;
+      isGliding = false;
       holdTimer = 0.0;
     } else if (currentY >= groundY) {
       // Safety net: absolute ground floor
@@ -132,6 +153,7 @@ class JumpPhysicsSimulator {
       verticalVelocity = 0.0;
       isGrounded = true;
       isHolding = false;
+      isGliding = false;
       holdTimer = 0.0;
       targetSurfaceY = groundY;
     }

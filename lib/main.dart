@@ -304,6 +304,7 @@ class _CourierDashAppState extends State<CourierDashApp> {
                   deliveriesCompleted: _gameState.deliveriesInRun,
                   grindsCompleted: _gameState.grindsInRun,
                   vaultsCompleted: _gameState.vaultsInRun,
+                  glidesCompleted: _gameState.glidesInRun,
                   onRestart: _restartGame,
                 ),
           },
