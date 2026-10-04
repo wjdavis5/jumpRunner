@@ -30,6 +30,7 @@ import 'components/fire_hydrant_component.dart';
 import 'components/clothesline_component.dart';
 import 'components/subway_exhaust_grate_component.dart';
 import 'components/catenary_zipline_component.dart';
+import 'components/bus_shelter_component.dart';
 import 'components/lightning_flash_component.dart';
 import 'components/grind_rail_component.dart';
 import 'components/hvac_wind_tunnel_component.dart';
@@ -178,6 +179,7 @@ class CourierGame extends FlameGame
   final List<ClotheslineComponent> activeClotheslines = [];
   final List<SubwayExhaustGrateComponent> activeSubwayExhaustGrates = [];
   final List<CatenaryZiplineComponent> activeCatenaryZiplines = [];
+  final List<BusShelterComponent> activeBusShelters = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
@@ -794,6 +796,17 @@ class CourierGame extends FlameGame
       world.add(czComp);
     }
 
+    for (final bs in chunk.busShelters) {
+      final bsComp = BusShelterComponent(
+        position: Vector2(bs.x, bs.y),
+        width: bs.width,
+        height: bs.height,
+        groundY: groundY,
+      );
+      activeBusShelters.add(bsComp);
+      world.add(bsComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -1091,6 +1104,12 @@ class CourierGame extends FlameGame
     for (final cz in world.children.whereType<CatenaryZiplineComponent>().toList()) {
       cz.removeFromParent();
     }
+    for (final bs in activeBusShelters.toList()) {
+      bs.removeFromParent();
+    }
+    for (final bs in world.children.whereType<BusShelterComponent>().toList()) {
+      bs.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -1124,6 +1143,7 @@ class CourierGame extends FlameGame
     activeClotheslines.clear();
     activeSubwayExhaustGrates.clear();
     activeCatenaryZiplines.clear();
+    activeBusShelters.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
@@ -1421,6 +1441,9 @@ class CourierGame extends FlameGame
     }
     for (final cz in activeCatenaryZiplines) {
       cz.position.x -= scrollDelta;
+    }
+    for (final bs in activeBusShelters) {
+      bs.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -2071,6 +2094,15 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4aj. Evaluate Street Transit Bus Stop Shelter Vaults
+    for (final bs in activeBusShelters) {
+      if (!bs.hasVaulted) {
+        if (bs.checkShelterVault(player.position, player.size, player.simulator)) {
+          _handleBusShelterVault(bs);
+        }
+      }
+    }
+
 
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
@@ -2343,6 +2375,13 @@ class CourierGame extends FlameGame
     activeCatenaryZiplines.removeWhere((cz) {
       if (cz.shouldRecycle || cz.isRemoved) {
         if (cz.isMounted) cz.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeBusShelters.removeWhere((bs) {
+      if (bs.shouldRecycle || bs.isRemoved) {
+        if (bs.isMounted) bs.removeFromParent();
         return true;
       }
       return false;
@@ -3322,6 +3361,36 @@ class CourierGame extends FlameGame
         ParticleEffectComponent.ziplineSparks(
           position: Vector2(player.position.x + (player.size.x * 0.5), player.position.y + 10.0),
           count: 28,
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handleBusShelterVault(BusShelterComponent shelter) {
+    shelter.markVaulted();
+    final event = gameState.recordBusShelterVault();
+    if (event != null) {
+      audio.playJump();
+      audio.playCourierBark(
+        CourierBarkType.stunt,
+        line: 'Express service!',
+      );
+      triggerScreenShake(0.13);
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+
+      addEffect(
+        FloatingTextComponent(
+          text: 'TRANSIT SHELTER VAULT! $multStr+\$${event.totalTips}',
+          position: Vector2(shelter.position.x - 10.0, shelter.position.y - 32.0),
+          color: const Color(0xFFFFB300),
+        ),
+      );
+      addEffect(
+        ParticleEffectComponent.transitLedSparks(
+          position: shelter.marqueeApexWorld,
+          count: 26,
         ),
       );
       _evaluateAchievements();
