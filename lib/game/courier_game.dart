@@ -14,6 +14,7 @@ import 'components/cyclist_companion_component.dart';
 import 'components/delivery_drone_component.dart';
 import 'components/drone_cargo_component.dart';
 import 'components/drop_zone_component.dart';
+import 'components/fire_escape_ladder_component.dart';
 import 'components/floating_text_component.dart';
 import 'components/food_cart_component.dart';
 import 'components/grind_rail_component.dart';
@@ -144,6 +145,7 @@ class CourierGame extends FlameGame
   final List<HvacWindTunnelComponent> activeWindTunnels = [];
   final List<SubwayTurnstileComponent> activeTurnstiles = [];
   final List<DroneCargoComponent> activeDroneCargos = [];
+  final List<FireEscapeLadderComponent> activeFireEscapes = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
@@ -571,6 +573,18 @@ class CourierGame extends FlameGame
       world.add(dcComp);
     }
 
+    for (final fe in chunk.fireEscapes) {
+      final feComp = FireEscapeLadderComponent(
+        position: Vector2(fe.x, fe.y),
+        width: fe.width,
+        height: fe.height,
+        groundY: groundY,
+        launchImpulse: fe.launchImpulse,
+      );
+      activeFireEscapes.add(feComp);
+      world.add(feComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -772,6 +786,12 @@ class CourierGame extends FlameGame
     for (final dc in world.children.whereType<DroneCargoComponent>().toList()) {
       dc.removeFromParent();
     }
+    for (final fe in activeFireEscapes.toList()) {
+      fe.removeFromParent();
+    }
+    for (final fe in world.children.whereType<FireEscapeLadderComponent>().toList()) {
+      fe.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -789,6 +809,7 @@ class CourierGame extends FlameGame
     activeWindTunnels.clear();
     activeTurnstiles.clear();
     activeDroneCargos.clear();
+    activeFireEscapes.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
@@ -1016,6 +1037,9 @@ class CourierGame extends FlameGame
     }
     for (final dc in activeDroneCargos) {
       dc.position.x -= scrollDelta;
+    }
+    for (final fe in activeFireEscapes) {
+      fe.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -1493,6 +1517,15 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4t. Evaluate Street Fire Escape Ladder Drop Grabs
+    for (final fe in activeFireEscapes) {
+      if (!fe.hasDropped) {
+        if (fe.checkLadderGrab(player.position, player.size, player.simulator)) {
+          _handleFireEscapeDrop(fe);
+        }
+      }
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -1652,6 +1685,13 @@ class CourierGame extends FlameGame
     activeDroneCargos.removeWhere((dc) {
       if (dc.shouldRecycle || dc.isRemoved) {
         if (dc.isMounted) dc.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeFireEscapes.removeWhere((fe) {
+      if (fe.shouldRecycle || fe.isRemoved) {
+        if (fe.isMounted) fe.removeFromParent();
         return true;
       }
       return false;
@@ -2150,6 +2190,35 @@ class CourierGame extends FlameGame
         ParticleEffectComponent.droneCargo(
           position: drone.crateCenterWorld,
           count: 22,
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handleFireEscapeDrop(FireEscapeLadderComponent fireEscape) {
+    final event = gameState.recordFireEscapeDrop();
+    if (event != null) {
+      audio.playCoin();
+      audio.playCourierBark(
+        CourierBarkType.stunt,
+        line: 'Fire escape shortcut!',
+      );
+      triggerScreenShake(0.14);
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+
+      addEffect(
+        FloatingTextComponent(
+          text: 'FIRE ESCAPE DROP! $multStr+\$${event.totalTips}',
+          position: Vector2(player.position.x - 15.0, player.position.y - 35.0),
+          color: const Color(0xFFFFD54F),
+        ),
+      );
+      addEffect(
+        ParticleEffectComponent.fireEscapeSparks(
+          position: fireEscape.ladderGrabWorldPosition,
+          count: 18,
         ),
       );
       _evaluateAchievements();

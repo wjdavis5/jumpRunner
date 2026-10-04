@@ -318,6 +318,7 @@ class _CourierDashAppState extends State<CourierDashApp> {
                   windTunnelGlidesCompleted: _gameState.windTunnelGlidesInRun,
                   turnstilesCompleted: _gameState.turnstileVaultsInRun,
                   droneCatchesCompleted: _gameState.droneCatchesInRun,
+                  fireEscapesCompleted: _gameState.fireEscapeDropsInRun,
                   onRestart: _restartGame,
                 ),
           },
