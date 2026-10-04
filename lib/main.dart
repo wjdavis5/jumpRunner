@@ -347,6 +347,7 @@ class _CourierDashAppState extends State<CourierDashApp> {
                   subwayGratesCompleted: _gameState.exhaustGratesCaughtInRun,
                   ziplinesCompleted: _gameState.ziplinesCompletedInRun,
                   busSheltersCompleted: _gameState.busSheltersVaultedInRun,
+                  securityShuttersCompleted: _gameState.shuttersReboundedInRun,
                   onRestart: _restartGame,
                 ),
           },
