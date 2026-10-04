@@ -390,6 +390,32 @@ class StormDrainEvent {
   final int coinsSpawned;
 }
 
+/// Event dispatched when completing a rooftop solar panel skate slide with an electric EMP surge.
+class SolarSurgeEvent {
+  const SolarSurgeEvent({
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.stuntStreak,
+    this.coinsHarvested = 0,
+  });
+
+  /// Base tip value before stunt combo scaling ($35).
+  final int baseTips;
+
+  /// Total tip amount awarded after active combo multipliers.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this event.
+  final double multiplier;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+
+  /// Number of nearby coins vacuumed directly by the EMP shockwave.
+  final int coinsHarvested;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -557,6 +583,9 @@ class GameState extends ChangeNotifier {
   /// Total street storm drain vault grate steam geyser eruptions triggered in current run.
   int drainGeysersInRun = 0;
 
+  /// Total rooftop solar panel kinetic skate slides and surge discharges in current run.
+  int solarSurgesInRun = 0;
+
   /// Total seconds spent drafting behind companion cyclists in current run.
   double totalDraftDurationInRun = 0.0;
 
@@ -587,6 +616,7 @@ class GameState extends ChangeNotifier {
   ValueChanged<HighFiveEvent>? onHighFive;
   ValueChanged<FoodCartBounceEvent>? onFoodCartBounce;
   ValueChanged<StormDrainEvent>? onStormDrain;
+  ValueChanged<SolarSurgeEvent>? onSolarSurge;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -629,6 +659,7 @@ class GameState extends ChangeNotifier {
     highFivesInRun = 0;
     foodCartBouncesInRun = 0;
     drainGeysersInRun = 0;
+    solarSurgesInRun = 0;
     totalDraftDurationInRun = 0.0;
     isDrafting = false;
     status = GameStatus.running;
@@ -1292,6 +1323,39 @@ class GameState extends ChangeNotifier {
     );
 
     onStormDrain?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records completing a rooftop solar panel kinetic skate slide and discharging a Solar Surge EMP,
+  /// awarding base tips scaled by combo multipliers, advancing the stunt streak,
+  /// and vacuuming nearby coins.
+  SolarSurgeEvent? recordSolarSurge({int baseTips = 35, int coinsHarvested = 0}) {
+    if (status != GameStatus.running) return null;
+
+    solarSurgesInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    final baseAward = (baseTips * stuntMultiplier).round();
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? baseAward * 2
+        : baseAward;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = SolarSurgeEvent(
+      baseTips: baseTips,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+      stuntStreak: stuntStreak,
+      coinsHarvested: coinsHarvested,
+    );
+
+    onSolarSurge?.call(event);
     notifyListeners();
     return event;
   }

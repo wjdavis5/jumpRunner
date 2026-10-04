@@ -26,6 +26,7 @@ import 'components/rain_component.dart';
 import 'components/ramp_component.dart';
 import 'components/scaffolding_component.dart';
 import 'components/speech_bubble_component.dart';
+import 'components/solar_panel_component.dart';
 import 'components/steam_vent_component.dart';
 import 'components/storm_drain_component.dart';
 import 'components/subway_station_component.dart';
@@ -134,6 +135,10 @@ class CourierGame extends FlameGame
   final List<CrosswalkZoneComponent> activeCrosswalks = [];
   final List<FoodCartComponent> activeFoodCarts = [];
   final List<StormDrainComponent> activeStormDrains = [];
+  final List<SolarPanelComponent> activeSolarPanels = [];
+  SolarPanelComponent? _activeSolarPanel;
+  GrindRailComponent? _activeGrindRail;
+  double _solarSparkTimer = 0.0;
   ObstacleComponent? _currentVaultTarget;
   double cameraTargetY = 270.0;
   double _grindSparkTimer = 0.0;
@@ -503,6 +508,16 @@ class CourierGame extends FlameGame
       world.add(drainComp);
     }
 
+    for (final sp in chunk.solarPanels) {
+      final spComp = SolarPanelComponent(
+        position: Vector2(sp.x, sp.y),
+        size: Vector2(sp.width, sp.height),
+        groundY: groundY,
+      );
+      activeSolarPanels.add(spComp);
+      world.add(spComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -674,6 +689,12 @@ class CourierGame extends FlameGame
     for (final sd in world.children.whereType<StormDrainComponent>().toList()) {
       sd.removeFromParent();
     }
+    for (final sp in activeSolarPanels.toList()) {
+      sp.removeFromParent();
+    }
+    for (final sp in world.children.whereType<SolarPanelComponent>().toList()) {
+      sp.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -686,6 +707,10 @@ class CourierGame extends FlameGame
     activeCrosswalks.clear();
     activeFoodCarts.clear();
     activeStormDrains.clear();
+    activeSolarPanels.clear();
+    _activeSolarPanel = null;
+    _activeGrindRail = null;
+    _solarSparkTimer = 0.0;
     cameraTargetY = virtualResolution.y / 2;
     player.endGrinding();
     player.stopGlide();
@@ -895,6 +920,9 @@ class CourierGame extends FlameGame
     for (final sd in activeStormDrains) {
       sd.position.x -= scrollDelta;
     }
+    for (final sp in activeSolarPanels) {
+      sp.position.x -= scrollDelta;
+    }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
     }
@@ -968,13 +996,24 @@ class CourierGame extends FlameGame
     GrindRailComponent? supportingRail;
     for (final gr in activeGrindRails) {
       if (gr.checkCollisionWith(player) ||
-          (player.isGrinding && courierFootX >= gr.position.x && courierFootX <= gr.position.x + gr.size.x)) {
+          (player.isGrinding && _activeGrindRail == gr && courierFootX >= gr.position.x && courierFootX <= gr.position.x + gr.size.x)) {
         supportingRail = gr;
         break;
       }
     }
 
+    // 4f-2. Evaluate Rooftop Solar Panel Array Skate Slide, Sparks, and Kinetic Charge
+    SolarPanelComponent? supportingSolarPanel;
+    for (final sp in activeSolarPanels) {
+      if (sp.checkCollisionWith(player) ||
+          (player.isGrinding && _activeSolarPanel == sp && courierFootX >= sp.position.x && courierFootX <= sp.position.x + sp.size.x)) {
+        supportingSolarPanel = sp;
+        break;
+      }
+    }
+
     if (supportingRail != null) {
+      _activeGrindRail = supportingRail;
       if (!player.isGrinding) {
         player.startGrinding(supportingRail.surfaceY);
         audio.playCoin();
@@ -996,34 +1035,87 @@ class CourierGame extends FlameGame
           );
         }
       }
-    } else if (player.isGrinding) {
-      // Clean dismount off rail trailing edge!
-      final meters = player.grindDistance;
-      player.endGrinding();
-      player.resetTargetSurfaceY();
-      _grindSparkTimer = 0.0;
+    } else if (supportingSolarPanel != null) {
+      _activeSolarPanel = supportingSolarPanel;
+      supportingSolarPanel.isCharging = true;
+      supportingSolarPanel.addCharge(dt * 2.2);
 
-      final event = gameState.recordRailClear(grindDistanceMeters: meters);
-      if (event != null) {
+      if (!player.isGrinding) {
+        player.startGrinding(supportingSolarPanel.surfaceY);
         audio.playCoin();
-        triggerScreenShake(0.15);
+        triggerScreenShake(0.12);
         addEffect(
-          FloatingTextComponent(
-            text: 'RAIL CLEAR! +\$${event.bonusTips}',
-            position: Vector2(player.position.x - 10.0, player.position.y - 30.0),
-            color: const Color(0xFFF1C40F),
+          ParticleEffectComponent.electricSparks(
+            position: Vector2(courierFootX, supportingSolarPanel.surfaceY),
+            count: 12,
           ),
         );
-        spawnSparkles(
-          Vector2(courierFootX, groundY - 30.0),
-          color: const Color(0xFF00E5FF),
-          count: 8,
-        );
+      } else {
+        player.grindDistance += distanceDelta;
+        _solarSparkTimer += dt;
+        if (_solarSparkTimer >= 0.05) {
+          _solarSparkTimer = 0.0;
+          addEffect(
+            ParticleEffectComponent.electricSparks(
+              position: Vector2(courierFootX, supportingSolarPanel.surfaceY - 2.0),
+              count: 5,
+            ),
+          );
+        }
       }
-    } else if (supportingScaffolding != null) {
-      player.setTargetSurfaceY(supportingScaffolding.surfaceY);
+    } else if (player.isGrinding) {
+      if (_activeSolarPanel != null) {
+        final panel = _activeSolarPanel!;
+        _activeSolarPanel = null;
+        _solarSparkTimer = 0.0;
+        player.endGrinding();
+        if (supportingScaffolding != null) {
+          player.setTargetSurfaceY(supportingScaffolding.surfaceY);
+        } else {
+          player.resetTargetSurfaceY();
+        }
+        _handleSolarSurge(panel);
+      } else {
+        // Clean dismount off rail trailing edge!
+        final meters = player.grindDistance;
+        _activeGrindRail = null;
+        player.endGrinding();
+        player.resetTargetSurfaceY();
+        _grindSparkTimer = 0.0;
+
+        final event = gameState.recordRailClear(grindDistanceMeters: meters);
+        if (event != null) {
+          audio.playCoin();
+          triggerScreenShake(0.15);
+          addEffect(
+            FloatingTextComponent(
+              text: 'RAIL CLEAR! +\$${event.bonusTips}',
+              position: Vector2(player.position.x - 10.0, player.position.y - 30.0),
+              color: const Color(0xFFF1C40F),
+            ),
+          );
+          spawnSparkles(
+            Vector2(courierFootX, groundY - 30.0),
+            color: const Color(0xFF00E5FF),
+            count: 8,
+          );
+        }
+      }
     } else {
-      player.resetTargetSurfaceY();
+      if (_activeSolarPanel != null) {
+        if (_activeSolarPanel!.chargeLevel >= 0.25 && !_activeSolarPanel!.hasDischarged) {
+          _handleSolarSurge(_activeSolarPanel!);
+        }
+        _activeSolarPanel = null;
+        _solarSparkTimer = 0.0;
+      }
+      _activeGrindRail = null;
+
+      if (supportingScaffolding != null) {
+        player.setTargetSurfaceY(supportingScaffolding.surfaceY);
+      } else {
+        player.resetTargetSurfaceY();
+      }
     }
 
     // 4g. Evaluate Customer Doorstep Delivery Drop-offs
@@ -1382,6 +1474,13 @@ class CourierGame extends FlameGame
       }
       return false;
     });
+    activeSolarPanels.removeWhere((sp) {
+      if (sp.shouldRecycle || sp.isRemoved) {
+        if (sp.isMounted) sp.removeFromParent();
+        return true;
+      }
+      return false;
+    });
     if (activePrMarker != null && activePrMarker!.shouldRecycle) {
       if (activePrMarker!.isMounted) {
         activePrMarker!.removeFromParent();
@@ -1717,6 +1816,58 @@ class CourierGame extends FlameGame
           text: 'DRAIN GEYSER! $multStr+\$${event.totalTips}',
           position: Vector2(player.position.x - 10.0, player.position.y - 35.0),
           color: const Color(0xFF00E5FF),
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handleSolarSurge(SolarPanelComponent panel) {
+    if (panel.hasDischarged) return;
+    panel.hasDischarged = true;
+
+    // EMP Shockwave: Vacuum all coins within 320px directly to courier
+    int coinsHarvested = 0;
+    final courierCenter = player.position + (player.size / 2);
+    for (final p in activePickups.toList()) {
+      if ((p.type == PickupType.coin || p.type == PickupType.coin5) && !p.isCollected) {
+        final pCenter = p.position + (p.size / 2);
+        if ((courierCenter - pCenter).length <= 320.0) {
+          p.isCollected = true;
+          p.onCollected?.call(p.type);
+          if (p.isMounted) {
+            p.removeFromParent();
+          }
+          coinsHarvested++;
+          addEffect(
+            ParticleEffectComponent.electricSparks(
+              position: pCenter,
+              count: 6,
+            ),
+          );
+        }
+      }
+    }
+
+    final event = gameState.recordSolarSurge(coinsHarvested: coinsHarvested);
+    if (event != null) {
+      audio.playMilestone();
+      audio.playCoin();
+      audio.playCourierBark(CourierBarkType.stunt, line: 'Solar surge!');
+      triggerScreenShake(0.24);
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+      addEffect(
+        FloatingTextComponent(
+          text: 'SOLAR SURGE! $multStr+\$${event.totalTips}',
+          position: Vector2(player.position.x - 12.0, player.position.y - 35.0),
+          color: const Color(0xFF00E5FF),
+        ),
+      );
+      addEffect(
+        ParticleEffectComponent.electricSparks(
+          position: courierCenter,
+          count: 20,
         ),
       );
       _evaluateAchievements();

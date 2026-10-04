@@ -227,6 +227,21 @@ class StormDrainData {
   final int coinsSpawned;
 }
 
+/// Data model for an elevated rooftop photovoltaic solar panel array.
+class SolarPanelData {
+  const SolarPanelData({
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -243,6 +258,7 @@ class ChunkData {
     this.crosswalks = const [],
     this.foodCarts = const [],
     this.stormDrains = const [],
+    this.solarPanels = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -259,6 +275,7 @@ class ChunkData {
   final List<CrosswalkData> crosswalks;
   final List<FoodCartData> foodCarts;
   final List<StormDrainData> stormDrains;
+  final List<SolarPanelData> solarPanels;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -312,6 +329,7 @@ class WorldChunkManager {
     final ramps = <RampData>[];
     final grindRails = <GrindRailData>[];
     final steamVents = <SteamVentData>[];
+    final solarPanels = <SolarPanelData>[];
 
     final minClearance = calculateMinClearance(speed);
     final naturalStart = startX + 60.0 + _random.nextDouble() * 40.0;
@@ -370,8 +388,9 @@ class WorldChunkManager {
           height: gSize.y,
         ));
 
-        // Optionally attach an elevated catwalk grind rail extending off the scaffolding deck
-        if (_random.nextDouble() < 0.40 && (endX - (scaffoldingX + scaffoldingWidth)) >= 160.0) {
+        // Optionally attach an elevated catwalk grind rail or rooftop solar panel array extending off the scaffolding deck
+        final remainingScaffoldSpace = endX - (scaffoldingX + scaffoldingWidth);
+        if (_random.nextDouble() < 0.40 && remainingScaffoldSpace >= 160.0) {
           final railX = scaffoldingX + scaffoldingWidth + 12.0;
           final railWidth = math.min(220.0, endX - railX);
           final railY = scaffoldingY; // Level with scaffolding deck
@@ -392,6 +411,28 @@ class WorldChunkManager {
           }
 
           _lastObstacleEndX = railX + railWidth;
+          cursorX = _lastObstacleEndX + minClearance + 1.0;
+        } else if (_random.nextDouble() < 0.40 && remainingScaffoldSpace >= 180.0) {
+          final panelX = scaffoldingX + scaffoldingWidth + 12.0;
+          final panelWidth = math.min(220.0, endX - panelX);
+          final panelY = scaffoldingY; // Level with scaffolding deck
+          solarPanels.add(SolarPanelData(
+            x: panelX,
+            y: panelY,
+            width: panelWidth,
+            height: 18.0,
+          ));
+
+          // Gold coins along the solar panel
+          for (double sx = panelX + 30.0; sx < panelX + panelWidth - 20.0; sx += 60.0) {
+            pickups.add(PickupData(
+              type: PickupType.coin,
+              x: sx,
+              y: panelY - 26.0,
+            ));
+          }
+
+          _lastObstacleEndX = panelX + panelWidth;
           cursorX = _lastObstacleEndX + minClearance + 1.0;
         } else {
           _lastObstacleEndX = scaffoldingX + scaffoldingWidth;
@@ -477,6 +518,49 @@ class WorldChunkManager {
       ));
 
       _lastObstacleEndX = obstacleX + obsSize.x;
+      cursorX = _lastObstacleEndX + minClearance + 1.0;
+    }
+
+    // Rooftop Photovoltaic Solar Panel Array: Spawns after 110m when no scaffolding or rail occupies the stretch
+    if (scaffoldings.isEmpty &&
+        grindRails.isEmpty &&
+        steamVents.isEmpty &&
+        distanceMeters >= 110.0 &&
+        _random.nextDouble() < 0.32 &&
+        (endX - cursorX) >= 260.0) {
+      final panelWidth = 200.0 + _random.nextDouble() * 60.0;
+      final panelX = cursorX;
+      final panelY = groundY - 54.0;
+
+      solarPanels.add(SolarPanelData(
+        x: panelX,
+        y: panelY,
+        width: panelWidth,
+        height: 18.0,
+      ));
+
+      // Rewarding coins floating along the solar panel
+      for (double sx = panelX + 25.0; sx < panelX + panelWidth - 15.0; sx += 55.0) {
+        pickups.add(PickupData(
+          type: PickupType.coin,
+          x: sx,
+          y: panelY - 26.0,
+        ));
+      }
+
+      // Ground hazard underneath the solar panel for player to slide over
+      final groundType = ObstacleType.values[_random.nextInt(4)];
+      final gSize = ObstacleComponent.defaultSizeForType(groundType);
+      final gX = panelX + (panelWidth / 2) - (gSize.x / 2);
+      obstacles.add(ObstacleData(
+        type: groundType,
+        x: gX,
+        y: groundY - gSize.y,
+        width: gSize.x,
+        height: gSize.y,
+      ));
+
+      _lastObstacleEndX = panelX + panelWidth;
       cursorX = _lastObstacleEndX + minClearance + 1.0;
     }
 
@@ -848,6 +932,7 @@ class WorldChunkManager {
       crosswalks: crosswalks,
       foodCarts: foodCarts,
       stormDrains: stormDrains,
+      solarPanels: solarPanels,
     );
   }
 }

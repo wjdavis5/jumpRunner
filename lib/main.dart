@@ -313,6 +313,7 @@ class _CourierDashAppState extends State<CourierDashApp> {
                   highFivesCompleted: _gameState.highFivesInRun,
                   foodCartBouncesCompleted: _gameState.foodCartBouncesInRun,
                   drainGeysersCompleted: _gameState.drainGeysersInRun,
+                  solarSurgesCompleted: _gameState.solarSurgesInRun,
                   onRestart: _restartGame,
                 ),
           },
