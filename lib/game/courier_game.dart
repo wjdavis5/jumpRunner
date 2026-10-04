@@ -16,6 +16,7 @@ import 'components/drop_zone_component.dart';
 import 'components/floating_text_component.dart';
 import 'components/food_cart_component.dart';
 import 'components/grind_rail_component.dart';
+import 'components/hvac_wind_tunnel_component.dart';
 import 'components/obstacle_component.dart';
 import 'components/parallax_city.dart';
 import 'components/particle_effect.dart';
@@ -138,6 +139,7 @@ class CourierGame extends FlameGame
   final List<StormDrainComponent> activeStormDrains = [];
   final List<SolarPanelComponent> activeSolarPanels = [];
   final List<PuddleComponent> activePuddles = [];
+  final List<HvacWindTunnelComponent> activeWindTunnels = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
@@ -530,6 +532,18 @@ class CourierGame extends FlameGame
       world.add(pudComp);
     }
 
+    for (final wt in chunk.windTunnels) {
+      final wtComp = HvacWindTunnelComponent(
+        position: Vector2(wt.x, wt.y),
+        housingWidth: wt.housingWidth,
+        housingHeight: wt.housingHeight,
+        windLength: wt.windLength,
+        groundY: groundY,
+      );
+      activeWindTunnels.add(wtComp);
+      world.add(wtComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -713,6 +727,12 @@ class CourierGame extends FlameGame
     for (final pud in world.children.whereType<PuddleComponent>().toList()) {
       pud.removeFromParent();
     }
+    for (final wt in activeWindTunnels.toList()) {
+      wt.removeFromParent();
+    }
+    for (final wt in world.children.whereType<HvacWindTunnelComponent>().toList()) {
+      wt.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -727,6 +747,7 @@ class CourierGame extends FlameGame
     activeStormDrains.clear();
     activeSolarPanels.clear();
     activePuddles.clear();
+    activeWindTunnels.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
@@ -945,6 +966,9 @@ class CourierGame extends FlameGame
     for (final pud in activePuddles) {
       pud.position.x -= scrollDelta;
       pud.isRaining = weatherController.isRaining;
+    }
+    for (final wt in activeWindTunnels) {
+      wt.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -1388,6 +1412,20 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4q. Evaluate Industrial HVAC Exhaust Wind Tunnel Aerodynamic Hover Glides
+    for (final wt in activeWindTunnels) {
+      if (wt.isInWindStream(player.position, player.size, player.simulator)) {
+        // Buoyant aerodynamic hover lift inside the slipstream cone
+        if (player.simulator.verticalVelocity < 30.0) {
+          player.simulator.applyUpdraft(60.0);
+        }
+        if (!wt.hasAwarded) {
+          wt.hasAwarded = true;
+          _handleWindTunnelGlide(wt);
+        }
+      }
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -1526,6 +1564,13 @@ class CourierGame extends FlameGame
     activePuddles.removeWhere((pud) {
       if (pud.shouldRecycle || pud.isRemoved) {
         if (pud.isMounted) pud.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeWindTunnels.removeWhere((wt) {
+      if (wt.shouldRecycle || wt.isRemoved) {
+        if (wt.isMounted) wt.removeFromParent();
         return true;
       }
       return false;
@@ -1942,6 +1987,31 @@ class CourierGame extends FlameGame
         Vector2(pud.position.x + pud.size.x / 2, groundY - 10.0),
         color: const Color(0xFF29B6F6),
         count: 8,
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handleWindTunnelGlide(HvacWindTunnelComponent wt) {
+    final event = gameState.recordWindTunnelGlide();
+    if (event != null) {
+      audio.playCoin();
+      audio.playCourierBark(CourierBarkType.stunt, line: 'Turbine slipstream!');
+      triggerScreenShake(0.14);
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+      addEffect(
+        FloatingTextComponent(
+          text: 'WIND TUNNEL GLIDE! $multStr+\$${event.totalTips}',
+          position: Vector2(player.position.x - 10.0, player.position.y - 35.0),
+          color: const Color(0xFF00E5FF),
+        ),
+      );
+      addEffect(
+        ParticleEffectComponent.windDebris(
+          position: Vector2(player.position.x + (player.size.x / 2), player.position.y + (player.size.y / 2)),
+          count: 15,
+        ),
       );
       _evaluateAchievements();
     }

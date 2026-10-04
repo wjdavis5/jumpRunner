@@ -375,6 +375,46 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Factory for industrial HVAC exhaust wind tunnel vortex debris (swirling newspaper, paper cups, air turbulence).
+  factory ParticleEffectComponent.windDebris({
+    required Vector2 position,
+    int count = 14,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFFFAFAFA), // Crisp white newspaper
+      Color(0xFFCFD8DC), // Printed newsprint grey
+      Color(0xFF8D6E63), // Kraft paper coffee cup
+      Color(0xFF80DEEA), // Cyan aerodynamic streamline
+      Color(0xFFE0F7FA), // Translucent wind wisp
+    ];
+
+    for (var i = 0; i < count; i++) {
+      // Horizontal rightward jet stream with vortex turbulence
+      final speed = 140.0 + rng.nextDouble() * 180.0;
+      final angle = (rng.nextDouble() - 0.5) * 0.4;
+      final velocity = Vector2(math.cos(angle) * speed, math.sin(angle) * speed);
+
+      particles.add(
+        GameParticle(
+          position: position.clone() +
+              Vector2((rng.nextDouble() - 0.5) * 20.0, (rng.nextDouble() - 0.5) * 24.0),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 2.0 + rng.nextDouble() * 2.8,
+          maxLife: 0.45 + rng.nextDouble() * 0.35,
+          gravity: -10.0 + (rng.nextDouble() * 20.0),
+          drag: 0.6,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.

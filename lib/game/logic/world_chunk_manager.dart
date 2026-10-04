@@ -257,6 +257,23 @@ class PuddleData {
   final double height;
 }
 
+/// Data model for an industrial HVAC turbine exhaust wind tunnel.
+class HvacWindTunnelData {
+  const HvacWindTunnelData({
+    required this.x,
+    required this.y,
+    this.housingWidth = 54.0,
+    this.housingHeight = 54.0,
+    this.windLength = 260.0,
+  });
+
+  final double x;
+  final double y;
+  final double housingWidth;
+  final double housingHeight;
+  final double windLength;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -275,6 +292,7 @@ class ChunkData {
     this.stormDrains = const [],
     this.solarPanels = const [],
     this.puddles = const [],
+    this.windTunnels = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -293,6 +311,7 @@ class ChunkData {
   final List<StormDrainData> stormDrains;
   final List<SolarPanelData> solarPanels;
   final List<PuddleData> puddles;
+  final List<HvacWindTunnelData> windTunnels;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -347,6 +366,7 @@ class WorldChunkManager {
     final grindRails = <GrindRailData>[];
     final steamVents = <SteamVentData>[];
     final solarPanels = <SolarPanelData>[];
+    final windTunnels = <HvacWindTunnelData>[];
 
     final minClearance = calculateMinClearance(speed);
     final naturalStart = startX + 60.0 + _random.nextDouble() * 40.0;
@@ -578,6 +598,55 @@ class WorldChunkManager {
       ));
 
       _lastObstacleEndX = panelX + panelWidth;
+      cursorX = _lastObstacleEndX + minClearance + 1.0;
+    }
+
+    // Industrial HVAC Exhaust Wind Tunnel: Spawns after 160m when no scaffolding, rail, steam vent, or solar panel occupies stretch
+    if (scaffoldings.isEmpty &&
+        grindRails.isEmpty &&
+        steamVents.isEmpty &&
+        solarPanels.isEmpty &&
+        distanceMeters >= 160.0 &&
+        _random.nextDouble() < 0.32 &&
+        (endX - cursorX) >= 340.0) {
+      final tunnelX = cursorX;
+      const tunnelHousingWidth = 54.0;
+      const tunnelHousingHeight = 54.0;
+      const tunnelWindLength = 260.0;
+      final tunnelY = groundY - 110.0;
+
+      windTunnels.add(HvacWindTunnelData(
+        x: tunnelX,
+        y: tunnelY,
+        housingWidth: tunnelHousingWidth,
+        housingHeight: tunnelHousingHeight,
+        windLength: tunnelWindLength,
+      ));
+
+      // Rewarding coins along the aerodynamic wind slipstream
+      for (double wx = tunnelX + tunnelHousingWidth + 30.0;
+          wx < tunnelX + tunnelHousingWidth + tunnelWindLength - 20.0;
+          wx += 65.0) {
+        pickups.add(PickupData(
+          type: PickupType.coin,
+          x: wx,
+          y: tunnelY + (tunnelHousingHeight / 2) - 10.0,
+        ));
+      }
+
+      // Ground hazard underneath the wind tunnel stream for courier to hover glide over
+      const groundType = ObstacleType.van;
+      final gSize = ObstacleComponent.defaultSizeForType(groundType);
+      final gX = tunnelX + tunnelHousingWidth + 80.0;
+      obstacles.add(ObstacleData(
+        type: groundType,
+        x: gX,
+        y: groundY - gSize.y,
+        width: gSize.x,
+        height: gSize.y,
+      ));
+
+      _lastObstacleEndX = tunnelX + tunnelHousingWidth + tunnelWindLength;
       cursorX = _lastObstacleEndX + minClearance + 1.0;
     }
 
@@ -984,6 +1053,7 @@ class WorldChunkManager {
       stormDrains: stormDrains,
       solarPanels: solarPanels,
       puddles: puddles,
+      windTunnels: windTunnels,
     );
   }
 }
