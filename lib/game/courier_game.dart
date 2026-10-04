@@ -12,6 +12,7 @@ import 'components/crane_swing_component.dart';
 import 'components/crosswalk_zone_component.dart';
 import 'components/cyclist_companion_component.dart';
 import 'components/delivery_drone_component.dart';
+import 'components/drone_cargo_component.dart';
 import 'components/drop_zone_component.dart';
 import 'components/floating_text_component.dart';
 import 'components/food_cart_component.dart';
@@ -142,6 +143,7 @@ class CourierGame extends FlameGame
   final List<PuddleComponent> activePuddles = [];
   final List<HvacWindTunnelComponent> activeWindTunnels = [];
   final List<SubwayTurnstileComponent> activeTurnstiles = [];
+  final List<DroneCargoComponent> activeDroneCargos = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
@@ -557,6 +559,18 @@ class CourierGame extends FlameGame
       world.add(tComp);
     }
 
+    for (final dc in chunk.droneCargos) {
+      final dcComp = DroneCargoComponent(
+        position: Vector2(dc.x, dc.y),
+        width: dc.width,
+        height: dc.height,
+        relativeSpeed: dc.relativeSpeed,
+        groundY: groundY,
+      );
+      activeDroneCargos.add(dcComp);
+      world.add(dcComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -752,6 +766,12 @@ class CourierGame extends FlameGame
     for (final t in world.children.whereType<SubwayTurnstileComponent>().toList()) {
       t.removeFromParent();
     }
+    for (final dc in activeDroneCargos.toList()) {
+      dc.removeFromParent();
+    }
+    for (final dc in world.children.whereType<DroneCargoComponent>().toList()) {
+      dc.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -768,6 +788,7 @@ class CourierGame extends FlameGame
     activePuddles.clear();
     activeWindTunnels.clear();
     activeTurnstiles.clear();
+    activeDroneCargos.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
@@ -992,6 +1013,9 @@ class CourierGame extends FlameGame
     }
     for (final t in activeTurnstiles) {
       t.position.x -= scrollDelta;
+    }
+    for (final dc in activeDroneCargos) {
+      dc.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -1460,6 +1484,15 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4s. Evaluate Aerial Drone Cargo Interceptions
+    for (final dc in activeDroneCargos) {
+      if (dc.hasCargo && !dc.hasBeenIntercepted) {
+        if (dc.checkIntercept(player.position, player.size, player.simulator)) {
+          _handleDroneCatch(dc);
+        }
+      }
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -1612,6 +1645,13 @@ class CourierGame extends FlameGame
     activeTurnstiles.removeWhere((t) {
       if (t.shouldRecycle || t.isRemoved) {
         if (t.isMounted) t.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeDroneCargos.removeWhere((dc) {
+      if (dc.shouldRecycle || dc.isRemoved) {
+        if (dc.isMounted) dc.removeFromParent();
         return true;
       }
       return false;
@@ -2080,6 +2120,36 @@ class CourierGame extends FlameGame
         ParticleEffectComponent.metroSwipe(
           position: turnstile.cardReaderWorldPosition,
           count: 14,
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handleDroneCatch(DroneCargoComponent drone) {
+    final event = gameState.recordDroneCatch();
+    if (event != null) {
+      audio.playCoin();
+      audio.playCourierBark(
+        CourierBarkType.stunt,
+        line: event.restoredPackage ? 'Cargo intercepted! Package restocked!' : 'Aerial cargo caught!',
+      );
+      triggerScreenShake(0.18);
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+      final bonusText = event.restoredPackage ? ' +1 PKG RESTOCKED!' : '';
+
+      addEffect(
+        FloatingTextComponent(
+          text: 'DRONE CATCH! $multStr+\$${event.totalTips}$bonusText',
+          position: Vector2(player.position.x - 20.0, player.position.y - 35.0),
+          color: const Color(0xFF00E5FF),
+        ),
+      );
+      addEffect(
+        ParticleEffectComponent.droneCargo(
+          position: drone.crateCenterWorld,
+          count: 22,
         ),
       );
       _evaluateAchievements();

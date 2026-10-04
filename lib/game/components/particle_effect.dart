@@ -454,6 +454,44 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Factory for high-altitude delivery drone cargo crate interception and supply drop sparks.
+  factory ParticleEffectComponent.droneCargo({
+    required Vector2 position,
+    int count = 16,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFFE67E22), // Courier Orange cargo crate
+      Color(0xFFFFD700), // Gold latch clamp
+      Color(0xFF00E5FF), // Cyan magnetic pulse
+      Color(0xFF2ECC71), // Emerald supply restock glow
+      Color(0xFFFFFFFF), // Specular snap spark
+    ];
+
+    for (var i = 0; i < count; i++) {
+      final angle = rng.nextDouble() * 2 * math.pi;
+      final speed = 100.0 + rng.nextDouble() * 180.0;
+      final velocity = Vector2(math.cos(angle) * speed, math.sin(angle) * speed);
+
+      particles.add(
+        GameParticle(
+          position: position.clone(),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 2.2 + rng.nextDouble() * 2.6,
+          maxLife: 0.45 + rng.nextDouble() * 0.3,
+          gravity: 120.0,
+          drag: 0.9,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.

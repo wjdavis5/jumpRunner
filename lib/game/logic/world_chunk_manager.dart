@@ -289,6 +289,23 @@ class SubwayTurnstileData {
   final double height;
 }
 
+/// Data model for an autonomous aerial cargo drone carrying a suspended supply crate.
+class DroneCargoData {
+  const DroneCargoData({
+    required this.x,
+    required this.y,
+    this.width = 48.0,
+    this.height = 42.0,
+    this.relativeSpeed = -20.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+  final double relativeSpeed;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -309,6 +326,7 @@ class ChunkData {
     this.puddles = const [],
     this.windTunnels = const [],
     this.turnstiles = const [],
+    this.droneCargos = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -329,6 +347,7 @@ class ChunkData {
   final List<PuddleData> puddles;
   final List<HvacWindTunnelData> windTunnels;
   final List<SubwayTurnstileData> turnstiles;
+  final List<DroneCargoData> droneCargos;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -1088,6 +1107,25 @@ class WorldChunkManager {
       }
     }
 
+    final List<DroneCargoData> droneCargos = [];
+
+    // Aerial Delivery Cargo Drones (after 140m, in open aerial stretches)
+    if (distanceMeters >= 140.0 &&
+        _random.nextDouble() < 0.32 &&
+        craneSwings.isEmpty &&
+        subwayStations.isEmpty) {
+      final droneX = startX + 180.0 + (_random.nextDouble() * 200.0);
+      droneCargos.add(
+        DroneCargoData(
+          x: droneX,
+          y: groundY - 210.0,
+          width: 48.0,
+          height: 42.0,
+          relativeSpeed: -15.0 - (_random.nextDouble() * 15.0),
+        ),
+      );
+    }
+
     return ChunkData(
       obstacles: obstacles,
       pickups: pickups,
@@ -1107,6 +1145,7 @@ class WorldChunkManager {
       puddles: puddles,
       windTunnels: windTunnels,
       turnstiles: turnstiles,
+      droneCargos: droneCargos,
     );
   }
 }
