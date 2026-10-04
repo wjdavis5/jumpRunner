@@ -530,6 +530,43 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Golden-amber oil droplets, mustard yellow streaks, and sizzling skillet steam from a food truck grease slick drift.
+  factory ParticleEffectComponent.greaseSpray({
+    required Vector2 position,
+    int count = 16,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFFFFB300), // Culinary amber oil
+      Color(0xFFFFEA00), // Spicy yellow mustard streak
+      Color(0xFFF57F17), // Deep fryer golden crisp
+      Color(0xFFFFF9C4), // Sizzling skillet vapor
+      Color(0xFFFFFFFF), // Hot oil snap droplet
+    ];
+
+    for (var i = 0; i < count; i++) {
+      final vx = 40.0 + rng.nextDouble() * 220.0;
+      final vy = -30.0 - rng.nextDouble() * 120.0;
+
+      particles.add(
+        GameParticle(
+          position: position.clone(),
+          velocity: Vector2(vx, vy),
+          color: palette[rng.nextInt(palette.length)],
+          radius: 1.6 + rng.nextDouble() * 2.8,
+          maxLife: 0.35 + rng.nextDouble() * 0.3,
+          gravity: 240.0,
+          drag: 0.90,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.
