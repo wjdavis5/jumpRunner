@@ -605,6 +605,45 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Expanding cyan microwave transmission pulses, telemetry sparks, and aluminum flecks
+  /// from a rooftop satellite dish parabolic leap pad launch.
+  factory ParticleEffectComponent.satellitePulse({
+    required Vector2 position,
+    int count = 20,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFF00E5FF), // Pulsing cyan microwave beacon
+      Color(0xFF00B0FF), // Electric radio telemetry
+      Color(0xFFFFFFFF), // High-frequency data carrier white
+      Color(0xFF7C4DFF), // Deep orbital violet ion
+      Color(0xFFB0BEC5), // Polished aluminum dish fleck
+    ];
+
+    for (var i = 0; i < count; i++) {
+      final angle = rng.nextDouble() * 2 * math.pi;
+      final speed = 100.0 + rng.nextDouble() * 200.0;
+      final velocity = Vector2(math.cos(angle) * speed, math.sin(angle) * speed - 120.0);
+
+      particles.add(
+        GameParticle(
+          position: position.clone(),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 1.8 + rng.nextDouble() * 2.6,
+          maxLife: 0.40 + rng.nextDouble() * 0.35,
+          gravity: 160.0,
+          drag: 0.92,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.

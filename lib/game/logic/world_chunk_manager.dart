@@ -353,6 +353,23 @@ class BarricadeSawhorseData {
   final double height;
 }
 
+/// Data model for a rooftop parabolic satellite communications dish.
+class SatelliteDishData {
+  const SatelliteDishData({
+    required this.x,
+    required this.y,
+    this.width = 56.0,
+    this.height = 50.0,
+    this.launchImpulse = 540.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+  final double launchImpulse;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -377,6 +394,7 @@ class ChunkData {
     this.fireEscapes = const [],
     this.foodTruckSlicks = const [],
     this.barricades = const [],
+    this.satelliteDishes = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -401,6 +419,7 @@ class ChunkData {
   final List<FireEscapeData> fireEscapes;
   final List<FoodTruckSlickData> foodTruckSlicks;
   final List<BarricadeSawhorseData> barricades;
+  final List<SatelliteDishData> satelliteDishes;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -1283,6 +1302,62 @@ class WorldChunkManager {
       }
     }
 
+    final List<SatelliteDishData> satelliteDishes = [];
+
+    // Rooftop / Scaffolding Parabolic Satellite Dish Leap Pad (after 130m)
+    if (distanceMeters >= 130.0 && _random.nextDouble() < 0.35 && subwayStations.isEmpty) {
+      const dishWidth = 56.0;
+      const dishHeight = 50.0;
+
+      // Option A: If elevated scaffolding is present, mount atop the scaffolding platform
+      if (scaffoldings.isNotEmpty) {
+        final sc = scaffoldings.first;
+        if (sc.width >= 120.0) {
+          final dishX = sc.x + sc.width - dishWidth - 14.0;
+          satelliteDishes.add(
+            SatelliteDishData(
+              x: dishX,
+              y: sc.y - dishHeight,
+              width: dishWidth,
+              height: dishHeight,
+              launchImpulse: 540.0,
+            ),
+          );
+        }
+      } else {
+        // Option B: Mount on clear rooftop/road surface with clear vertical airspace
+        for (var offset = 120.0; offset <= chunkWidth - 160.0; offset += 55.0) {
+          final sX = startX + offset;
+          final isClear = obstacles.every(
+            (o) => (sX + dishWidth < o.x - 35.0) || (sX > o.x + o.width + 35.0),
+          ) && crosswalks.every(
+            (cw) => (sX + dishWidth < cw.x - 25.0) || (sX > cw.x + cw.width + 25.0),
+          ) && turnstiles.every(
+            (t) => (sX + dishWidth < t.x - 25.0) || (sX > t.x + t.width + 25.0),
+          ) && fireEscapes.every(
+            (fe) => (sX + dishWidth < fe.x - 25.0) || (sX > fe.x + fe.width + 25.0),
+          ) && foodTruckSlicks.every(
+            (fts) => (sX + dishWidth < fts.x - 30.0) || (sX > fts.x + fts.width + 30.0),
+          ) && barricades.every(
+            (b) => (sX + dishWidth < b.x - 30.0) || (sX > b.x + b.width + 30.0),
+          );
+
+          if (isClear) {
+            satelliteDishes.add(
+              SatelliteDishData(
+                x: sX,
+                y: groundY - dishHeight,
+                width: dishWidth,
+                height: dishHeight,
+                launchImpulse: 540.0,
+              ),
+            );
+            break;
+          }
+        }
+      }
+    }
+
     return ChunkData(
       obstacles: obstacles,
       pickups: pickups,
@@ -1306,6 +1381,7 @@ class WorldChunkManager {
       fireEscapes: fireEscapes,
       foodTruckSlicks: foodTruckSlicks,
       barricades: barricades,
+      satelliteDishes: satelliteDishes,
     );
   }
 }

@@ -321,6 +321,7 @@ class _CourierDashAppState extends State<CourierDashApp> {
                   fireEscapesCompleted: _gameState.fireEscapeDropsInRun,
                   foodTruckDriftsCompleted: _gameState.foodTruckDriftsInRun,
                   barricadesCompleted: _gameState.barricadeVaultsInRun,
+                  satelliteLaunchesCompleted: _gameState.satelliteLaunchesInRun,
                   onRestart: _restartGame,
                 ),
           },
