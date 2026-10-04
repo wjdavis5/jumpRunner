@@ -210,6 +210,23 @@ class FoodCartData {
   final double bounceImpulse;
 }
 
+/// Data model for an urban street storm drain vault grate.
+class StormDrainData {
+  const StormDrainData({
+    required this.x,
+    required this.y,
+    this.width = 56.0,
+    this.height = 18.0,
+    this.coinsSpawned = 3,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+  final int coinsSpawned;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -225,6 +242,7 @@ class ChunkData {
     this.pigeonFlocks = const [],
     this.crosswalks = const [],
     this.foodCarts = const [],
+    this.stormDrains = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -240,6 +258,7 @@ class ChunkData {
   final List<PigeonFlockData> pigeonFlocks;
   final List<CrosswalkData> crosswalks;
   final List<FoodCartData> foodCarts;
+  final List<StormDrainData> stormDrains;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -784,6 +803,36 @@ class WorldChunkManager {
       }
     }
 
+    final List<StormDrainData> stormDrains = [];
+
+    // Street Storm Drain Vault Grates (after 120m, on street outside subway stations and scaffolding)
+    if (distanceMeters >= 120.0 &&
+        _random.nextDouble() < 0.35 &&
+        subwayStations.isEmpty &&
+        scaffoldings.isEmpty &&
+        crosswalks.isEmpty &&
+        foodCarts.isEmpty) {
+      const drainWidth = 56.0;
+      for (var offset = 100.0; offset <= chunkWidth - 160.0; offset += 50.0) {
+        final sdX = startX + offset;
+        final isClear = obstacles.every(
+          (o) => (sdX + drainWidth < o.x - 30.0) || (sdX > o.x + o.width + 30.0),
+        );
+        if (isClear) {
+          stormDrains.add(
+            StormDrainData(
+              x: sdX,
+              y: groundY - 18.0,
+              width: drainWidth,
+              height: 18.0,
+              coinsSpawned: 3 + _random.nextInt(2),
+            ),
+          );
+          break;
+        }
+      }
+    }
+
     return ChunkData(
       obstacles: obstacles,
       pickups: pickups,
@@ -798,6 +847,7 @@ class WorldChunkManager {
       pigeonFlocks: pigeonFlocks,
       crosswalks: crosswalks,
       foodCarts: foodCarts,
+      stormDrains: stormDrains,
     );
   }
 }

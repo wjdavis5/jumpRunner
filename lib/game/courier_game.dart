@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flame/components.dart';
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
@@ -26,6 +27,7 @@ import 'components/ramp_component.dart';
 import 'components/scaffolding_component.dart';
 import 'components/speech_bubble_component.dart';
 import 'components/steam_vent_component.dart';
+import 'components/storm_drain_component.dart';
 import 'components/subway_station_component.dart';
 import 'logic/achievement_manager.dart';
 import 'logic/camera_juice_controller.dart';
@@ -131,6 +133,7 @@ class CourierGame extends FlameGame
   final List<PigeonFlockComponent> activePigeonFlocks = [];
   final List<CrosswalkZoneComponent> activeCrosswalks = [];
   final List<FoodCartComponent> activeFoodCarts = [];
+  final List<StormDrainComponent> activeStormDrains = [];
   ObstacleComponent? _currentVaultTarget;
   double cameraTargetY = 270.0;
   double _grindSparkTimer = 0.0;
@@ -489,6 +492,17 @@ class CourierGame extends FlameGame
       world.add(cartComp);
     }
 
+    for (final sd in chunk.stormDrains) {
+      final drainComp = StormDrainComponent(
+        position: Vector2(sd.x, sd.y),
+        width: sd.width,
+        height: sd.height,
+        groundY: groundY,
+      );
+      activeStormDrains.add(drainComp);
+      world.add(drainComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -654,6 +668,12 @@ class CourierGame extends FlameGame
     for (final fc in world.children.whereType<FoodCartComponent>().toList()) {
       fc.removeFromParent();
     }
+    for (final sd in activeStormDrains.toList()) {
+      sd.removeFromParent();
+    }
+    for (final sd in world.children.whereType<StormDrainComponent>().toList()) {
+      sd.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -665,6 +685,7 @@ class CourierGame extends FlameGame
     activePigeonFlocks.clear();
     activeCrosswalks.clear();
     activeFoodCarts.clear();
+    activeStormDrains.clear();
     cameraTargetY = virtualResolution.y / 2;
     player.endGrinding();
     player.stopGlide();
@@ -870,6 +891,9 @@ class CourierGame extends FlameGame
     }
     for (final fc in activeFoodCarts) {
       fc.position.x -= scrollDelta;
+    }
+    for (final sd in activeStormDrains) {
+      sd.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -1223,6 +1247,13 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4o. Evaluate Street Storm Drain Vault Grate Steam Geysers & Coin Eruptions
+    for (final sd in activeStormDrains) {
+      if (sd.checkTrigger(player.position, player.size, player.simulator)) {
+        _handleStormDrainGeyser(sd);
+      }
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -1265,8 +1296,8 @@ class CourierGame extends FlameGame
     }
 
     // 6. Clean up recycled items
-    activeObstacles.removeWhere((o) => o.shouldRecycle || !o.isMounted);
-    activePickups.removeWhere((p) => p.shouldRecycle || p.isCollected || !p.isMounted);
+    activeObstacles.removeWhere((o) => o.shouldRecycle || o.isRemoved);
+    activePickups.removeWhere((p) => p.shouldRecycle || p.isCollected || p.isRemoved);
     activeScaffolding.removeWhere((s) {
       if (s.shouldRecycle || s.isRemoved) {
         if (s.isMounted) s.removeFromParent();
@@ -1340,6 +1371,13 @@ class CourierGame extends FlameGame
     activeFoodCarts.removeWhere((fc) {
       if (fc.shouldRecycle || fc.isRemoved) {
         if (fc.isMounted) fc.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeStormDrains.removeWhere((sd) {
+      if (sd.shouldRecycle || sd.isRemoved) {
+        if (sd.isMounted) sd.removeFromParent();
         return true;
       }
       return false;
@@ -1636,6 +1674,49 @@ class CourierGame extends FlameGame
           text: 'SPICY BOUNCE! $multStr+\$${event.totalTips}',
           position: Vector2(player.position.x - 10.0, player.position.y - 35.0),
           color: const Color(0xFFFF9800),
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handleStormDrainGeyser(StormDrainComponent sd) {
+    final event = gameState.recordDrainGeyser(coinsSpawned: 3);
+    if (event != null) {
+      audio.playJump();
+      audio.playCoin();
+      audio.playCourierBark(CourierBarkType.stunt, line: 'Geyser launch!');
+      triggerScreenShake(0.22);
+      spawnSparkles(
+        sd.centerWorldPosition,
+        color: const Color(0xFF00E5FF),
+        count: 16,
+      );
+      spawnDust(sd.centerWorldPosition, count: 8);
+
+      for (var i = 0; i < event.coinsSpawned; i++) {
+        final coinX = sd.position.x + 30.0 + (i * 35.0);
+        final coinY = groundY - 60.0 - (math.sin((i + 1) / (event.coinsSpawned + 1) * math.pi) * 50.0);
+        late final PickupComponent coinPickup;
+        coinPickup = PickupComponent(
+          type: PickupType.coin,
+          position: Vector2(coinX, coinY),
+          onCollected: (type) {
+            final collectionPos = coinPickup.position + (coinPickup.size / 2);
+            activePickups.removeWhere((item) => item.isCollected);
+            _handlePickup(type, collectionPos);
+          },
+        );
+        activePickups.add(coinPickup);
+        world.add(coinPickup);
+      }
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+      addEffect(
+        FloatingTextComponent(
+          text: 'DRAIN GEYSER! $multStr+\$${event.totalTips}',
+          position: Vector2(player.position.x - 10.0, player.position.y - 35.0),
+          color: const Color(0xFF00E5FF),
         ),
       );
       _evaluateAchievements();

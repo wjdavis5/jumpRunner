@@ -312,6 +312,7 @@ class _CourierDashAppState extends State<CourierDashApp> {
                   pigeonScattersCompleted: _gameState.pigeonScattersInRun,
                   highFivesCompleted: _gameState.highFivesInRun,
                   foodCartBouncesCompleted: _gameState.foodCartBouncesInRun,
+                  drainGeysersCompleted: _gameState.drainGeysersInRun,
                   onRestart: _restartGame,
                 ),
           },
