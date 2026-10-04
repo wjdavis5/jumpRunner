@@ -726,6 +726,32 @@ class WaterTowerEvent {
   final bool isBreachCascade;
 }
 
+/// Event dispatched when performing an agile hurdle vault across a sidewalk newspaper kiosk.
+class NewsstandEvent {
+  const NewsstandEvent({
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.stuntStreak,
+    required this.notorietyDuration,
+  });
+
+  /// Base tip value before stunt combo scaling ($28).
+  final int baseTips;
+
+  /// Total tip amount awarded after active combo multipliers.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this event.
+  final double multiplier;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+
+  /// Duration of the Extra! Extra! notoriety score buff in seconds.
+  final double notorietyDuration;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -800,6 +826,15 @@ class GameState extends ChangeNotifier {
 
   /// Returns true if the Floral Aroma score multiplier (+1.5x) is actively buffing stunts.
   bool get isFloralAromaActive => floralAromaTimer > 0;
+
+  /// Remaining duration in seconds for the Extra! Extra! notoriety score multiplier buff.
+  double notorietyTimer = 0.0;
+
+  /// Duration of the Extra! Extra! notoriety score multiplier buff in seconds.
+  static const double notorietyDuration = 4.0;
+
+  /// Returns true if the Extra! Extra! notoriety score multiplier (+1.5x) is actively buffing stunts.
+  bool get isNotorietyActive => notorietyTimer > 0;
 
   /// The active milestone event being celebrated by the UI banner.
   MilestoneEvent? activeMilestone;
@@ -944,6 +979,9 @@ class GameState extends ChangeNotifier {
   /// Total rooftop wooden water towers traversed in current run.
   int waterTowersTraversedInRun = 0;
 
+  /// Total sidewalk newspaper kiosks vaulted in current run.
+  int newsstandsVaultedInRun = 0;
+
   /// Total seconds spent drafting behind companion cyclists in current run.
   double totalDraftDurationInRun = 0.0;
 
@@ -988,6 +1026,7 @@ class GameState extends ChangeNotifier {
   ValueChanged<GlassSkylightEvent>? onGlassSkylightSmash;
   ValueChanged<FlowerKioskEvent>? onFlowerKioskVault;
   ValueChanged<WaterTowerEvent>? onWaterTowerTraversed;
+  ValueChanged<NewsstandEvent>? onNewsstandVault;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -1044,7 +1083,9 @@ class GameState extends ChangeNotifier {
     skylightSmashesInRun = 0;
     flowerKioskVaultsInRun = 0;
     waterTowersTraversedInRun = 0;
+    newsstandsVaultedInRun = 0;
     floralAromaTimer = 0.0;
+    notorietyTimer = 0.0;
     totalDraftDurationInRun = 0.0;
     isDrafting = false;
     status = GameStatus.running;
@@ -1189,6 +1230,17 @@ class GameState extends ChangeNotifier {
     }
   }
 
+  /// Updates the active Extra! Extra! notoriety score multiplier countdown timer.
+  void updateNotorietyTimer(double dt) {
+    if (notorietyTimer > 0) {
+      notorietyTimer -= dt;
+      if (notorietyTimer <= 0) {
+        notorietyTimer = 0.0;
+      }
+      notifyListeners();
+    }
+  }
+
   /// Records a successful near-miss stunt leap over a street hazard.
   void recordStunt({double clearance = 20.0}) {
     if (status != GameStatus.running) return;
@@ -1198,9 +1250,10 @@ class GameState extends ChangeNotifier {
 
     final baseAward = (baseStuntTip * stuntMultiplier).round();
     final withFloral = isFloralAromaActive ? (baseAward * 1.5).round() : baseAward;
+    final withNotoriety = isNotorietyActive ? (withFloral * 1.5).round() : withFloral;
     final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
-        ? withFloral * 2
-        : withFloral;
+        ? withNotoriety * 2
+        : withNotoriety;
     final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
     tips += awarded;
 
@@ -2190,6 +2243,42 @@ class GameState extends ChangeNotifier {
     );
 
     onWaterTowerTraversed?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records a hurdle vault across a sidewalk newspaper kiosk,
+  /// awarding base tips ($28) scaled by combo multipliers,
+  /// advancing the stunt streak, activating the 4-second Extra! Extra! notoriety buff,
+  /// and resetting the stunt streak timer.
+  NewsstandEvent? recordNewsstandVault({int baseTips = 28}) {
+    if (status != GameStatus.running) return null;
+
+    newsstandsVaultedInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+    notorietyTimer = notorietyDuration;
+
+    final baseAward = (baseTips * stuntMultiplier).round();
+    final withFloral = isFloralAromaActive ? (baseAward * 1.5).round() : baseAward;
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? withFloral * 2
+        : withFloral;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = NewsstandEvent(
+      baseTips: baseTips,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+      stuntStreak: stuntStreak,
+      notorietyDuration: notorietyDuration,
+    );
+
+    onNewsstandVault?.call(event);
     notifyListeners();
     return event;
   }

@@ -850,6 +850,51 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Generates a cloud of fluttering printed newsprint sheets, headline clippings,
+  /// and glossy magazine paper fragments fluttering in the urban breeze after a newsstand vault.
+  factory ParticleEffectComponent.newsprintScatter({
+    required Vector2 position,
+    int count = 24,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFFF5F5DC), // Newsprint parchment off-white
+      Color(0xFFFFFDD0), // Aged paper cream
+      Color(0xFFECEFF1), // Crisp paper white
+      Color(0xFF37474F), // Newsprint headline dark ink
+      Color(0xFFFF5252), // Tabloid headline red
+      Color(0xFFFFD700), // Glossy cover golden yellow
+      Color(0xFF00E5FF), // Glossy cover cyan
+    ];
+
+    for (var i = 0; i < count; i++) {
+      final angle = -math.pi * 0.5 + (rng.nextDouble() - 0.5) * 1.6;
+      final speed = 80.0 + rng.nextDouble() * 140.0;
+      final velocity = Vector2(
+        math.cos(angle) * speed,
+        math.sin(angle) * speed,
+      );
+
+      particles.add(
+        GameParticle(
+          position: position.clone() +
+              Vector2((rng.nextDouble() - 0.5) * 16.0, (rng.nextDouble() - 0.5) * 10.0),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 2.4 + rng.nextDouble() * 2.6,
+          maxLife: 0.65 + rng.nextDouble() * 0.40,
+          gravity: 48.0, // Gentle floating fluttering drift
+          drag: 1.65, // High air resistance for fluttering paper
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.

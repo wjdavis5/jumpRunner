@@ -23,6 +23,7 @@ import 'components/food_truck_slick_component.dart';
 import 'components/glass_skylight_component.dart';
 import 'components/flower_kiosk_component.dart';
 import 'components/water_tower_component.dart';
+import 'components/newsstand_component.dart';
 import 'components/lightning_flash_component.dart';
 import 'components/grind_rail_component.dart';
 import 'components/hvac_wind_tunnel_component.dart';
@@ -164,6 +165,7 @@ class CourierGame extends FlameGame
   final List<GlassSkylightComponent> activeGlassSkylights = [];
   final List<FlowerKioskComponent> activeFlowerKiosks = [];
   final List<WaterTowerComponent> activeWaterTowers = [];
+  final List<NewsstandComponent> activeNewsstands = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
@@ -701,6 +703,17 @@ class CourierGame extends FlameGame
       world.add(wtComp);
     }
 
+    for (final ns in chunk.newsstands) {
+      final nsComp = NewsstandComponent(
+        position: Vector2(ns.x, ns.y),
+        width: ns.width,
+        height: ns.height,
+        groundY: groundY,
+      );
+      activeNewsstands.add(nsComp);
+      world.add(nsComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -956,6 +969,12 @@ class CourierGame extends FlameGame
     for (final wt in world.children.whereType<WaterTowerComponent>().toList()) {
       wt.removeFromParent();
     }
+    for (final ns in activeNewsstands.toList()) {
+      ns.removeFromParent();
+    }
+    for (final ns in world.children.whereType<NewsstandComponent>().toList()) {
+      ns.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -982,6 +1001,7 @@ class CourierGame extends FlameGame
     activeGlassSkylights.clear();
     activeFlowerKiosks.clear();
     activeWaterTowers.clear();
+    activeNewsstands.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
@@ -1068,6 +1088,7 @@ class CourierGame extends FlameGame
     gameState.updateStuntTimer(dt);
     gameState.updateVipTimer(dt);
     gameState.updateFloralAromaTimer(dt);
+    gameState.updateNotorietyTimer(dt);
     player.isBoosted = gameState.isEnergyBoostActive;
 
     // 0b. Spawn / mount companion delivery drone if active
@@ -1244,6 +1265,9 @@ class CourierGame extends FlameGame
     }
     for (final wt in activeWaterTowers) {
       wt.position.x -= scrollDelta;
+    }
+    for (final ns in activeNewsstands) {
+      ns.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -1802,6 +1826,15 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4ac. Evaluate Sidewalk Newspaper Kiosk Hurdle Vaults
+    for (final ns in activeNewsstands) {
+      if (!ns.hasVaulted) {
+        if (ns.checkVault(player.position, player.size, player.simulator)) {
+          _handleNewsstandVault(ns);
+        }
+      }
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -2024,6 +2057,13 @@ class CourierGame extends FlameGame
     activeWaterTowers.removeWhere((wt) {
       if (wt.shouldRecycle || wt.isRemoved) {
         if (wt.isMounted) wt.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeNewsstands.removeWhere((ns) {
+      if (ns.shouldRecycle || ns.isRemoved) {
+        if (ns.isMounted) ns.removeFromParent();
         return true;
       }
       return false;
@@ -2797,6 +2837,35 @@ class CourierGame extends FlameGame
         ParticleEffectComponent.waterTowerDeluge(
           position: isBreach ? tower.breachWorldPosition : tower.apexWorldPosition,
           count: isBreach ? 32 : 18,
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handleNewsstandVault(NewsstandComponent newsstand) {
+    final event = gameState.recordNewsstandVault();
+    if (event != null) {
+      audio.playCoin();
+      audio.playCourierBark(
+        CourierBarkType.stunt,
+        line: 'Extra! Extra!',
+      );
+      triggerScreenShake(0.13);
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+
+      addEffect(
+        FloatingTextComponent(
+          text: 'EXTRA! EXTRA! VAULT! $multStr+\$${event.totalTips}',
+          position: Vector2(player.position.x - 15.0, player.position.y - 35.0),
+          color: const Color(0xFFFFB300),
+        ),
+      );
+      addEffect(
+        ParticleEffectComponent.newsprintScatter(
+          position: newsstand.counterApexWorld,
+          count: 24,
         ),
       );
       _evaluateAchievements();

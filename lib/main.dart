@@ -339,6 +339,7 @@ class _CourierDashAppState extends State<CourierDashApp> {
                   skylightsCompleted: _gameState.skylightSmashesInRun,
                   flowerKiosksCompleted: _gameState.flowerKioskVaultsInRun,
                   waterTowersCompleted: _gameState.waterTowersTraversedInRun,
+                  newsstandsCompleted: _gameState.newsstandsVaultedInRun,
                   onRestart: _restartGame,
                 ),
           },
