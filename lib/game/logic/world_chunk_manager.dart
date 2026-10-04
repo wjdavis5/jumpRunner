@@ -178,6 +178,21 @@ class PigeonFlockData {
   final int pigeonCount;
 }
 
+/// Data model for an urban street intersection crosswalk.
+class CrosswalkData {
+  const CrosswalkData({
+    required this.x,
+    required this.y,
+    this.width = 140.0,
+    this.signalCountdown = 9,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final int signalCountdown;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -191,6 +206,7 @@ class ChunkData {
     this.craneSwings = const [],
     this.cyclists = const [],
     this.pigeonFlocks = const [],
+    this.crosswalks = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -204,6 +220,7 @@ class ChunkData {
   final List<CraneSwingData> craneSwings;
   final List<CyclistData> cyclists;
   final List<PigeonFlockData> pigeonFlocks;
+  final List<CrosswalkData> crosswalks;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -692,6 +709,33 @@ class WorldChunkManager {
       }
     }
 
+    final List<CrosswalkData> crosswalks = [];
+
+    // Street Crosswalk Intersections (after 90m, on street outside subway stations and scaffolding)
+    if (distanceMeters >= 90.0 &&
+        _random.nextDouble() < 0.40 &&
+        subwayStations.isEmpty &&
+        scaffoldings.isEmpty) {
+      const crosswalkWidth = 140.0;
+      for (var offset = 120.0; offset <= chunkWidth - 200.0; offset += 50.0) {
+        final cwX = startX + offset;
+        final isClear = obstacles.every(
+          (o) => (cwX + crosswalkWidth < o.x - 35.0) || (cwX > o.x + o.width + 35.0),
+        );
+        if (isClear) {
+          crosswalks.add(
+            CrosswalkData(
+              x: cwX,
+              y: groundY - 56.0,
+              width: crosswalkWidth,
+              signalCountdown: 6 + _random.nextInt(8),
+            ),
+          );
+          break;
+        }
+      }
+    }
+
     return ChunkData(
       obstacles: obstacles,
       pickups: pickups,
@@ -704,6 +748,7 @@ class WorldChunkManager {
       craneSwings: craneSwings,
       cyclists: cyclists,
       pigeonFlocks: pigeonFlocks,
+      crosswalks: crosswalks,
     );
   }
 }
