@@ -652,6 +652,28 @@ class AcCondenserEvent {
   final double updraftImpulse;
 }
 
+/// Event dispatched when smashing through a rooftop architectural glass skylight atrium dome.
+class GlassSkylightEvent {
+  const GlassSkylightEvent({
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.stuntStreak,
+  });
+
+  /// Base tip value before stunt combo scaling ($35).
+  final int baseTips;
+
+  /// Total tip amount awarded after active combo multipliers.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this event.
+  final double multiplier;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -852,6 +874,9 @@ class GameState extends ChangeNotifier {
   /// Total rooftop AC condenser thermal updrafts caught in current run.
   int acUpdraftsInRun = 0;
 
+  /// Total rooftop glass skylight domes smashed through in current run.
+  int skylightSmashesInRun = 0;
+
   /// Total seconds spent drafting behind companion cyclists in current run.
   double totalDraftDurationInRun = 0.0;
 
@@ -893,6 +918,7 @@ class GameState extends ChangeNotifier {
   ValueChanged<SatelliteLaunchEvent>? onSatelliteLaunch;
   ValueChanged<PostalMailboxEvent>? onPostalMailboxVault;
   ValueChanged<AcCondenserEvent>? onAcCondenserUpdraft;
+  ValueChanged<GlassSkylightEvent>? onGlassSkylightSmash;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -946,6 +972,7 @@ class GameState extends ChangeNotifier {
     satelliteLaunchesInRun = 0;
     mailboxVaultsInRun = 0;
     acUpdraftsInRun = 0;
+    skylightSmashesInRun = 0;
     totalDraftDurationInRun = 0.0;
     isDrafting = false;
     status = GameStatus.running;
@@ -1974,6 +2001,38 @@ class GameState extends ChangeNotifier {
     );
 
     onAcCondenserUpdraft?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records a smash-through breach plunge through a rooftop glass skylight dome,
+  /// awarding base tips ($35) scaled by combo multipliers, advancing the stunt streak,
+  /// and resetting the stunt streak timer.
+  GlassSkylightEvent? recordSkylightSmash({int baseTips = 35}) {
+    if (status != GameStatus.running) return null;
+
+    skylightSmashesInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    final baseAward = (baseTips * stuntMultiplier).round();
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? baseAward * 2
+        : baseAward;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = GlassSkylightEvent(
+      baseTips: baseTips,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+      stuntStreak: stuntStreak,
+    );
+
+    onGlassSkylightSmash?.call(event);
     notifyListeners();
     return event;
   }

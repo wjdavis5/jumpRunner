@@ -722,6 +722,45 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Generates glittering crystal shards, translucent tempered glass fragments,
+  /// and sparkling prismatic dust erupting from a shattered rooftop glass skylight dome.
+  factory ParticleEffectComponent.glassShatter({
+    required Vector2 position,
+    int count = 24,
+  }) {
+    final particles = <GameParticle>[];
+    final rng = math.Random();
+
+    const palette = [
+      Color(0xFFE0F7FA), // Translucent cyan crystal shard
+      Color(0xFFB2EBF2), // Aqua tempered glass fragment
+      Color(0xFF80DEEA), // Diamond specular glint
+      Color(0xFFFFFFFF), // Brilliant white prism sparkle
+      Color(0xFF4DD0E1), // Deep architectural glass edge
+      Color(0xFFFFE082), // Golden sunlight glint fleck
+    ];
+
+    for (var i = 0; i < count; i++) {
+      final angle = rng.nextDouble() * 2.0 * math.pi;
+      final speed = 70.0 + rng.nextDouble() * 210.0;
+      final velocity = Vector2(math.cos(angle) * speed, math.sin(angle) * speed * 0.75 - 40.0);
+
+      particles.add(
+        GameParticle(
+          position: position.clone(),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 1.8 + rng.nextDouble() * 2.6,
+          maxLife: 0.45 + rng.nextDouble() * 0.35,
+          gravity: 220.0,
+          drag: 0.92,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.
