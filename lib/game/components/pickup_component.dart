@@ -13,6 +13,7 @@ enum PickupType {
   energyDrink,
   packageRestore,
   drone,
+  vipPackage,
 }
 
 /// A collectible pickup component featuring floating sine-wave bobbing animation.
@@ -23,7 +24,7 @@ class PickupComponent extends PositionComponent with CollisionCallbacks {
     Vector2? size,
     this.onCollected,
   }) {
-    this.size = size ?? Vector2(28, 28);
+    this.size = size ?? (type == PickupType.vipPackage ? Vector2(32, 28) : Vector2(28, 28));
     if (position != null) {
       this.position = position;
     }
@@ -53,6 +54,7 @@ class PickupComponent extends PositionComponent with CollisionCallbacks {
       case PickupType.packageRestore:
         return 'pickups/package_box.png';
       case PickupType.drone:
+      case PickupType.vipPackage:
         return null;
     }
   }
@@ -137,6 +139,9 @@ class PickupComponent extends PositionComponent with CollisionCallbacks {
         break;
       case PickupType.drone:
         _renderDronePickup(canvas);
+        break;
+      case PickupType.vipPackage:
+        _renderVipPackage(canvas);
         break;
     }
   }
@@ -262,6 +267,98 @@ class PickupComponent extends PositionComponent with CollisionCallbacks {
     canvas.drawRect(
       Rect.fromLTWH(3, size.y / 2 - 2, size.x - 6, 4),
       tapePaint,
+    );
+  }
+
+  void _renderVipPackage(Canvas canvas) {
+    // Luxury gold metallic briefcase with chrome corner guards, lock, and pulsing dispatch beacon
+    final bodyPaint = Paint()..color = const Color(0xFFFFD700);
+    final borderPaint = Paint()
+      ..color = const Color(0xFFB8860B)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    final handlePaint = Paint()
+      ..color = const Color(0xFF856404)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round;
+    final chromePaint = Paint()..color = const Color(0xFFECEFF1);
+    final latchPaint = Paint()..color = const Color(0xFFFFF8DC);
+
+    // Briefcase top handle
+    final handlePath = Path()
+      ..moveTo(size.x / 2 - 6, 6)
+      ..lineTo(size.x / 2 - 6, 2)
+      ..lineTo(size.x / 2 + 6, 2)
+      ..lineTo(size.x / 2 + 6, 6);
+    canvas.drawPath(handlePath, handlePaint);
+
+    // Main briefcase body
+    final bodyRect = Rect.fromLTWH(2, 6, size.x - 4, size.y - 8);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(bodyRect, const Radius.circular(3)),
+      bodyPaint,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(bodyRect, const Radius.circular(3)),
+      borderPaint,
+    );
+
+    // Center dividing seam
+    final seamPaint = Paint()
+      ..color = const Color(0xFFB8860B)
+      ..strokeWidth = 1.0;
+    canvas.drawLine(
+      Offset(2, size.y / 2 + 1),
+      Offset(size.x - 2, size.y / 2 + 1),
+      seamPaint,
+    );
+
+    // Metallic corner guards (4 corners)
+    const cornerSize = 4.0;
+    canvas.drawRect(const Rect.fromLTWH(2, 6, cornerSize, cornerSize), chromePaint);
+    canvas.drawRect(Rect.fromLTWH(size.x - 2 - cornerSize, 6, cornerSize, cornerSize), chromePaint);
+    canvas.drawRect(Rect.fromLTWH(2, size.y - 2 - cornerSize, cornerSize, cornerSize), chromePaint);
+    canvas.drawRect(
+      Rect.fromLTWH(size.x - 2 - cornerSize, size.y - 2 - cornerSize, cornerSize, cornerSize),
+      chromePaint,
+    );
+
+    // Center lock & combination latch
+    final lockRect = Rect.fromLTWH(size.x / 2 - 3, size.y / 2 - 2, 6, 6);
+    canvas.drawRect(lockRect, latchPaint);
+    final keyholePaint = Paint()..color = const Color(0xFF2C3E50);
+    canvas.drawCircle(Offset(size.x / 2, size.y / 2 + 1), 1.2, keyholePaint);
+
+    // Pulsing red/gold dispatch beacon
+    final pulse = (math.sin(_bobTimer * 8.0) + 1.0) / 2.0;
+    final beaconGlowPaint = Paint()
+      ..color = const Color(0xFFFF3838).withValues(alpha: 0.3 + (0.5 * pulse));
+    final beaconCorePaint = Paint()..color = const Color(0xFFFF2222);
+
+    canvas.drawCircle(Offset(size.x - 5, 9), 3.5 + (1.5 * pulse), beaconGlowPaint);
+    canvas.drawCircle(Offset(size.x - 5, 9), 2.0, beaconCorePaint);
+
+    // VIP text monogram
+    final textPainter = TextPainter(
+      text: const TextSpan(
+        text: 'VIP',
+        style: TextStyle(
+          color: Color(0xFF5A381E),
+          fontSize: 8,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0.5,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    textPainter.paint(
+      canvas,
+      Offset(
+        size.x / 2 - textPainter.width / 2,
+        size.y / 2 - textPainter.height / 2 - 3.5,
+      ),
     );
   }
 }

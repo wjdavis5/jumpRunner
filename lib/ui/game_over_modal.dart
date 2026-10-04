@@ -17,6 +17,7 @@ class GameOverModal extends StatelessWidget {
     this.glidesCompleted = 0,
     this.subwayStationsCompleted = 0,
     this.craneSwingsCompleted = 0,
+    this.vipDeliveriesCompleted = 0,
   });
 
   final int distance;
@@ -31,6 +32,7 @@ class GameOverModal extends StatelessWidget {
   final int glidesCompleted;
   final int subwayStationsCompleted;
   final int craneSwingsCompleted;
+  final int vipDeliveriesCompleted;
   final VoidCallback onRestart;
 
   @override
@@ -298,6 +300,37 @@ class GameOverModal extends StatelessWidget {
                         '$craneSwingsCompleted CRANE SWING${craneSwingsCompleted > 1 ? 'S' : ''}',
                         style: const TextStyle(
                           color: Color(0xFFF39C12),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            if (vipDeliveriesCompleted > 0)
+              Container(
+                key: const Key('game_over_vip_badge'),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFD700).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFFD700), width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.stars, color: Color(0xFFFFD700), size: 16),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '$vipDeliveriesCompleted VIP EXPRESS DELIVER${vipDeliveriesCompleted > 1 ? 'IES' : 'Y'} (3X SURGE)',
+                        style: const TextStyle(
+                          color: Color(0xFFFFD700),
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                           letterSpacing: 0.5,

@@ -72,12 +72,14 @@ class DropZoneData {
     required this.y,
     required this.width,
     required this.height,
+    this.isVip = false,
   });
 
   final double x;
   final double y;
   final double width;
   final double height;
+  final bool isVip;
 }
 
 /// Data model for an elevated urban metallic grind rail.
@@ -213,6 +215,7 @@ class WorldChunkManager {
     required double speed,
     double groundY = 460.0,
     double distanceMeters = 0.0,
+    bool isVipActive = false,
   }) {
     final obstacles = <ObstacleData>[];
     final pickups = <PickupData>[];
@@ -418,11 +421,13 @@ class WorldChunkManager {
 
       // Reward jump: Place a coin or pickup above the hazard in jump arc
       final roll = _random.nextDouble();
-      final arcPickupType = (roll < 0.10 && distanceMeters >= 150.0)
-          ? PickupType.drone
-          : (roll < 0.28)
-              ? PickupType.energyDrink
-              : (_random.nextDouble() < 0.3 ? PickupType.coin5 : PickupType.coin);
+      final arcPickupType = (roll < 0.08 && distanceMeters >= 180.0 && !isVipActive)
+          ? PickupType.vipPackage
+          : (roll < 0.16 && distanceMeters >= 150.0)
+              ? PickupType.drone
+              : (roll < 0.32)
+                  ? PickupType.energyDrink
+                  : (_random.nextDouble() < 0.3 ? PickupType.coin5 : PickupType.coin);
       pickups.add(
         PickupData(
           type: arcPickupType,
@@ -455,8 +460,16 @@ class WorldChunkManager {
       coinX += 160.0;
     }
 
-    // Occasional package restore in high difficulty chunks
-    if (_random.nextDouble() < 0.15 && speed > 300.0) {
+    // Occasional VIP package or package restore in mid-to-high difficulty chunks
+    if (!isVipActive && distanceMeters >= 180.0 && _random.nextDouble() < 0.18) {
+      pickups.add(
+        PickupData(
+          type: PickupType.vipPackage,
+          x: startX + chunkWidth * 0.75,
+          y: groundY - 45.0,
+        ),
+      );
+    } else if (_random.nextDouble() < 0.15 && speed > 300.0) {
       pickups.add(
         PickupData(
           type: PickupType.packageRestore,
@@ -469,8 +482,7 @@ class WorldChunkManager {
     final List<DropZoneData> dropZones = [];
 
     // Customer Doorstep Delivery Drop-off Zones (after 70m, on ground sidewalk outside scaffolding/rails)
-    if (distanceMeters >= 70.0 &&
-        _random.nextDouble() < 0.45 &&
+    if ((isVipActive || (distanceMeters >= 70.0 && _random.nextDouble() < 0.45)) &&
         scaffoldings.isEmpty &&
         grindRails.isEmpty &&
         steamVents.isEmpty) {
@@ -481,12 +493,14 @@ class WorldChunkManager {
       );
 
       if (isClearFromObstacles) {
+        final spawnVip = isVipActive || (distanceMeters >= 220.0 && _random.nextDouble() < 0.25);
         dropZones.add(
           DropZoneData(
             x: candidateX,
             y: groundY - 70.0,
             width: zoneWidth,
             height: 70.0,
+            isVip: spawnVip,
           ),
         );
       }

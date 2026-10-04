@@ -250,6 +250,32 @@ class CraneSwingEvent {
   final int streak;
 }
 
+/// Event dispatched when successfully fulfilling a VIP high-priority express delivery.
+class VipDeliveryEvent {
+  const VipDeliveryEvent({
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.remainingTimeSeconds,
+    required this.stuntStreak,
+  });
+
+  /// Base tip value before surge and combo scaling ($60).
+  final int baseTips;
+
+  /// Total tip amount awarded after all active multipliers.
+  final int totalTips;
+
+  /// Surge multiplier applied (e.g. 3.0x base * stunt combo).
+  final double multiplier;
+
+  /// Remaining seconds on the VIP countdown when fulfilled.
+  final double remainingTimeSeconds;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -387,6 +413,21 @@ class GameState extends ChangeNotifier {
   /// Total construction crane swing traversals executed in current run.
   int craneSwingsInRun = 0;
 
+  /// Whether an urgent VIP Express mission is currently active.
+  bool isVipMissionActive = false;
+
+  /// Remaining countdown timer in seconds to fulfill the VIP delivery.
+  double vipTimer = 0.0;
+
+  /// Initial duration allocated for the active VIP delivery.
+  double vipInitialDuration = 14.0;
+
+  /// Surge multiplier awarded for completing the VIP delivery.
+  double vipSurgeMultiplier = 3.0;
+
+  /// Total VIP Express deliveries successfully completed in current run.
+  int vipDeliveriesInRun = 0;
+
   ValueChanged<MilestoneEvent>? onMilestone;
   ValueChanged<StuntEvent>? onStunt;
   ValueChanged<DeliveryEvent>? onDeliveryCompleted;
@@ -397,10 +438,12 @@ class GameState extends ChangeNotifier {
   ValueChanged<GlideEvent>? onGlide;
   ValueChanged<SubwayTransitEvent>? onSubwayTransit;
   ValueChanged<CraneSwingEvent>? onCraneSwing;
+  ValueChanged<VipDeliveryEvent>? onVipDelivery;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
   VoidCallback? onDamageTaken;
+  VoidCallback? onVipMissionExpired;
 
   /// Begins or resets an active courier run.
   void startRun({DailyShift? dailyShift, Set<RunBooster>? equippedBoosters}) {
@@ -430,6 +473,9 @@ class GameState extends ChangeNotifier {
     glidesInRun = 0;
     subwayStationsInRun = 0;
     craneSwingsInRun = 0;
+    vipDeliveriesInRun = 0;
+    isVipMissionActive = false;
+    vipTimer = 0.0;
     status = GameStatus.running;
     contractManager.reset();
 
@@ -497,6 +543,29 @@ class GameState extends ChangeNotifier {
       droneTimer -= dt;
       if (droneTimer <= 0) {
         droneTimer = 0.0;
+      }
+      notifyListeners();
+    }
+  }
+
+  /// Begins an urgent VIP Express delivery mission with a ticking countdown.
+  void startVipMission([double duration = 14.0]) {
+    if (status != GameStatus.running) return;
+    isVipMissionActive = true;
+    vipInitialDuration = duration;
+    vipTimer = duration;
+    notifyListeners();
+  }
+
+  /// Updates the ticking countdown timer for an active VIP delivery mission.
+  void updateVipTimer(double dt) {
+    if (status != GameStatus.running || !isVipMissionActive) return;
+    if (vipTimer > 0) {
+      vipTimer -= dt;
+      if (vipTimer <= 0) {
+        vipTimer = 0.0;
+        isVipMissionActive = false;
+        onVipMissionExpired?.call();
       }
       notifyListeners();
     }
@@ -864,6 +933,50 @@ class GameState extends ChangeNotifier {
     );
 
     onDeliveryCompleted?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records a successful VIP high-priority express delivery fulfillment.
+  ///
+  /// Increments stunt streak, applies surge multiplier (3x) stacked with stunt combo,
+  /// restocks a package life if damaged, and resets VIP mission active state.
+  VipDeliveryEvent? recordVipDelivery() {
+    if (status != GameStatus.running) return null;
+
+    vipDeliveriesInRun++;
+    deliveriesInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    const baseTip = 60;
+    final totalMultiplier = vipSurgeMultiplier * stuntMultiplier;
+    final baseAward = (baseTip * totalMultiplier).round();
+    final awarded = isEnergyBoostActive ? baseAward * 2 : baseAward;
+    tips += awarded;
+
+    // Restock a lost package life upon VIP drop success
+    if (packages < maxPackages) {
+      packages++;
+      onPackageRestored?.call();
+    }
+
+    final remainingTime = vipTimer;
+    isVipMissionActive = false;
+    vipTimer = 0.0;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = VipDeliveryEvent(
+      baseTips: baseTip,
+      totalTips: awarded,
+      multiplier: totalMultiplier,
+      remainingTimeSeconds: remainingTime,
+      stuntStreak: stuntStreak,
+    );
+
+    onVipDelivery?.call(event);
     notifyListeners();
     return event;
   }
