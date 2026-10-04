@@ -22,6 +22,7 @@ import 'components/particle_effect.dart';
 import 'components/pickup_component.dart';
 import 'components/pigeon_flock_component.dart';
 import 'components/pr_marker_component.dart';
+import 'components/puddle_component.dart';
 import 'components/rain_component.dart';
 import 'components/ramp_component.dart';
 import 'components/scaffolding_component.dart';
@@ -136,6 +137,7 @@ class CourierGame extends FlameGame
   final List<FoodCartComponent> activeFoodCarts = [];
   final List<StormDrainComponent> activeStormDrains = [];
   final List<SolarPanelComponent> activeSolarPanels = [];
+  final List<PuddleComponent> activePuddles = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
@@ -518,6 +520,16 @@ class CourierGame extends FlameGame
       world.add(spComp);
     }
 
+    for (final pud in chunk.puddles) {
+      final pudComp = PuddleComponent(
+        position: Vector2(pud.x, pud.y),
+        size: Vector2(pud.width, pud.height),
+        groundY: groundY,
+      );
+      activePuddles.add(pudComp);
+      world.add(pudComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -695,6 +707,12 @@ class CourierGame extends FlameGame
     for (final sp in world.children.whereType<SolarPanelComponent>().toList()) {
       sp.removeFromParent();
     }
+    for (final pud in activePuddles.toList()) {
+      pud.removeFromParent();
+    }
+    for (final pud in world.children.whereType<PuddleComponent>().toList()) {
+      pud.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -708,6 +726,7 @@ class CourierGame extends FlameGame
     activeFoodCarts.clear();
     activeStormDrains.clear();
     activeSolarPanels.clear();
+    activePuddles.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
@@ -922,6 +941,10 @@ class CourierGame extends FlameGame
     }
     for (final sp in activeSolarPanels) {
       sp.position.x -= scrollDelta;
+    }
+    for (final pud in activePuddles) {
+      pud.position.x -= scrollDelta;
+      pud.isRaining = weatherController.isRaining;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -1346,6 +1369,25 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4p. Evaluate Dynamic Sidewalk Puddle Splashes and Skims
+    for (final pud in activePuddles) {
+      if (!pud.hasSplashed && pud.checkSplash(player.position, player.size, player.simulator)) {
+        pud.hasSplashed = true;
+        _wetHazardsCleared++;
+        triggerScreenShake(0.08);
+        addEffect(
+          ParticleEffectComponent.waterSpray(
+            position: Vector2(courierFootX, groundY - 4.0),
+            count: 14,
+          ),
+        );
+        audio.playCoin();
+      } else if (!pud.hasSkimmed && !pud.hasSplashed && pud.checkSkim(player.position, player.size, player.simulator)) {
+        pud.hasSkimmed = true;
+        _handlePuddleSkim(pud);
+      }
+    }
+
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
       final playerCenter = player.position + (player.size / 2);
@@ -1477,6 +1519,13 @@ class CourierGame extends FlameGame
     activeSolarPanels.removeWhere((sp) {
       if (sp.shouldRecycle || sp.isRemoved) {
         if (sp.isMounted) sp.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activePuddles.removeWhere((pud) {
+      if (pud.shouldRecycle || pud.isRemoved) {
+        if (pud.isMounted) pud.removeFromParent();
         return true;
       }
       return false;
@@ -1869,6 +1918,30 @@ class CourierGame extends FlameGame
           position: courierCenter,
           count: 20,
         ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handlePuddleSkim(PuddleComponent pud) {
+    final event = gameState.recordPuddleSkim();
+    if (event != null) {
+      audio.playCoin();
+      audio.playCourierBark(CourierBarkType.stunt, line: 'Hydro skim!');
+      triggerScreenShake(0.12);
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+      addEffect(
+        FloatingTextComponent(
+          text: 'PUDDLE SKIM! $multStr+\$${event.totalTips}',
+          position: Vector2(player.position.x - 10.0, player.position.y - 35.0),
+          color: const Color(0xFF29B6F6),
+        ),
+      );
+      spawnSparkles(
+        Vector2(pud.position.x + pud.size.x / 2, groundY - 10.0),
+        color: const Color(0xFF29B6F6),
+        count: 8,
       );
       _evaluateAchievements();
     }
