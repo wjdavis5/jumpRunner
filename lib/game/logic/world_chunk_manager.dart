@@ -274,6 +274,21 @@ class HvacWindTunnelData {
   final double windLength;
 }
 
+/// Data model for a street-level subway entrance turnstile.
+class SubwayTurnstileData {
+  const SubwayTurnstileData({
+    required this.x,
+    required this.y,
+    this.width = 58.0,
+    this.height = 52.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -293,6 +308,7 @@ class ChunkData {
     this.solarPanels = const [],
     this.puddles = const [],
     this.windTunnels = const [],
+    this.turnstiles = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -312,6 +328,7 @@ class ChunkData {
   final List<SolarPanelData> solarPanels;
   final List<PuddleData> puddles;
   final List<HvacWindTunnelData> windTunnels;
+  final List<SubwayTurnstileData> turnstiles;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -1036,6 +1053,41 @@ class WorldChunkManager {
       }
     }
 
+    final List<SubwayTurnstileData> turnstiles = [];
+
+    // Street Subway Entrance Turnstiles (after 75m, on street outside subway stations and scaffolding)
+    if (distanceMeters >= 75.0 &&
+        _random.nextDouble() < 0.35 &&
+        subwayStations.isEmpty &&
+        scaffoldings.isEmpty) {
+      const turnstileWidth = 58.0;
+      for (var offset = 110.0; offset <= chunkWidth - 150.0; offset += 45.0) {
+        final tX = startX + offset;
+        final isClear = obstacles.every(
+          (o) => (tX + turnstileWidth < o.x - 30.0) || (tX > o.x + o.width + 30.0),
+        ) && crosswalks.every(
+          (cw) => (tX + turnstileWidth < cw.x - 20.0) || (tX > cw.x + cw.width + 20.0),
+        ) && foodCarts.every(
+          (fc) => (tX + turnstileWidth < fc.x - 20.0) || (tX > fc.x + fc.width + 20.0),
+        ) && stormDrains.every(
+          (sd) => (tX + turnstileWidth < sd.x - 20.0) || (tX > sd.x + sd.width + 20.0),
+        ) && puddles.every(
+          (pud) => (tX + turnstileWidth < pud.x - 20.0) || (tX > pud.x + pud.width + 20.0),
+        );
+        if (isClear) {
+          turnstiles.add(
+            SubwayTurnstileData(
+              x: tX,
+              y: groundY - 52.0,
+              width: turnstileWidth,
+              height: 52.0,
+            ),
+          );
+          break;
+        }
+      }
+    }
+
     return ChunkData(
       obstacles: obstacles,
       pickups: pickups,
@@ -1054,6 +1106,7 @@ class WorldChunkManager {
       solarPanels: solarPanels,
       puddles: puddles,
       windTunnels: windTunnels,
+      turnstiles: turnstiles,
     );
   }
 }

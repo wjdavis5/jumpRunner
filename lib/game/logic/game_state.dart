@@ -460,6 +460,32 @@ class WindTunnelGlideEvent {
   final int stuntStreak;
 }
 
+/// Event dispatched when validating a transit swipe or vaulting a street subway turnstile.
+class TurnstileEvent {
+  const TurnstileEvent({
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.stuntStreak,
+    required this.isVault,
+  });
+
+  /// Base tip value before stunt combo scaling ($20 for swipe, $25 for vault).
+  final int baseTips;
+
+  /// Total tip amount awarded after active combo multipliers.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this event.
+  final double multiplier;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+
+  /// True if executed via hurdle vault; false if sprint card swipe.
+  final bool isVault;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -636,6 +662,9 @@ class GameState extends ChangeNotifier {
   /// Total industrial HVAC exhaust wind tunnel hover glides executed in current run.
   int windTunnelGlidesInRun = 0;
 
+  /// Total street subway entrance turnstiles swiped or vaulted in current run.
+  int turnstileVaultsInRun = 0;
+
   /// Total seconds spent drafting behind companion cyclists in current run.
   double totalDraftDurationInRun = 0.0;
 
@@ -669,6 +698,7 @@ class GameState extends ChangeNotifier {
   ValueChanged<SolarSurgeEvent>? onSolarSurge;
   ValueChanged<PuddleSkimEvent>? onPuddleSkim;
   ValueChanged<WindTunnelGlideEvent>? onWindTunnelGlide;
+  ValueChanged<TurnstileEvent>? onTurnstile;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -714,6 +744,7 @@ class GameState extends ChangeNotifier {
     solarSurgesInRun = 0;
     puddleSkimsInRun = 0;
     windTunnelGlidesInRun = 0;
+    turnstileVaultsInRun = 0;
     totalDraftDurationInRun = 0.0;
     isDrafting = false;
     status = GameStatus.running;
@@ -1472,6 +1503,39 @@ class GameState extends ChangeNotifier {
     );
 
     onWindTunnelGlide?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records swiping or hurdle-vaulting through a street subway entrance turnstile,
+  /// awarding base tips scaled by combo multipliers and advancing the stunt streak.
+  TurnstileEvent? recordTurnstilePass({bool isVault = false}) {
+    if (status != GameStatus.running) return null;
+
+    turnstileVaultsInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    final baseTip = isVault ? 25 : 20;
+    final baseAward = (baseTip * stuntMultiplier).round();
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? baseAward * 2
+        : baseAward;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = TurnstileEvent(
+      baseTips: baseTip,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+      stuntStreak: stuntStreak,
+      isVault: isVault,
+    );
+
+    onTurnstile?.call(event);
     notifyListeners();
     return event;
   }

@@ -26,6 +26,7 @@ class GameOverModal extends StatelessWidget {
     this.solarSurgesCompleted = 0,
     this.puddleSkimsCompleted = 0,
     this.windTunnelGlidesCompleted = 0,
+    this.turnstilesCompleted = 0,
   });
 
   final int distance;
@@ -49,6 +50,7 @@ class GameOverModal extends StatelessWidget {
   final int solarSurgesCompleted;
   final int puddleSkimsCompleted;
   final int windTunnelGlidesCompleted;
+  final int turnstilesCompleted;
   final VoidCallback onRestart;
 
   @override
@@ -595,6 +597,37 @@ class GameOverModal extends StatelessWidget {
                         '$windTunnelGlidesCompleted WIND TUNNEL GLIDE${windTunnelGlidesCompleted > 1 ? 'S' : ''}',
                         style: const TextStyle(
                           color: Color(0xFF00E5FF),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            if (turnstilesCompleted > 0)
+              Container(
+                key: const Key('game_over_turnstiles_badge'),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00E676).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF00E676), width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.transit_enterexit, color: Color(0xFF00E676), size: 16),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '$turnstilesCompleted METRO TURNSTILE${turnstilesCompleted > 1 ? 'S' : ''}',
+                        style: const TextStyle(
+                          color: Color(0xFF00E676),
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                           letterSpacing: 0.5,
