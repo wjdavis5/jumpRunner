@@ -5,22 +5,19 @@ Verified shipped work lands as conventional commits; move done items to Shipped.
 
 ## In play (highest impact first)
 
-1. **Coin magnet visual feedback** — energy drink grants a magnet; draw a subtle arc/trail
-   from attracted coins so the buff reads on screen, not just in the HUD badge.
-2. **First-run tip coaching** — one-time floating hint ("TAP & HOLD TO LEAP!") at the first
+1. **First-run tip coaching** — one-time floating hint ("TAP & HOLD TO LEAP!") at the first
    warm-up hazard, only when `storage.highDistance == 0`.
-3. **Adaptive soundtrack stems** (issue #63) — layer intensity by speed bracket; big
+2. **Adaptive soundtrack stems** (issue #63) — layer intensity by speed bracket; big
    scope, needs the Kenney audio pack unzipped from `C:\Users\will\Downloads`.
-4. **Neon billboard ads** (issue #66) — parallax decoration with courier headlines;
+3. **Neon billboard ads** (issue #66) — parallax decoration with courier headlines;
    procedurally drawn, no new assets required.
-5. **Environment components** (issues #126 cement mixer, #124 dumpster, #118 pretzel
+4. **Environment components** (issues #126 cement mixer, #124 dumpster, #118 pretzel
    cart, #116 rooftop solarium, #87 debris chute, #84 manhole geyser, #83 window-washer
    cradle, #73 wrecking ball) — follow the established component pattern:
    data class in `world_chunk_manager.dart`, component file, spawn gate, game-over badge.
-6. **Slow-mo death beat: cosmetic zoom capture** — shipped and functionally verified
-   (see below); pending a quiet-device video capture of the 1.3x camera ease for
-   cosmetic tuning. Emulator input events were contended by a concurrent automation
-   session during verification attempts.
+5. **Cosmetic captures pending a quiet device** (contended input from concurrent
+   automation sessions): slow-mo death zoom review; coin-magnet glow/trail review
+   (equip an espresso booster via Bodega for a deterministic 8s magnet window).
 
 ## Regression guards (never break these)
 
@@ -38,6 +35,9 @@ Verified shipped work lands as conventional commits; move done items to Shipped.
   camera zoom to 1.3x on the fallen courier, then modal. Unit-tested (DeathSlowmoController);
   verified on-device across three observed deaths (151m/152m/152m): beat always
   completed into the modal, restarts and PR/Persistence all clean.
+- 2026-10-04: coin magnet visuals (b2e5cdf) — radial-pull fix (bobbing no longer
+  cancels the vertical pull), pulsing gold halo, snap-in glint, comet-trail
+  sparkles. Unit-tested position ownership; emulator flow verified on the build.
 
 ## Coordination note
 
