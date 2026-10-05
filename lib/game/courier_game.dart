@@ -10,6 +10,7 @@ import '../services/storage_service.dart';
 import 'components/ac_condenser_component.dart';
 import 'components/barricade_sawhorse_component.dart';
 import 'components/courier_player.dart';
+import 'components/coach_hint_component.dart';
 import 'components/crane_swing_component.dart';
 import 'components/crosswalk_zone_component.dart';
 import 'components/cyclist_companion_component.dart';
@@ -135,6 +136,7 @@ class CourierGame extends FlameGame
   bool hasSurpassedPr = false;
   bool hasRecordedDailyShiftSuccess = false;
   DeliveryDroneComponent? deliveryDrone;
+  CoachHintComponent? firstRunCoach;
 
   int _wetHazardsCleared = 0;
 
@@ -1237,7 +1239,33 @@ class CourierGame extends FlameGame
 
     isRunning = true;
     _spawnChunk();
+    _refreshFirstRunCoach();
     audio.startMusic();
+  }
+
+  /// Shows the tap-to-leap coaching hint for brand-new couriers whose
+  /// personal record is still zero, anchored above the opening hazard.
+  void _refreshFirstRunCoach() {
+    firstRunCoach?.removeFromParent();
+    firstRunCoach = null;
+    if (personalRecordDistance > 0) return;
+
+    ObstacleComponent? firstObstacle;
+    for (final o in activeObstacles) {
+      if (firstObstacle == null || o.position.x < firstObstacle.position.x) {
+        firstObstacle = o;
+      }
+    }
+
+    final hintX = firstObstacle != null
+        ? firstObstacle.position.x + firstObstacle.size.x / 2 - 100.0
+        : player.position.x + 280.0;
+    final hint = CoachHintComponent(
+      text: 'TAP & HOLD TO LEAP!',
+      position: Vector2(hintX.clamp(140.0, virtualResolution.x - 240.0), groundY - 175.0),
+    );
+    firstRunCoach = hint;
+    world.add(hint);
   }
 
   /// Plays the slow-motion death beat: eases the camera onto the fallen
@@ -3553,6 +3581,7 @@ class CourierGame extends FlameGame
   @override
   void onTapDown(TapDownEvent event) {
     super.onTapDown(event);
+    firstRunCoach?.dismiss();
     if (isRunning && gameState.status == GameStatus.running) {
       final jumpMult = gameState.isCaffeineSurgeActive ? 1.10 : 1.0;
       if (!player.jump(impulseMultiplier: jumpMult)) {
