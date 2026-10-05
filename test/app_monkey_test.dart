@@ -29,13 +29,74 @@ const List<Size> _screens = [
   Size(375, 667),
 ];
 
+/// The Locker's and the Bodega's buttons: buy, unlock, wear, pack.
+const List<String> _shopKeys = ['unlock_button_', 'equip_button_', 'buy_booster_', 'equip_booster_'];
+
+/// What the walk checks about the courier's money and gear after a step.
+class _Books {
+  _Books(this.harness, this.game)
+      : tips = harness.storage.careerTips,
+        status = game.gameState.status,
+        distance = game.gameState.distanceMeters;
+
+  final AppHarness harness;
+  final CourierGame game;
+  final int tips;
+  final GameStatus status;
+  final double distance;
+
+  /// What is wrong now, given that [did] was done since these were taken.
+  String? problemAfter(String did) {
+    final storage = harness.storage;
+    final state = game.gameState;
+    final now = storage.careerTips;
+    if (now < 0) return 'career tips are negative: $now';
+    if (storage.lifetimeTips < now) return 'lifetime tips ${storage.lifetimeTips} under the balance $now';
+    if (!storage.unlockedSkins.contains(storage.equippedSkin) && storage.equippedSkin != 'standard') {
+      return 'wearing ${storage.equippedSkin}, which is not unlocked';
+    }
+    if (state.packages < 0 || state.packages > state.maxPackages) {
+      return '${state.packages} packages of ${state.maxPackages}';
+    }
+    if (did.startsWith('shop ')) {
+      if (now > tips) return 'a shop button raised the balance from $tips to $now';
+    } else if (status == GameStatus.idle && state.status == GameStatus.idle && now != tips) {
+      return 'the balance went from $tips to $now at the depot with nothing bought';
+    }
+    if (status == GameStatus.paused && state.status == GameStatus.paused && state.distanceMeters != distance) {
+      return 'a paused shift moved from $distance m to ${state.distanceMeters} m';
+    }
+    return null;
+  }
+}
+
+/// Spends or wears something: any buy, unlock or equip button showing.
+Future<String> _shop(WidgetTester tester, math.Random rng) async {
+  final buttons = find.byWidgetPredicate((w) {
+    final k = w.key;
+    if (k is! ValueKey<String>) return false;
+    return _shopKeys.any(k.value.startsWith);
+  });
+  final showing = buttons.evaluate().length;
+  if (showing == 0) return 'no shop button';
+  final pick = buttons.at(rng.nextInt(showing));
+  final name = (tester.widget(pick).key! as ValueKey<String>).value;
+  await tester.tap(pick, warnIfMissed: false);
+  return 'shop $name';
+}
+
 /// One random thing a player (or the phone) might do. Returns what it did.
 Future<String> _act(WidgetTester tester, math.Random rng) async {
   final game = gameOf(tester);
   final state = game.gameState;
   Finder key(String k) => find.byKey(Key(k));
 
-  switch (rng.nextInt(27)) {
+  // With a shop card open, mostly shop: otherwise the walk wanders off
+  // before it has bought anything.
+  final shopOpen = game.overlays.isActive('LockerModal') || game.overlays.isActive('BodegaModal');
+  if (shopOpen && rng.nextInt(3) != 0) return _shop(tester, rng);
+
+  switch (rng.nextInt(30)) {
     case 0:
     case 1:
       return await _tapIfPresent(tester, find.text('START SHIFT')) ? 'tap START SHIFT' : 'no START';
@@ -112,6 +173,9 @@ Future<String> _act(WidgetTester tester, math.Random rng) async {
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pump(Duration(seconds: seconds));
       return 'app away ${seconds}s with no frame';
+    case 23:
+    case 24:
+      return _shop(tester, rng);
     case 22:
       // The window is resized, or the phone turned: any screen, mid-shift
       // or not, has to lay out at any of these.
@@ -167,21 +231,29 @@ void main() {
   // A random walk over everything a player or the phone can do to the app.
   // After every step the screen has to make sense: no two blocking layers at
   // once, nothing stranded behind a missing menu, no exception. It exists to
-  // catch the orderings nobody thought to write a test for. Kept short here;
-  // twelve seeds of 320 steps each passed when it was written.
-  for (final seed in const [1, 2]) {
+  // catch the orderings nobody thought to write a test for. Kept short here:
+  // three seeds chosen because between them they play shifts, leave the app,
+  // change the screen and buy out both shops. For a soak, raise the seed
+  // list and the step count by hand: thirty seeds of 120 steps and twenty of
+  // 320 passed when the shop steps were added. Run that way it has found a
+  // resume count unpausing the shift behind the pause menu, and the HUD's
+  // pause button off the edge of a narrow screen.
+  for (final seed in const [1, 9, 18]) {
     testWidgets('random walk through the app holds together (seed $seed)', (tester) async {
-      await bootApp(tester);
+      // Enough in the bank for the walk to buy things.
+      final harness = await bootApp(tester, prefs: {'courier_career_tips': 30000});
       final rng = math.Random(seed);
       final trail = <String>[];
 
       for (var step = 0; step < 120; step++) {
+        final books = _Books(harness, gameOf(tester));
         final did = await _act(tester, rng);
         trail.add(did);
         await settle(tester, frames: 2);
 
         final where = 'after step $step (${trail.skip(math.max(0, trail.length - 8)).join(' > ')})';
         expect(tester.takeException(), isNull, reason: where);
+        expect(books.problemAfter(did), isNull, reason: where);
 
         final game = gameOf(tester);
         var problem = _inconsistency(game);
