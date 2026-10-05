@@ -1,5 +1,8 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
+import '../game/courier_game.dart';
 import '../game/game_font.dart';
 import '../game/logic/game_state.dart';
 import '../game/models/shift_contract.dart';
@@ -29,9 +32,32 @@ class HUDOverlay extends StatelessWidget {
   /// Vertical offset clearing the two-line distance counter pill.
   static const double bannerTopOffset = 94.0;
 
-  /// Vertical offset for the contract banner when stacked below the
-  /// milestone banner (bannerTopOffset + milestone banner height + gap).
-  static const double stackedBannerTopOffset = 160.0;
+  /// The gap between the milestone banner and the contract banner under it.
+  static const double bannerGap = 6.0;
+
+  /// How far above the pavement the street's business goes on, in the
+  /// game's own units: the van is 68 tall and the courier 64.
+  static const double streetBandHeight = 72.0;
+
+  /// About how tall one banner is at full size.
+  static const double bannerHeight = 60.0;
+
+  /// The least a pair of banners is shrunk to. With four status badges up
+  /// on a small phone there is no room above the street at all, and a
+  /// banner too small to read is worse than one over the street.
+  static const double smallestBannerScale = 0.6;
+
+  /// How far down a screen of [screen] size a banner may reach before it is
+  /// over the street: over the courier's head and the hazards they have to
+  /// read. The game fills the height of a screen at least as wide as 16:9
+  /// and is letterboxed on a narrower one.
+  static double bannerFloor(Size screen) {
+    final resolution = CourierGame.virtualResolution;
+    final fillsHeight = screen.width * resolution.y >= screen.height * resolution.x;
+    final scale = fillsHeight ? screen.height / resolution.y : screen.width / resolution.x;
+    final top = fillsHeight ? 0.0 : (screen.height - resolution.y * scale) / 2;
+    return top + (CourierGame.groundY - streetBandHeight) * scale;
+  }
 
   /// Height one status badge (boost, combo, VIP...) takes under the
   /// distance pill, gap included.
@@ -103,30 +129,54 @@ class HUDOverlay extends StatelessWidget {
           // Banners only count down while a shift is live, so one that is up
           // when the last package drops would otherwise stay on screen for
           // good, poking out from behind the results card.
-          if (!_shiftIsOver && gameState.isMilestoneBannerVisible && gameState.activeMilestone != null)
-            Positioned(
-              top: HUDOverlay.bannerTopOffset + _badgeStackHeight,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: _buildMilestoneBanner(gameState.activeMilestone!),
-              ),
-            ),
-          if (!_shiftIsOver && gameState.isContractCelebrationVisible && gameState.activeContractCelebration != null)
-            Positioned(
-              top: (gameState.isMilestoneBannerVisible
-                      ? HUDOverlay.stackedBannerTopOffset
-                      : HUDOverlay.bannerTopOffset) +
-                  _badgeStackHeight,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: _buildContractBanner(gameState.activeContractCelebration!),
-              ),
-            ),
+          if (!_shiftIsOver) ..._buildBanners(context),
         ],
       ),
     );
+  }
+
+  /// The celebration banners, one under the other below the status badges,
+  /// shrunk if need be so that they end above the street.
+  ///
+  /// On a 320 px screen with two status badges up, a milestone and a
+  /// contract landing together put the lower banner over the courier and
+  /// the hazards in front of them for its whole three seconds.
+  List<Widget> _buildBanners(BuildContext context) {
+    final milestone = gameState.isMilestoneBannerVisible ? gameState.activeMilestone : null;
+    final contract = gameState.isContractCelebrationVisible ? gameState.activeContractCelebration : null;
+    if (milestone == null && contract == null) return const [];
+
+    final top = HUDOverlay.bannerTopOffset + _badgeStackHeight;
+    final room = HUDOverlay.bannerFloor(MediaQuery.sizeOf(context)) - top;
+    final count = (milestone != null ? 1 : 0) + (contract != null ? 1 : 0);
+    final least = HUDOverlay.smallestBannerScale * HUDOverlay.bannerHeight * count;
+    return [
+      Positioned(
+        top: top,
+        left: 0,
+        right: 0,
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: math.max(room, least)),
+            // Laid out at their own size, then scaled as one to the room
+            // there is, hanging from where they always did.
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.topCenter,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (milestone != null) _buildMilestoneBanner(milestone),
+                  if (milestone != null && contract != null) const SizedBox(height: HUDOverlay.bannerGap),
+                  if (contract != null) _buildContractBanner(contract),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ];
   }
 
   Widget _buildMilestoneBanner(MilestoneEvent milestone) {
