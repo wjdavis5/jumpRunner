@@ -7,15 +7,15 @@ Verified shipped work lands as conventional commits; move done items to Shipped.
 
 1. **Adaptive soundtrack stems** (issue #63) — layer intensity by speed bracket; big
    scope, needs the Kenney audio pack unzipped from `C:\Users\will\Downloads`.
-2. **Neon billboard ads** (issue #66) — parallax decoration with courier headlines;
-   procedurally drawn, no new assets required.
-3. **Environment components** (issues #126 cement mixer, #124 dumpster, #118 pretzel
+2. **Environment components** (issues #126 cement mixer, #124 dumpster, #118 pretzel
    cart, #116 rooftop solarium, #87 debris chute, #84 manhole geyser, #83 window-washer
    cradle, #73 wrecking ball) — follow the established component pattern:
    data class in `world_chunk_manager.dart`, component file, spawn gate, game-over badge.
-4. **Cosmetic captures pending a quiet device** (contended input from concurrent
+3. **Cosmetic captures pending a quiet device** (contended input from concurrent
    automation sessions): slow-mo death zoom review; coin-magnet glow/trail review
-   (equip an espresso booster via Bodega for a deterministic 8s magnet window).
+   (equip an espresso booster via Bodega for a deterministic 8s magnet window);
+   night-phase billboard halo review (billboards shipped 2026-10-04, night lamp-glow
+   boost untested visually).
 
 ## Regression guards (never break these)
 
@@ -40,6 +40,9 @@ Verified shipped work lands as conventional commits; move done items to Shipped.
   above the opening hazard for zero-PB players; dismisses on first tap, 7s
   failsafe. Unit-tested; emulator-verified both gates (shown when wiped save,
   hidden once a PB exists).
+- 2026-10-04: neon billboards (bf77462) — seven courier-themed glowing headlines
+  on every third midground facade with shimmer/dropout flicker, glitch shear,
+  and night lamp-glow scaling. Unit-tested glow math; emulator-verified live.
 
 ## Coordination note
 
