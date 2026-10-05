@@ -2,6 +2,31 @@ import 'dart:math' as math;
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
+/// One procedural neon billboard advertisement mounted on a midground facade.
+class _BillboardAd {
+  _BillboardAd(String headline, this.neonColor)
+      : painter = TextPainter(
+          text: TextSpan(
+            text: headline,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.0,
+              shadows: [
+                Shadow(color: neonColor, blurRadius: 6),
+              ],
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        ) {
+    painter.layout();
+  }
+
+  final TextPainter painter;
+  final Color neonColor;
+}
+
 /// Major environmental time-of-day phases mapped across courier distance progression.
 enum TimeOfDayPhase {
   day,
@@ -168,6 +193,34 @@ class ParallaxCityComponent extends PositionComponent {
   static const Color sidewalkColor = Color(0xFF7F8C8D);
   static const Color curbColor = Color(0xFF5D6D7E);
   static const Color streetColor = Color(0xFF2C3E50);
+
+  /// Procedural neon billboard ads cycling across midground facades.
+  static final List<_BillboardAd> _billboardAds = [
+    _BillboardAd('COURIER DASH', const Color(0xFF00E5FF)),
+    _BillboardAd('24/7 DELIVERY', const Color(0xFFFF4081)),
+    _BillboardAd('GIG CITY', const Color(0xFF76FF03)),
+    _BillboardAd('EXPRESS PARCEL', const Color(0xFFFFD600)),
+    _BillboardAd('TIP YOUR COURIER', const Color(0xFF00E5FF)),
+    _BillboardAd('ZAP GRAMS', const Color(0xFFE040FB)),
+    _BillboardAd('SAME HOUR OR FREE', const Color(0xFFFFAB00)),
+  ];
+
+  /// Neon glow intensity for the billboard on building [buildingIndex].
+  ///
+  /// Combines a per-building sine shimmer with a rare dropout flicker,
+  /// reading as aging neon signage. Deterministic and in [0, 1].
+  @visibleForTesting
+  static double billboardGlowFor({required int buildingIndex, required double time}) {
+    final phase = (buildingIndex * 1.7) % (2 * math.pi);
+    final shimmer = 0.78 + 0.22 * math.sin(time * 6.0 + phase);
+    final slot = (time * 2.0).floor() + buildingIndex * 7;
+    final dropout = (slot * 31 + buildingIndex * 17) % 16 == 0 ? 0.25 : 1.0;
+    return (shimmer * dropout).clamp(0.0, 1.0);
+  }
+
+  /// Number of distinct billboard headlines cycling through the city.
+  @visibleForTesting
+  static int get billboardAdCount => _billboardAds.length;
 
   static const List<_StarData> _stars = [
     _StarData(0.05, 0.12, 1.5, 3.1, 0.2),
@@ -400,6 +453,52 @@ class ParallaxCityComponent extends PositionComponent {
               isLit ? litWindowPaint : unlitWindowPaint,
             );
           }
+        }
+
+        // Neon billboard advertisement mounted above the windows.
+        // Every third building carries one; ads persist per facade tile so
+        // the tiling stays seamless while the slice scrolls.
+        if (i % 3 == 0) {
+          final ad = _billboardAds[(i ~/ 3) % _billboardAds.length];
+          final glow = billboardGlowFor(buildingIndex: i, time: elapsedTime);
+          final panelW = math.min(bw - 10.0, ad.painter.width + 12.0);
+          const panelH = 17.0;
+          final panelX = bx + (bw - panelW) / 2;
+          final panelY = groundY - bh + 8.0;
+
+          final haloPaint = Paint()
+            ..color = ad.neonColor.withValues(alpha: 0.35 * glow * (0.55 + 0.45 * currentPalette.lampGlow))
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+          canvas.drawRect(
+            Rect.fromLTWH(panelX - 2, panelY - 2, panelW + 4, panelH + 4),
+            haloPaint,
+          );
+
+          final panelPaint = Paint()
+            ..color = const Color(0xE012141A).withValues(alpha: 0.9 * (0.4 + 0.6 * glow));
+          canvas.drawRect(
+            Rect.fromLTWH(panelX, panelY, panelW, panelH),
+            panelPaint,
+          );
+
+          final framePaint = Paint()
+            ..color = ad.neonColor.withValues(alpha: glow)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.4;
+          canvas.drawRect(
+            Rect.fromLTWH(panelX, panelY, panelW, panelH),
+            framePaint,
+          );
+
+          // Glitch: dropout frames shear the text slightly sideways.
+          final glitchShift = glow < 0.5 ? 2.0 : 0.0;
+          ad.painter.paint(
+            canvas,
+            Offset(
+              panelX + (panelW - ad.painter.width) / 2 + glitchShift,
+              panelY + (panelH - ad.painter.height) / 2,
+            ),
+          );
         }
       }
     }
