@@ -20,6 +20,9 @@ void main() {
 
       expect(shift1.dateString, equals('2026-10-03'));
       expect(shift2.dateString, equals('2026-10-03'));
+      expect(shift1.dateLabel, equals('Saturday, October 3'));
+      expect(DailyShift.forDate(DateTime(2027, 1, 31)).dateLabel, equals('Sunday, January 31'));
+      expect(DailyShift.forDate(DateTime(2028, 2, 29)).dateLabel, equals('Tuesday, February 29'));
       expect(shift1.modifier, equals(shift2.modifier));
       expect(shift1.targetDistanceMeters, equals(shift2.targetDistanceMeters));
       expect(shift1.completionBonusTips, equals(shift2.completionBonusTips));
@@ -191,7 +194,9 @@ void main() {
       );
 
       expect(find.text('DAILY GIG SHIFT'), findsOneWidget);
-      expect(find.text('2026-10-03'), findsOneWidget);
+      // The day reads as a day, not as the key it is saved under.
+      expect(find.text('Saturday, October 3'), findsOneWidget);
+      expect(find.text('2026-10-03'), findsNothing);
       expect(find.byKey(const Key('start_daily_shift_button')), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('start_daily_shift_button')));

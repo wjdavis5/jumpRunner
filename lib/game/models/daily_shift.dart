@@ -49,10 +49,33 @@ class DailyShift {
     required this.completionBonusTips,
   });
 
+  /// The day as `2026-10-05`: what a completed daily shift is saved under.
   final String dateString;
   final DailyModifier modifier;
   final int targetDistanceMeters;
   final int completionBonusTips;
+
+  /// The day as the card says it: `Monday, October 5`.
+  String get dateLabel {
+    final date = DateTime.tryParse(dateString);
+    if (date == null) return dateString;
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    return '${days[date.weekday - 1]}, ${months[date.month - 1]} ${date.day}';
+  }
 
   /// What reaching a daily goal of [targetDistanceMeters] pays.
   static int bonusForTarget(int targetDistanceMeters) => targetDistanceMeters;

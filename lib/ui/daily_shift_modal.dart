@@ -77,7 +77,7 @@ class DailyShiftModal extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            shift.dateString,
+                            shift.dateLabel,
                             style: const TextStyle(
                               color: Colors.white54,
                               fontSize: 12,
