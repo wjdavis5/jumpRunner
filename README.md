@@ -6,26 +6,33 @@ One input does everything: tap to hop, hold to leap, tap again in the air to
 open a glide chute. The three packages you carry are your lives. The game is
 offline and ad-free; progress is stored on the device only.
 
-**Status:** active hobby project. The web build is deployed to Cloudflare Pages
-on every push to `main`; iOS and Android builds are produced from version tags.
+**Status:** active hobby project. Every push to `main` builds the web bundle;
+publishing it to Cloudflare Pages is set up in the workflow but not switched on
+yet (issue #134). iOS and Android builds are produced from version tags.
 
 ## Playing
 
 | Input | Action |
 |---|---|
-| Tap / click, or `Space` / `Up` / `W` | Hop over low hazards (scooters, dogs) |
-| Hold | Leap over tall hazards (vans) |
+| Tap / click, or `Space` / `Up` / `W` | Hop over low hazards (scooters, dogs, hydrants, mailboxes, the third rail) |
+| Hold | Leap over tall hazards (vans, subway trains) |
 | Press again while airborne | Open or stow the glide chute |
-| `P` / `Esc` | Pause, resume, or back out of a menu card |
+| `P` / `Esc`, or Back on Android | Pause, resume, or back out of a menu card |
 | `Space` / `Enter` on the title or results screen | Start the shift / the next shift |
+
+A press lasts from the moment a finger goes down until that finger lifts,
+however far it slides in between.
 
 - A shift starts at 200 px/s and ramps to 550 px/s over the first 2,000 m. The
   first 100 m is a warm-up with one small hazard at a time.
-- Hitting a hazard drops a package. Losing all three ends the shift.
+- Hitting a hazard drops a package. Losing all three ends the shift, and the
+  results card says what took the last one and how to get past it.
+- A flock of pigeons is the one hazard not to leap at: the birds take off as
+  you arrive, and a courier who keeps running passes under them.
 - Street set pieces (carts, rails, cranes, mailboxes and many more) are never
   harmful. Using them well pays tips and builds a stunt multiplier.
 - Tips buy courier skins in the Locker and one-shot boosters in the Bodega.
-  Daily Shifts and six trophies give longer-term goals.
+  Daily Shifts and ten trophies give longer-term goals.
 
 ## Build, run, test
 
@@ -81,7 +88,7 @@ engine.
 
 | Target | Trigger | Workflow |
 |---|---|---|
-| Web (Cloudflare Pages) | Push to `main` touching `lib/`, `web/`, `assets/` or `pubspec.*` | `.github/workflows/web-deploy.yml` |
+| Web (Cloudflare Pages) | Push to `main` touching `lib/`, `web/`, `assets/` or `pubspec.*`. Builds today; the publish step is skipped until the Cloudflare secrets are set (issue #134) | `.github/workflows/web-deploy.yml` |
 | Android APK and App Bundle | Tag `v*.*.*` | `.github/workflows/android-release.yml` |
 | iOS (TestFlight via fastlane) | Tag `v*.*.*` | `.github/workflows/ios-release.yml` |
 
