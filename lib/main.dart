@@ -78,11 +78,13 @@ class _CourierDashAppState extends State<CourierDashApp> {
     super.initState();
     _gameState = GameState();
     _isReduceFlash = widget.storageService.isReduceFlash;
-    final equippedSkin = CourierSkin.findById(widget.storageService.equippedSkin);
+    final equippedSkin =
+        CourierSkin.findById(widget.storageService.equippedSkin);
     _game = CourierGame(
       gameState: _gameState,
       audioController: widget.audioController,
-      achievementManager: AchievementManager(storageService: widget.storageService),
+      achievementManager:
+          AchievementManager(storageService: widget.storageService),
       storageService: widget.storageService,
       initialSkin: equippedSkin,
     );
@@ -134,7 +136,8 @@ class _CourierDashAppState extends State<CourierDashApp> {
       await widget.storageService.consumeBooster(booster.id);
     }
     _equippedBoosters = {};
-    _gameState.startRun(dailyShift: dailyShift, equippedBoosters: boostersToApply);
+    _gameState.startRun(
+        dailyShift: dailyShift, equippedBoosters: boostersToApply);
     _game.restartRun(shift: dailyShift, equippedBoosters: boostersToApply);
     _game.overlays.remove('TitleScreen');
     _game.overlays.add('HUD');
@@ -249,110 +252,117 @@ class _CourierDashAppState extends State<CourierDashApp> {
       theme: ThemeData.dark(),
       home: Scaffold(
         backgroundColor: Colors.black,
-        body: GameWidget<CourierGame>(
-          game: _game,
-          initialActiveOverlays: const ['TitleScreen'],
-          overlayBuilderMap: {
-            'TitleScreen': (context, game) => TitleScreen(
-                  highDistance: widget.storageService.highDistance,
-                  careerTips: widget.storageService.careerTips,
-                  isMuted: widget.audioController.isMuted,
-                  unlockedAchievementsCount: _game.achievementManager.unlockedCount,
-                  totalAchievementsCount: _game.achievementManager.totalCount,
-                  dailyStars: widget.storageService.dailyStars,
-                  equippedBoosters: _equippedBoosters,
-                  onToggleMute: _toggleMute,
-                  onOpenLocker: _openLocker,
-                  onOpenBodega: _openBodega,
-                  onOpenAchievements: _openAchievements,
-                  onOpenDailyShift: _openDailyShift,
-                  onStartGame: _startGame,
-                ),
-            'BodegaModal': (context, game) => BodegaModal(
-                  storageService: widget.storageService,
-                  equippedBoosters: _equippedBoosters,
-                  onEquippedBoostersChanged: _handleEquippedBoostersChanged,
-                  onClose: _closeBodega,
-                ),
-            'DailyShiftModal': (context, game) => DailyShiftModal(
-                  storageService: widget.storageService,
-                  onStartDailyShift: _startDailyShift,
-                ),
-            'LockerModal': (context, game) => LockerModal(
-                  careerTips: widget.storageService.careerTips,
-                  unlockedSkins: widget.storageService.unlockedSkins,
-                  equippedSkin: widget.storageService.equippedSkin,
-                  onEquipSkin: _handleEquipSkin,
-                  onUnlockSkin: _handleUnlockSkin,
-                  onClose: _closeLocker,
-                ),
-            'AchievementsModal': (context, game) => AchievementsModal(
-                  unlockedAchievementIds: widget.storageService.unlockedAchievements,
-                  onClose: _closeAchievements,
-                ),
-            'HUD': (context, game) => AnimatedBuilder(
-                  animation: _gameState,
-                  builder: (context, _) => HUDOverlay(
-                    gameState: _gameState,
-                    isMuted: widget.audioController.isMuted,
-                    onToggleMute: _toggleMute,
-                    onPause: _togglePause,
-                  ),
-                ),
-            'PauseMenu': (context, game) => PauseMenuModal(
-                  gameState: _gameState,
-                  isReduceFlash: _isReduceFlash,
-                  onToggleReduceFlash: _handleToggleReduceFlash,
-                  onResume: _resumeGame,
-                  onQuit: _quitToTitle,
-                ),
-            'GameOver': (context, game) => GameOverModal(
-                  distance: _lastDistance,
-                  tips: _lastTips,
-                  isNewRecord: _isNewRecord,
-                  careerTips: widget.storageService.careerTips,
-                  completedContracts: _gameState.contractManager.completedCount,
-                  contractBonusTips: _gameState.contractManager.totalBonusTips,
-                  deliveriesCompleted: _gameState.deliveriesInRun,
-                  grindsCompleted: _gameState.grindsInRun,
-                  vaultsCompleted: _gameState.vaultsInRun,
-                  glidesCompleted: _gameState.glidesInRun,
-                  subwayStationsCompleted: _gameState.subwayStationsInRun,
-                  craneSwingsCompleted: _gameState.craneSwingsInRun,
-                  vipDeliveriesCompleted: _gameState.vipDeliveriesInRun,
-                  bikeDraftSlingshotsCompleted: _gameState.bikeDraftSlingshotsInRun,
-                  pigeonScattersCompleted: _gameState.pigeonScattersInRun,
-                  highFivesCompleted: _gameState.highFivesInRun,
-                  foodCartBouncesCompleted: _gameState.foodCartBouncesInRun,
-                  drainGeysersCompleted: _gameState.drainGeysersInRun,
-                  solarSurgesCompleted: _gameState.solarSurgesInRun,
-                  puddleSkimsCompleted: _gameState.puddleSkimsInRun,
-                  windTunnelGlidesCompleted: _gameState.windTunnelGlidesInRun,
-                  turnstilesCompleted: _gameState.turnstileVaultsInRun,
-                  droneCatchesCompleted: _gameState.droneCatchesInRun,
-                  fireEscapesCompleted: _gameState.fireEscapeDropsInRun,
-                  foodTruckDriftsCompleted: _gameState.foodTruckDriftsInRun,
-                  barricadesCompleted: _gameState.barricadeVaultsInRun,
-                  satelliteLaunchesCompleted: _gameState.satelliteLaunchesInRun,
-                  mailboxesCompleted: _gameState.mailboxVaultsInRun,
-                  acCondensersCompleted: _gameState.acUpdraftsInRun,
-                  skylightsCompleted: _gameState.skylightSmashesInRun,
-                  flowerKiosksCompleted: _gameState.flowerKioskVaultsInRun,
-                  waterTowersCompleted: _gameState.waterTowersTraversedInRun,
-                  newsstandsCompleted: _gameState.newsstandsVaultedInRun,
-                  cafeBistrosCompleted: _gameState.cafeBistroVaultsInRun,
-                  buskersCompleted: _gameState.buskersEncounteredInRun,
-                  hydrantsCompleted: _gameState.hydrantsTraversedInRun,
-                  clotheslinesCompleted: _gameState.clotheslinesHurdledInRun,
-                  subwayGratesCompleted: _gameState.exhaustGratesCaughtInRun,
-                  ziplinesCompleted: _gameState.ziplinesCompletedInRun,
-                  busSheltersCompleted: _gameState.busSheltersVaultedInRun,
-                  securityShuttersCompleted: _gameState.shuttersReboundedInRun,
-                  onRestart: _restartGame,
-                ),
-          },
-        ),
+        body: _gameWidget,
       ),
     );
   }
+
+  /// The [GameWidget] must be constructed exactly once.
+  ///
+  /// Flame's `GameWidget` constructor re-applies `initialActiveOverlays` every
+  /// time it is constructed, so rebuilding this widget (any `setState` above)
+  /// would resurrect the 'TitleScreen' overlay on top of live gameplay.
+  late final GameWidget<CourierGame> _gameWidget = GameWidget<CourierGame>(
+    game: _game,
+    initialActiveOverlays: const ['TitleScreen'],
+    overlayBuilderMap: {
+      'TitleScreen': (context, game) => TitleScreen(
+            highDistance: widget.storageService.highDistance,
+            careerTips: widget.storageService.careerTips,
+            isMuted: widget.audioController.isMuted,
+            unlockedAchievementsCount: _game.achievementManager.unlockedCount,
+            totalAchievementsCount: _game.achievementManager.totalCount,
+            dailyStars: widget.storageService.dailyStars,
+            equippedBoosters: _equippedBoosters,
+            onToggleMute: _toggleMute,
+            onOpenLocker: _openLocker,
+            onOpenBodega: _openBodega,
+            onOpenAchievements: _openAchievements,
+            onOpenDailyShift: _openDailyShift,
+            onStartGame: _startGame,
+          ),
+      'BodegaModal': (context, game) => BodegaModal(
+            storageService: widget.storageService,
+            equippedBoosters: _equippedBoosters,
+            onEquippedBoostersChanged: _handleEquippedBoostersChanged,
+            onClose: _closeBodega,
+          ),
+      'DailyShiftModal': (context, game) => DailyShiftModal(
+            storageService: widget.storageService,
+            onStartDailyShift: _startDailyShift,
+          ),
+      'LockerModal': (context, game) => LockerModal(
+            careerTips: widget.storageService.careerTips,
+            unlockedSkins: widget.storageService.unlockedSkins,
+            equippedSkin: widget.storageService.equippedSkin,
+            onEquipSkin: _handleEquipSkin,
+            onUnlockSkin: _handleUnlockSkin,
+            onClose: _closeLocker,
+          ),
+      'AchievementsModal': (context, game) => AchievementsModal(
+            unlockedAchievementIds: widget.storageService.unlockedAchievements,
+            onClose: _closeAchievements,
+          ),
+      'HUD': (context, game) => AnimatedBuilder(
+            animation: _gameState,
+            builder: (context, _) => HUDOverlay(
+              gameState: _gameState,
+              isMuted: widget.audioController.isMuted,
+              onToggleMute: _toggleMute,
+              onPause: _togglePause,
+            ),
+          ),
+      'PauseMenu': (context, game) => PauseMenuModal(
+            gameState: _gameState,
+            isReduceFlash: _isReduceFlash,
+            onToggleReduceFlash: _handleToggleReduceFlash,
+            onResume: _resumeGame,
+            onQuit: _quitToTitle,
+          ),
+      'GameOver': (context, game) => GameOverModal(
+            distance: _lastDistance,
+            tips: _lastTips,
+            isNewRecord: _isNewRecord,
+            careerTips: widget.storageService.careerTips,
+            completedContracts: _gameState.contractManager.completedCount,
+            contractBonusTips: _gameState.contractManager.totalBonusTips,
+            deliveriesCompleted: _gameState.deliveriesInRun,
+            grindsCompleted: _gameState.grindsInRun,
+            vaultsCompleted: _gameState.vaultsInRun,
+            glidesCompleted: _gameState.glidesInRun,
+            subwayStationsCompleted: _gameState.subwayStationsInRun,
+            craneSwingsCompleted: _gameState.craneSwingsInRun,
+            vipDeliveriesCompleted: _gameState.vipDeliveriesInRun,
+            bikeDraftSlingshotsCompleted: _gameState.bikeDraftSlingshotsInRun,
+            pigeonScattersCompleted: _gameState.pigeonScattersInRun,
+            highFivesCompleted: _gameState.highFivesInRun,
+            foodCartBouncesCompleted: _gameState.foodCartBouncesInRun,
+            drainGeysersCompleted: _gameState.drainGeysersInRun,
+            solarSurgesCompleted: _gameState.solarSurgesInRun,
+            puddleSkimsCompleted: _gameState.puddleSkimsInRun,
+            windTunnelGlidesCompleted: _gameState.windTunnelGlidesInRun,
+            turnstilesCompleted: _gameState.turnstileVaultsInRun,
+            droneCatchesCompleted: _gameState.droneCatchesInRun,
+            fireEscapesCompleted: _gameState.fireEscapeDropsInRun,
+            foodTruckDriftsCompleted: _gameState.foodTruckDriftsInRun,
+            barricadesCompleted: _gameState.barricadeVaultsInRun,
+            satelliteLaunchesCompleted: _gameState.satelliteLaunchesInRun,
+            mailboxesCompleted: _gameState.mailboxVaultsInRun,
+            acCondensersCompleted: _gameState.acUpdraftsInRun,
+            skylightsCompleted: _gameState.skylightSmashesInRun,
+            flowerKiosksCompleted: _gameState.flowerKioskVaultsInRun,
+            waterTowersCompleted: _gameState.waterTowersTraversedInRun,
+            newsstandsCompleted: _gameState.newsstandsVaultedInRun,
+            cafeBistrosCompleted: _gameState.cafeBistroVaultsInRun,
+            buskersCompleted: _gameState.buskersEncounteredInRun,
+            hydrantsCompleted: _gameState.hydrantsTraversedInRun,
+            clotheslinesCompleted: _gameState.clotheslinesHurdledInRun,
+            subwayGratesCompleted: _gameState.exhaustGratesCaughtInRun,
+            ziplinesCompleted: _gameState.ziplinesCompletedInRun,
+            busSheltersCompleted: _gameState.busSheltersVaultedInRun,
+            securityShuttersCompleted: _gameState.shuttersReboundedInRun,
+            onRestart: _restartGame,
+          ),
+    },
+  );
 }
