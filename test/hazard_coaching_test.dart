@@ -133,6 +133,32 @@ void main() {
       }
     });
 
+    // At the height the other hints ride, the birds flew up behind the
+    // bubble just as the courier reached them.
+    test('from above the birds for as long as the courier has yet to pass them', () async {
+      final shift = await _shift(record: 2000);
+      await shift.meet([ObstacleType.pigeonFlock]);
+      final game = shift.game;
+      final hint = game.pigeonCoach!;
+      final flock = game.activeObstacles.firstWhere((o) => o.type == ObstacleType.pigeonFlock);
+      final ground = flock.position.y;
+
+      var tookOff = false;
+      for (var f = 0; f < 60 * 20 && flock.position.x + flock.size.x > game.player.position.x; f++) {
+        game.gameState.packages = game.gameState.maxPackages;
+        game.update(_frame);
+        if (f % 20 == 0) await Future<void>.delayed(Duration.zero);
+        if (flock.position.y < ground - 1) tookOff = true;
+        expect(
+          hint.position.y + hint.size.y,
+          lessThanOrEqualTo(flock.position.y),
+          reason: 'the bubble is over the birds, flock at ${flock.position}',
+        );
+      }
+      expect(tookOff, isTrue);
+      expect(game.gameState.damageTakenCount, equals(0), reason: 'running under them is safe');
+    });
+
     test('once a shift', () async {
       final shift = await _shift(record: 2000);
       await shift.meet([ObstacleType.pigeonFlock, ObstacleType.pigeonFlock]);

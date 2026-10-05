@@ -247,6 +247,9 @@ class CourierGame extends FlameGame
   /// In how many shifts the pigeon hint is shown before it stops.
   static const int pigeonCoachShifts = 3;
 
+  /// How far above the street the pigeon hint rides.
+  static const double pigeonCoachHeight = 250.0;
+
   int _wetHazardsCleared = 0;
 
   late final ParallaxCityComponent parallaxCity;
@@ -1508,11 +1511,12 @@ class CourierGame extends FlameGame
   }
 
   /// A hint that waits at the right edge of the screen and then rides
-  /// above [hazard] until it is behind the courier.
-  CoachHintComponent _hintOver(ObstacleComponent hazard, String text) {
+  /// [height] px above the street over [hazard] until it is behind the
+  /// courier.
+  CoachHintComponent _hintOver(ObstacleComponent hazard, String text, {double height = 175.0}) {
     final hint = CoachHintComponent(
       text: text,
-      position: Vector2(visibleWidth, groundY - 175.0),
+      position: Vector2(visibleWidth, groundY - height),
       follow: hazard,
       dismissBehindX: player.position.x,
       showWithinX: visibleWidth + leapCoachLeadPixels,
@@ -1536,7 +1540,10 @@ class CourierGame extends FlameGame
     _pigeonCoachShownThisRun = true;
     _pigeonCoachShiftsUnsaved++;
     storage?.addPigeonCoachRun();
-    pigeonCoach = _hintOver(flock, CoachText.underTheBirds());
+    // Higher than the other hints: the birds climb, and at the usual
+    // height they flew up behind the bubble just as the courier reached
+    // them. From here they get to it after the courier has gone under.
+    pigeonCoach = _hintOver(flock, CoachText.underTheBirds(), height: pigeonCoachHeight);
   }
 
   /// Shows the tap-to-hop coaching hint for brand-new couriers whose
