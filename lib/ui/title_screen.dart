@@ -129,57 +129,44 @@ class TitleScreen extends StatelessWidget {
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
+                // Each of the three takes at most a third of the row and
+                // shrinks to fit it. A six-figure tip total beside "Ready in
+                // the Locker" used to run 20 px off the end, on any screen.
                 children: [
-                  Column(
-                    children: [
-                      const Text(
-                        'PERSONAL BEST',
-                        style: TextStyle(color: Colors.white54, fontSize: 11),
+                  _CareerStat(
+                    label: 'PERSONAL BEST',
+                    value: Text(
+                      meters(highDistance),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        meters(highDistance),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                   Container(width: 1, height: 32, color: Colors.white24),
-                  Column(
-                    children: [
-                      const Text(
-                        'CAREER TIPS',
-                        style: TextStyle(color: Colors.white54, fontSize: 11),
+                  _CareerStat(
+                    label: 'CAREER TIPS',
+                    value: Text(
+                      dollars(careerTips),
+                      style: const TextStyle(
+                        color: Color(0xFFF1C40F),
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        dollars(careerTips),
-                        style: const TextStyle(
-                          color: Color(0xFFF1C40F),
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                   if (nextOutfit != null) ...[
                     Container(width: 1, height: 32, color: Colors.white24),
                     // Tapping the goal opens the Locker it points at.
-                    InkWell(
-                      key: const Key('next_outfit_goal'),
-                      onTap: onOpenLocker,
-                      borderRadius: BorderRadius.circular(8),
-                      child: Column(
-                        children: [
-                          Text(
-                            'NEXT: ${nextOutfit!.name.toUpperCase()}',
-                            style: const TextStyle(color: Colors.white54, fontSize: 11),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
+                    Flexible(
+                      child: InkWell(
+                        key: const Key('next_outfit_goal'),
+                        onTap: onOpenLocker,
+                        borderRadius: BorderRadius.circular(8),
+                        child: _CareerStat.column(
+                          label: 'NEXT: ${nextOutfit!.name.toUpperCase()}',
+                          value: Text(
                             outfitGoalText(nextOutfit!, careerTips),
                             key: const Key('next_outfit_goal_text'),
                             style: TextStyle(
@@ -191,7 +178,7 @@ class TitleScreen extends StatelessWidget {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ],
@@ -435,5 +422,34 @@ class TitleScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// One of the title card's career figures: a small label over its value, as
+/// wide as it needs up to its share of the row, and scaled down past that.
+class _CareerStat extends StatelessWidget {
+  const _CareerStat({required this.label, required this.value});
+
+  final String label;
+  final Widget value;
+
+  /// The label and value alone, for a figure that brings its own share of
+  /// the row (the tappable outfit goal).
+  static Widget column({required String label, required Widget value}) {
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Column(
+        children: [
+          Text(label, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+          const SizedBox(height: 4),
+          value,
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Flexible(child: column(label: label, value: value));
   }
 }

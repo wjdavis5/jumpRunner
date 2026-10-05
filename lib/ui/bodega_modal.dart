@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../game/models/run_booster.dart';
 import '../services/storage_service.dart';
+import 'fit_to_screen.dart';
 import 'money.dart';
 import 'visible_scrollbar.dart';
 
@@ -71,8 +72,16 @@ class _BodegaModalState extends State<BodegaModal> {
     widget.onEquippedBoostersChanged(_equipped);
   }
 
+  /// The narrowest screen a booster row fits on. Narrower screens get the
+  /// card scaled.
+  static const double minWidth = 640.0;
+
   @override
   Widget build(BuildContext context) {
+    return NarrowScreenScale(minWidth: minWidth, child: Builder(builder: _buildCard));
+  }
+
+  Widget _buildCard(BuildContext context) {
     final careerTips = widget.storageService.careerTips;
 
     return Center(

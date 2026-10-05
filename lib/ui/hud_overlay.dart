@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../game/logic/game_state.dart';
 import '../game/models/shift_contract.dart';
+import 'fit_to_screen.dart';
 import 'money.dart';
 
 /// Top HUD overlay displaying carried package HP, current distance, and tip earnings.
@@ -18,6 +19,11 @@ class HUDOverlay extends StatelessWidget {
   final bool isMuted;
   final VoidCallback? onToggleMute;
   final VoidCallback? onPause;
+
+  /// The narrowest screen the top row fits on: packages, distance, tips,
+  /// pause and mute side by side, with a seven-figure tip count in the
+  /// pill. Narrower screens get the whole HUD scaled.
+  static const double minWidth = 600.0;
 
   /// Vertical offset clearing the two-line distance counter pill.
   static const double bannerTopOffset = 94.0;
@@ -56,6 +62,13 @@ class HUDOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return NarrowScreenScale(
+      minWidth: HUDOverlay.minWidth,
+      child: Builder(builder: _buildHud),
+    );
+  }
+
+  Widget _buildHud(BuildContext context) {
     return SafeArea(
       child: Stack(
         children: [

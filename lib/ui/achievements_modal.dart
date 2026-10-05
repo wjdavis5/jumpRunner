@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../game/models/achievement.dart';
+import 'fit_to_screen.dart';
 import 'visible_scrollbar.dart';
 
 /// Modal dialog displaying career trophies, unlock progress, and requirements.
@@ -20,8 +21,16 @@ class AchievementsModal extends StatelessWidget {
   /// card.
   static const double tileHeight = 88.0;
 
+  /// The narrowest screen the header and a trophy tile fit on. Narrower
+  /// screens get the card scaled.
+  static const double minWidth = 420.0;
+
   @override
   Widget build(BuildContext context) {
+    return NarrowScreenScale(minWidth: minWidth, child: Builder(builder: _buildCard));
+  }
+
+  Widget _buildCard(BuildContext context) {
     final unlockedSet = unlockedAchievementIds.toSet();
     final totalCount = Achievement.catalog.length;
     final unlockedCount = unlockedSet.length;

@@ -19,13 +19,23 @@ Future<bool> _tapIfPresent(WidgetTester tester, Finder finder) async {
   return true;
 }
 
+/// Screens the walk switches between: the web canvas, two phones held
+/// sideways, a wide desktop window, and a phone held upright.
+const List<Size> _screens = [
+  Size(960, 540),
+  Size(667, 375),
+  Size(915, 412),
+  Size(1280, 600),
+  Size(375, 667),
+];
+
 /// One random thing a player (or the phone) might do. Returns what it did.
 Future<String> _act(WidgetTester tester, math.Random rng) async {
   final game = gameOf(tester);
   final state = game.gameState;
   Finder key(String k) => find.byKey(Key(k));
 
-  switch (rng.nextInt(24)) {
+  switch (rng.nextInt(27)) {
     case 0:
     case 1:
       return await _tapIfPresent(tester, find.text('START SHIFT')) ? 'tap START SHIFT' : 'no START';
@@ -90,6 +100,25 @@ Future<String> _act(WidgetTester tester, math.Random rng) async {
       // it asks the system to close the app, which a test ignores.
       await tester.binding.handlePopRoute();
       return 'back';
+    case 21:
+      // Away for seconds, with no frame drawn until the app is back: what a
+      // phone does, and what a browser tab does when it is hidden. Whatever
+      // was being timed or animated finishes all at once on the first frame
+      // afterwards. This is the step that found a resume count unpausing
+      // the shift behind the pause menu.
+      final seconds = 1 + rng.nextInt(6);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump(Duration(seconds: seconds));
+      return 'app away ${seconds}s with no frame';
+    case 22:
+      // The window is resized, or the phone turned: any screen, mid-shift
+      // or not, has to lay out at any of these.
+      final size = _screens[rng.nextInt(_screens.length)];
+      tester.view.physicalSize = size;
+      await tester.pump(const Duration(milliseconds: 16));
+      return 'screen ${size.width.round()}x${size.height.round()}';
     default:
       // Let time pass: anything from a frame to most of a second.
       final frames = 1 + rng.nextInt(45);

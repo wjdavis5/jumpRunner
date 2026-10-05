@@ -85,7 +85,11 @@ build below.
   (`parallax_cache_test.dart`); a window's light is a property of the window,
   not of its position on screen.
 - Every overlay fits 667x375 and up (`overlay_fit_test.dart`,
-  `results_screen_fit_test.dart`, `menu_scrollbar_test.dart`).
+  `results_screen_fit_test.dart`, `menu_scrollbar_test.dart`), and below
+  that it scales instead of overflowing, down to 320 px wide
+  (`NarrowScreenScale`, `narrow_screen_test.dart`): a new HUD row or card
+  goes inside the scaler, and a row that shows a tip total has to hold six
+  figures.
 - Prices, rewards and trophy thresholds are sized against measured income
   (`economy_test.dart`, `contract_ladder_test.dart`); change them together.
 - Icons and three sounds are generated: edit `tool/generate_icons.py` or

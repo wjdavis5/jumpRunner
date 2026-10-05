@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../game/models/courier_skin.dart';
+import 'fit_to_screen.dart';
 import 'money.dart';
 import 'outfit_preview.dart';
 import 'visible_scrollbar.dart';
@@ -24,8 +25,16 @@ class LockerModal extends StatelessWidget {
   final Future<void> Function(String skinId, int price) onUnlockSkin;
   final VoidCallback onClose;
 
+  /// The narrowest screen an outfit row fits on: picture, name, description
+  /// and its button side by side. Narrower screens get the card scaled.
+  static const double minWidth = 640.0;
+
   @override
   Widget build(BuildContext context) {
+    return NarrowScreenScale(minWidth: minWidth, child: Builder(builder: _buildCard));
+  }
+
+  Widget _buildCard(BuildContext context) {
     return Center(
       child: Container(
         // Tall enough for all four outfits with their pictures on a
