@@ -86,7 +86,7 @@ Future<String> _shop(WidgetTester tester, math.Random rng) async {
 }
 
 /// One random thing a player (or the phone) might do. Returns what it did.
-Future<String> _act(WidgetTester tester, math.Random rng) async {
+Future<String> _act(WidgetTester tester, math.Random rng, List<TestGesture> fingers) async {
   final game = gameOf(tester);
   final state = game.gameState;
   Finder key(String k) => find.byKey(Key(k));
@@ -96,7 +96,7 @@ Future<String> _act(WidgetTester tester, math.Random rng) async {
   final shopOpen = game.overlays.isActive('LockerModal') || game.overlays.isActive('BodegaModal');
   if (shopOpen && rng.nextInt(3) != 0) return _shop(tester, rng);
 
-  switch (rng.nextInt(30)) {
+  switch (rng.nextInt(36)) {
     case 0:
     case 1:
       return await _tapIfPresent(tester, find.text('START SHIFT')) ? 'tap START SHIFT' : 'no START';
@@ -176,6 +176,33 @@ Future<String> _act(WidgetTester tester, math.Random rng) async {
     case 23:
     case 24:
       return _shop(tester, rng);
+    case 25:
+    case 26:
+      // A finger goes down somewhere on the screen and stays down. Up to
+      // three at once: two thumbs and a palm.
+      if (fingers.length >= 3) return 'no free finger';
+      final size = tester.view.physicalSize;
+      final at = Offset(
+        20 + rng.nextDouble() * (size.width - 40),
+        size.height * (0.35 + rng.nextDouble() * 0.6),
+      );
+      fingers.add(await tester.startGesture(at));
+      return 'finger down (${fingers.length} held)';
+    case 27:
+    case 28:
+      if (fingers.isEmpty) return 'no finger to lift';
+      await fingers.removeAt(rng.nextInt(fingers.length)).up();
+      return 'finger up (${fingers.length} held)';
+    case 29:
+      // The system takes a touch away: an edge swipe, a notification.
+      if (fingers.isEmpty) return 'no finger to cancel';
+      await fingers.removeAt(rng.nextInt(fingers.length)).cancel();
+      return 'finger cancelled (${fingers.length} held)';
+    case 30:
+      if (fingers.isEmpty) return 'no finger to slide';
+      await fingers[rng.nextInt(fingers.length)]
+          .moveBy(Offset(rng.nextDouble() * 160 - 80, rng.nextDouble() * 120 - 60));
+      return 'finger slides';
     case 22:
       // The window is resized, or the phone turned: any screen, mid-shift
       // or not, has to lay out at any of these.
@@ -233,27 +260,35 @@ void main() {
   // once, nothing stranded behind a missing menu, no exception. It exists to
   // catch the orderings nobody thought to write a test for. Kept short here:
   // three seeds chosen because between them they play shifts, leave the app,
-  // change the screen and buy out both shops. For a soak, raise the seed
-  // list and the step count by hand: thirty seeds of 120 steps and twenty of
-  // 320 passed when the shop steps were added. Run that way it has found a
-  // resume count unpausing the shift behind the pause menu, and the HUD's
-  // pause button off the edge of a narrow screen.
-  for (final seed in const [1, 9, 18]) {
+  // change the screen, hold and cancel touches and buy out both shops. For a
+  // soak, raise the seed list and the step count by hand: sixty seeds of 160
+  // steps and twenty-four of 320 passed when held touches were added. Run
+  // that way it has found a resume count unpausing the shift behind the
+  // pause menu, the HUD's pause button off the edge of a narrow screen, and
+  // (seed 32) a shift starting under an open menu card when a finger held
+  // on START SHIFT was lifted.
+  for (final seed in const [16, 18, 32]) {
     testWidgets('random walk through the app holds together (seed $seed)', (tester) async {
       // Enough in the bank for the walk to buy things.
       final harness = await bootApp(tester, prefs: {'courier_career_tips': 30000});
       final rng = math.Random(seed);
       final trail = <String>[];
 
+      final fingers = <TestGesture>[];
+
       for (var step = 0; step < 120; step++) {
         final books = _Books(harness, gameOf(tester));
-        final did = await _act(tester, rng);
+        final did = await _act(tester, rng, fingers);
         trail.add(did);
         await settle(tester, frames: 2);
 
         final where = 'after step $step (${trail.skip(math.max(0, trail.length - 8)).join(' > ')})';
         expect(tester.takeException(), isNull, reason: where);
         expect(books.problemAfter(did), isNull, reason: where);
+        // With every finger off the glass, nothing is holding the jump.
+        if (fingers.isEmpty) {
+          expect(gameOf(tester).player.isJumpHeld, isFalse, reason: 'jump held with no finger down, $where');
+        }
 
         final game = gameOf(tester);
         var problem = _inconsistency(game);
@@ -270,6 +305,12 @@ void main() {
         }
         expect(problem, isNull, reason: where);
       }
+
+      for (final finger in fingers) {
+        await finger.up();
+      }
+      await settle(tester, frames: 2);
+      expect(gameOf(tester).player.isJumpHeld, isFalse, reason: 'jump held after the last finger lifted');
 
       // Let fanfare ducking timers and any count in progress run out.
       await tester.pump(const Duration(seconds: 3));

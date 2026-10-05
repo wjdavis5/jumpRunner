@@ -231,7 +231,19 @@ class _CourierDashAppState extends State<CourierDashApp>
     }
   }
 
+  /// Whether the depot's own buttons count: at the depot with no card open.
+  ///
+  /// A button fires when the finger on it lifts. A card that opens in the
+  /// meantime dims the depot and takes new touches, but a finger that was
+  /// already down still belongs to the button under it. Hold START SHIFT,
+  /// tap DAILY with the other thumb, let go: the shift used to begin under
+  /// the open card. Hold LOCKER, tap BODEGA, let go: two cards at once.
+  bool get _isDepotFree => _gameState.status == GameStatus.idle && !_isMenuCardOpen;
+
   void _startGame([DailyShift? dailyShift]) async {
+    // Not from under a card: see [_isDepotFree]. Clocking in from the Daily
+    // card closes it first.
+    if (_isMenuCardOpen) return;
     // A second press while boosters are still being consumed must not start
     // (and charge for) the shift twice.
     if (_isStartingRun) return;
@@ -256,6 +268,7 @@ class _CourierDashAppState extends State<CourierDashApp>
   }
 
   void _openBodega() {
+    if (!_isDepotFree) return;
     _game.overlays.add('BodegaModal');
   }
 
@@ -271,6 +284,7 @@ class _CourierDashAppState extends State<CourierDashApp>
   }
 
   void _openDailyShift() {
+    if (!_isDepotFree) return;
     _game.overlays.add('DailyShiftModal');
   }
 
@@ -423,6 +437,7 @@ class _CourierDashAppState extends State<CourierDashApp>
   }
 
   void _openLocker() {
+    if (!_isDepotFree) return;
     _game.overlays.add('LockerModal');
   }
 
@@ -431,6 +446,7 @@ class _CourierDashAppState extends State<CourierDashApp>
   }
 
   void _openAchievements() {
+    if (!_isDepotFree) return;
     _game.overlays.add('AchievementsModal');
   }
 
