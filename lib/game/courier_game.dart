@@ -2181,8 +2181,25 @@ class CourierGame extends FlameGame
           final diff = playerCenter - pickupCenter;
           final dist = diff.length;
           if (dist < magnetRadius && dist > 1.0) {
+            final wasMagnetized = p.isMagnetized;
+            p.isMagnetized = true;
+
             final pull = diff.normalized() * (magnetSpeed * dt);
             p.position += pull;
+
+            // Snap-in glint on field capture, then periodic comet-trail glints.
+            p.magnetTrailTimer -= dt;
+            if (p.magnetTrailTimer <= 0.0) {
+              p.magnetTrailTimer = wasMagnetized ? 0.12 : 0.0;
+              addEffect(
+                ParticleEffectComponent.sparkles(
+                  position: pickupCenter,
+                  count: wasMagnetized ? 1 : 5,
+                ),
+              );
+            }
+          } else if (p.isMagnetized) {
+            p.isMagnetized = false;
           }
         }
       }

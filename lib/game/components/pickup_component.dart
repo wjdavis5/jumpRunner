@@ -38,7 +38,17 @@ class PickupComponent extends PositionComponent with CollisionCallbacks {
 
   late double _baseY;
   double _bobTimer = 0.0;
+  double _glowTimer = 0.0;
   bool isCollected = false;
+
+  /// True while the energy-drink coin magnet is pulling this pickup.
+  ///
+  /// While set, the bobbing anchor is disabled so the magnet owns the
+  /// position, and a pulsing gold glow marks the coin as attracted.
+  bool isMagnetized = false;
+
+  /// Countdown until the next magnet trail glint spawns (game-managed).
+  double magnetTrailTimer = 0.0;
 
   bool get shouldRecycle => position.x < -200.0;
 
@@ -90,9 +100,15 @@ class PickupComponent extends PositionComponent with CollisionCallbacks {
       return;
     }
 
-    // Sine-wave bobbing animation
+    // Sine-wave bobbing animation; suspended while the coin magnet owns
+    // the position so its radial pull is not cancelled every frame.
     _bobTimer += dt;
-    position.y = _baseY + math.sin(_bobTimer * 4.0) * 6.0;
+    _glowTimer += dt;
+    if (isMagnetized) {
+      _baseY = position.y;
+    } else {
+      position.y = _baseY + math.sin(_bobTimer * 4.0) * 6.0;
+    }
   }
 
   @override
@@ -113,6 +129,25 @@ class PickupComponent extends PositionComponent with CollisionCallbacks {
   @override
   void render(Canvas canvas) {
     super.render(canvas);
+
+    if (isMagnetized) {
+      // Pulsing gold halo marking the coin as caught in the magnet field.
+      final pulse = 0.5 + 0.5 * math.sin(_glowTimer * 10.0);
+      final haloPaint = Paint()
+        ..color = const Color(0xFFFFD700).withValues(alpha: 0.22 + 0.18 * pulse);
+      canvas.drawCircle(
+        Offset(size.x / 2, size.y / 2),
+        size.x * (0.78 + 0.16 * pulse),
+        haloPaint,
+      );
+      final corePaint = Paint()
+        ..color = Colors.white.withValues(alpha: 0.30 * pulse);
+      canvas.drawCircle(
+        Offset(size.x / 2, size.y / 2),
+        size.x * 0.45,
+        corePaint,
+      );
+    }
 
     if (sprite != null) {
       sprite!.render(canvas, size: size);
