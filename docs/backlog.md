@@ -55,7 +55,10 @@ build below.
   station's third rail the usual clearance from the hazard before it (the
   rail moves within 220-300 px or the chunk stays a street). Every hazard
   keeps a floor of room for error: 200 ms of tap timings, 300 ms for a leap
-  (`hazard_fairness_floor_test.dart`).
+  (`hazard_fairness_floor_test.dart`). A van behind a scaffold, rail or
+  solar array stands back by the drop from it as well (`roomAfterDrop`,
+  `drop_room_test.dart`); a new raised piece records its height with
+  `_pieceEndsAt`.
 - A launch or an updraft never costs height: `JumpPhysicsSimulator.launch`
   and `applyUpdraft` leave alone a jump that will climb higher by itself
   (`launch_never_costs_height_test.dart`). A street piece that launches the

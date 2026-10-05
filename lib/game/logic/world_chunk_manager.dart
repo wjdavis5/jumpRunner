@@ -802,11 +802,38 @@ class WorldChunkManager {
     _lastHazardType = type;
   }
 
+  /// How long a courier who runs off the end of something [height] px up
+  /// takes to reach the street: the moment's grace at the edge, then the
+  /// fall.
+  static double dropSeconds(double height) {
+    final physics = JumpPhysicsSimulator();
+    return physics.coyoteDuration + math.sqrt(2 * height / physics.gravity);
+  }
+
+  /// The street a hazard of [next] needs, beyond the usual clearance,
+  /// behind a rail, a scaffold or a solar array the courier comes off
+  /// [height] px up.
+  ///
+  /// The usual three quarters of a second covers the drop from a scaffold
+  /// (0.6 s) and little else. That is enough for anything a hop clears: a
+  /// hop can be pressed on landing. A van needs its leap started ahead of
+  /// it, and a courier who ran off the end of a scaffold came down a tenth
+  /// of a second from the van: the only way past was to have jumped from
+  /// the deck. So a van stands far enough back to land, react and leap.
+  double roomAfterDrop(ObstacleType next, double height, double speed) {
+    if (!needsFullLeap(next)) return 0.0;
+    final street = math.max(speed, baseSpeed);
+    final needed = (dropSeconds(height) + landingReaction + leapRunUp) * street;
+    return math.max(0.0, needed - calculateMinClearance(speed));
+  }
+
   /// Records that a street piece which is not itself a hazard (a rail, a
-  /// scaffold, a solar array) ends at [endX].
-  void _pieceEndsAt(double endX) {
+  /// scaffold, a solar array) ends at [endX], its top [height] px above
+  /// the street.
+  void _pieceEndsAt(double endX, {required double height}) {
     _lastObstacleEndX = endX;
     _lastHazardType = null;
+    _lastPieceHeight = height;
   }
 
   /// What an ordinary street can serve once it is up to speed: the five
@@ -877,6 +904,9 @@ class WorldChunkManager {
   /// built was a street piece that is not a hazard.
   ObstacleType? _lastHazardType;
 
+  /// How high the top of that street piece is, when it was one.
+  double _lastPieceHeight = 0.0;
+
   /// Where the previous chunk ended, in the coordinates it was generated in.
   double? _lastChunkEndX;
 
@@ -884,6 +914,7 @@ class WorldChunkManager {
   void reset() {
     _lastObstacleEndX = -9999.0;
     _lastHazardType = null;
+    _lastPieceHeight = 0.0;
     _lastChunkEndX = null;
   }
 
@@ -1002,7 +1033,7 @@ class WorldChunkManager {
             ));
           }
 
-          _pieceEndsAt(railX + railWidth);
+          _pieceEndsAt(railX + railWidth, height: groundY - scaffoldingY);
           cursorX = _lastObstacleEndX + minClearance + 1.0;
         } else if (_random.nextDouble() < 0.40 && remainingScaffoldSpace >= 180.0) {
           final panelX = scaffoldingX + scaffoldingWidth + 12.0;
@@ -1024,10 +1055,10 @@ class WorldChunkManager {
             ));
           }
 
-          _pieceEndsAt(panelX + panelWidth);
+          _pieceEndsAt(panelX + panelWidth, height: groundY - scaffoldingY);
           cursorX = _lastObstacleEndX + minClearance + 1.0;
         } else {
-          _pieceEndsAt(scaffoldingX + scaffoldingWidth);
+          _pieceEndsAt(scaffoldingX + scaffoldingWidth, height: groundY - scaffoldingY);
           cursorX = _lastObstacleEndX + minClearance + 1.0;
         }
       }
@@ -1070,7 +1101,7 @@ class WorldChunkManager {
         height: gSize.y,
       ));
 
-      _pieceEndsAt(railX + railWidth);
+      _pieceEndsAt(railX + railWidth, height: groundY - railY);
       cursorX = _lastObstacleEndX + minClearance + 1.0;
     }
 
@@ -1157,7 +1188,7 @@ class WorldChunkManager {
         height: gSize.y,
       ));
 
-      _pieceEndsAt(panelX + panelWidth);
+      _pieceEndsAt(panelX + panelWidth, height: groundY - panelY);
       cursorX = _lastObstacleEndX + minClearance + 1.0;
     }
 
@@ -1266,7 +1297,7 @@ class WorldChunkManager {
       // already keeps behind it: see [clearanceBetween].
       final hazardAhead = _lastHazardType;
       final leapRoom = hazardAhead == null
-          ? 0.0
+          ? roomAfterDrop(type, _lastPieceHeight, speed)
           : clearanceBetween(hazardAhead, type, speed) - clearanceAfter(hazardAhead, speed);
       final builtGap = math.max(
             minBuiltGap,
