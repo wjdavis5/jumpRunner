@@ -50,7 +50,11 @@ void main() {
       final state = gameOf(tester).gameState;
       state.activateEnergyDrink();
       state.activateDrone();
-      state.addTip(1250000);
+      // Six figures. In the test font every character is a square one em
+      // wide, about twice what a phone draws, so this is already wider than
+      // any real count: seven figures are read in real fonts by
+      // text_fits_test.dart.
+      state.addTip(125000);
       await settle(tester, frames: 6);
       expect(tester.takeException(), isNull, reason: 'HUD with two status badges and a long tip count');
 

@@ -107,6 +107,13 @@ build below.
   `system_text_size_test.dart`). Without it the cards overflow from 115%.
 - `app_monkey_test.dart` walks the whole app at random; a new overlay or
   button belongs in its action list.
+- No text is shown with part of it missing (`text_fits_test.dart`). Tests
+  draw every letter as a wide square, so an ordinary layout test cannot
+  tell whether a label fits: this one loads the real fonts
+  (`test/support/real_fonts.dart`) and reads every screen at eight sizes
+  for text that ends in an ellipsis, stops at a line limit, or is a button
+  label that has wrapped. A button label is one line, scaled down
+  (`KeyHintLabel`); the Trophies list is one column under 500 px.
 - `soak_test.dart` also plays the street with random presses and holds. A
   street piece that moves the courier (a rail, a hook, a launch) has to
   give them back: running again within 6 s, at their own spot, never
@@ -156,6 +163,18 @@ and open it with `?qa_start=2600` (start distance), `&qa_subway=1` (every
 chunk that can be a subway station is one) and `&qa_seed=7` (the same street
 on every load). The flags are compiled out of a normal build. Details are in
 the README.
+
+## Pictures of every screen
+
+```sh
+flutter test tool/screens.dart
+```
+
+writes a PNG of the title card, the four depot cards, the HUD, the pause menu
+and the results card at eight screen sizes to `build/screens/`, in about half
+a minute and with no phone or browser. The cards and the HUD are drawn in the
+real fonts. Text the game paints on its own canvas (signs, floating scores,
+hints) comes out as solid bars: those need the web build to be seen.
 
 ## Coordination note
 

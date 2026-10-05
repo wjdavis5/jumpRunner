@@ -25,6 +25,13 @@ class AchievementsModal extends StatelessWidget {
   /// screens get the card scaled.
   static const double minWidth = 420.0;
 
+  /// The narrowest the list can be and still hold two trophies side by
+  /// side with every requirement readable in full. Narrower than this the
+  /// trophies go one to a row. Two columns on a phone held upright ended
+  /// every requirement with an ellipsis ("Complete a 500m shift delivery
+  /// mi..."), and a locked trophy's requirement is the to-do list.
+  static const double twoColumnWidth = 500.0;
+
   @override
   Widget build(BuildContext context) {
     return NarrowScreenScale(minWidth: minWidth, child: Builder(builder: _buildCard));
@@ -65,15 +72,18 @@ class AchievementsModal extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 const Expanded(
-                  child: Text(
-                    'CAREER TROPHIES',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.0,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'CAREER TROPHIES',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.0,
+                      ),
                     ),
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -125,14 +135,15 @@ class AchievementsModal extends StatelessWidget {
 
             // Grid of Achievement Cards
             Flexible(
-              child: VisibleScrollbar(
+              child: LayoutBuilder(
+                builder: (context, list) => VisibleScrollbar(
                 key: const Key('trophies_scrollbar'),
                 builder: (context, controller) => GridView.builder(
                 controller: controller,
                 shrinkWrap: true,
                 itemCount: Achievement.catalog.length,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: list.maxWidth >= twoColumnWidth ? 2 : 1,
                   crossAxisSpacing: 14,
                   mainAxisSpacing: 14,
                   mainAxisExtent: tileHeight,
@@ -190,14 +201,17 @@ class AchievementsModal extends StatelessWidget {
                               Row(
                                 children: [
                                   Expanded(
-                                    child: Text(
-                                      achievement.title,
-                                      style: TextStyle(
-                                        color: isUnlocked ? Colors.white : Colors.white70,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.bold,
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        achievement.title,
+                                        style: TextStyle(
+                                          color: isUnlocked ? Colors.white : Colors.white70,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
-                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                   if (isUnlocked)
@@ -227,6 +241,7 @@ class AchievementsModal extends StatelessWidget {
                     ),
                   );
                 },
+              ),
               ),
               ),
             ),

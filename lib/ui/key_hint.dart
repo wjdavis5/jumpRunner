@@ -21,9 +21,11 @@ class KeyHintLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = Text(label, style: style);
-    if (!expectsKeyboard) return text;
-    // Scaled down rather than clipped if a narrow window squeezes the button.
+    // One line, scaled down if a narrow screen squeezes the button. A label
+    // left to wrap is clipped by the button, which is one line tall: on a
+    // phone held upright START NEXT SHIFT read START NEXT.
+    final text = Text(label, style: style, maxLines: 1, softWrap: false);
+    if (!expectsKeyboard) return FittedBox(fit: BoxFit.scaleDown, child: text);
     return FittedBox(
       fit: BoxFit.scaleDown,
       child: Row(

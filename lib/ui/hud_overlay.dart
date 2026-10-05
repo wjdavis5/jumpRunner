@@ -836,7 +836,7 @@ class HUDOverlay extends StatelessWidget {
               ),
               const SizedBox(width: 4),
               Text(
-                '\$${gameState.tips}',
+                dollars(gameState.tips),
                 style: const TextStyle(
                   color: Color(0xFFF1C40F),
                   fontSize: 16,

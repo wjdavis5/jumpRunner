@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../game/components/obstacle_component.dart';
 import '../game/models/courier_skin.dart';
+import 'fit_to_screen.dart';
 import 'hazard_lesson.dart';
 import 'key_hint.dart';
 import 'money.dart';
@@ -136,6 +137,15 @@ class GameOverModal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return NarrowScreenScale(minWidth: minWidth, child: Builder(builder: _buildCard));
+  }
+
+  /// The narrowest screen the card's two buttons fit on with their labels
+  /// at full size. Narrower screens get the card scaled: at 320 px the
+  /// START NEXT SHIFT label was squeezed to 5.5 px tall.
+  static const double minWidth = 420.0;
+
+  Widget _buildCard(BuildContext context) {
     // The card never grows past the screen: the badge list in the middle
     // scrolls instead, so the restart button is always reachable.
     final screen = MediaQuery.sizeOf(context);
@@ -1429,6 +1439,8 @@ class GameOverModal extends StatelessWidget {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF27AE60),
                           foregroundColor: Colors.white,
+                          // The label gets the room, not the margins.
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -1499,18 +1511,22 @@ extension _OutfitGoal on GameOverModal {
         Row(
           children: [
             Expanded(
-              child: Text(
-                'NEXT: ${outfit.name.toUpperCase()}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white54,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.6,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'NEXT: ${outfit.name.toUpperCase()}',
+                  maxLines: 1,
+                  style: const TextStyle(
+                    color: Colors.white54,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                  ),
                 ),
               ),
             ),
+            const SizedBox(width: 8),
             Text(
               outfitGoalText(outfit, careerTips),
               key: const Key('game_over_outfit_goal_text'),

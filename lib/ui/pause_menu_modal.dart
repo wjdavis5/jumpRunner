@@ -143,7 +143,7 @@ class PauseMenuModal extends StatelessWidget {
             ),
             _buildStatItem(
               'Tips Banked',
-              '\$${gameState.tips}',
+              dollars(gameState.tips),
               Icons.monetization_on,
             ),
           ],
