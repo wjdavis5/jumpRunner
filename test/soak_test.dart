@@ -7,6 +7,7 @@ import 'package:flame/components.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jump_runner/game/audio_controller.dart';
+import 'package:jump_runner/game/components/courier_player.dart';
 import 'package:jump_runner/game/components/obstacle_component.dart';
 import 'package:jump_runner/game/courier_game.dart';
 import 'package:jump_runner/game/logic/game_state.dart';
@@ -136,6 +137,81 @@ void main() {
       // Everything that scrolls off must be recycled; a leak grows without bound.
       expect(peakWorldChildren, lessThan(200));
       expect(game.activeObstacles.length, lessThan(40));
+    });
+  }
+
+  // The autoplayer above jumps hazards cleanly, so it rarely lands on a
+  // rail, clips an awning or grabs a crane hook. Random presses and holds
+  // do all of that, all the time. Whatever the street does with the courier
+  // it has to give them back: on 16 streets of 3,000 m the longest the
+  // courier spent in any one state other than running was 1.6 s, and they
+  // were never wholly off the screen.
+  for (final seed in const [3, 7, 11]) {
+    test('Random presses never strand the courier (seed $seed)', () async {
+      final game = await _mountedGame(seed);
+      game.gameState.startRun();
+      game.restartRun();
+      final state = game.gameState;
+      final player = game.player;
+      final rng = math.Random(1000 + seed);
+
+      var held = false;
+      var nextChange = 0;
+      var inState = player.state;
+      var sinceChange = 0.0;
+      var lastDistance = 0.0;
+      var lastTips = 0;
+      var peakWorldChildren = 0;
+
+      for (var f = 0; state.distanceMeters < 1500.0 && f < 60 * 300; f++) {
+        state.packages = state.maxPackages;
+        if (f >= nextChange) {
+          // Half the presses are taps, half are held for up to 0.75 s.
+          if (held) {
+            game.letGoOfJump('soak');
+            nextChange = f + 2 + rng.nextInt(50);
+          } else {
+            game.holdJump('soak');
+            nextChange = f + 1 + (rng.nextBool() ? rng.nextInt(4) : rng.nextInt(45));
+          }
+          held = !held;
+        }
+        game.update(_dt);
+        if (f % 3 == 0) await Future<void>.delayed(Duration.zero);
+
+        final at = '${state.distanceMeters.toStringAsFixed(0)} m (${player.state.name})';
+        expect(state.status, equals(GameStatus.running), reason: 'shift stopped at $at');
+        expect(state.distanceMeters, greaterThanOrEqualTo(lastDistance), reason: 'distance fell at $at');
+        expect(state.tips, greaterThanOrEqualTo(lastTips), reason: 'tips fell at $at');
+        lastDistance = state.distanceMeters;
+        lastTips = state.tips;
+
+        final x = player.position.x;
+        final y = player.position.y;
+        expect(x.isFinite && y.isFinite, isTrue, reason: 'position at $at');
+        expect(x + player.size.x, greaterThan(0.0), reason: 'off the left of the screen at $at');
+        expect(x, lessThan(960.0), reason: 'off the right of the screen at $at');
+        expect(y, greaterThan(0.0), reason: 'off the top of the screen at $at');
+        expect(y, lessThanOrEqualTo(CourierGame.groundY - player.size.y + 0.5), reason: 'under the street at $at');
+        // Running is done from the courier's own spot.
+        if (player.state == CourierState.running) {
+          expect(x, closeTo(120.0, 0.5), reason: 'running away from home at $at');
+        }
+
+        if (player.state == inState) {
+          sinceChange += _dt;
+        } else {
+          inState = player.state;
+          sinceChange = 0.0;
+        }
+        if (inState != CourierState.running) {
+          expect(sinceChange, lessThan(6.0), reason: 'stuck ${inState.name} at $at');
+        }
+        peakWorldChildren = math.max(peakWorldChildren, game.world.children.length);
+      }
+
+      expect(state.distanceMeters, greaterThanOrEqualTo(1500.0), reason: 'the shift stalled');
+      expect(peakWorldChildren, lessThan(200));
     });
   }
 }

@@ -107,6 +107,10 @@ build below.
   `system_text_size_test.dart`). Without it the cards overflow from 115%.
 - `app_monkey_test.dart` walks the whole app at random; a new overlay or
   button belongs in its action list.
+- `soak_test.dart` also plays the street with random presses and holds. A
+  street piece that moves the courier (a rail, a hook, a launch) has to
+  give them back: running again within 6 s, at their own spot, never
+  wholly off the screen.
 
 ## Shipped
 
