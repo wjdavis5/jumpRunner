@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jump_runner/game/components/obstacle_component.dart';
 import 'package:jump_runner/game/logic/game_state.dart';
 import 'package:jump_runner/ui/achievements_modal.dart';
 
@@ -105,6 +106,53 @@ void main() {
       await tester.pump(const Duration(seconds: 5));
 
       expect(problems, isEmpty, reason: problems.join('\n'));
+    });
+  }
+
+  // The fullest the results card gets: a record, trophies, a contract. The
+  // walk above never sets a record. In the test font this fitted; in the
+  // real one, whose lines are a sixth taller, the record banner left the
+  // badge list no height at all on a 320 px screen and the buttons ran a
+  // pixel off the card.
+  const shortPhones = {
+    'a small phone, 568x320': Size(568, 320),
+    'a phone, 640x360': Size(640, 360),
+    'a phone, 667x375': Size(667, 375),
+  };
+  for (final entry in shortPhones.entries) {
+    testWidgets('On ${entry.key}, a record shift fits its results card', (tester) async {
+      final size = entry.value;
+      await bootApp(tester, size: size);
+      await tester.tap(find.text('START SHIFT'));
+      await settle(tester, frames: 10);
+      final state = gameOf(tester).gameState;
+      state.addTip(1500);
+      state.distanceMeters = 1034.0;
+      await settle(tester, frames: 4);
+      // Ended by something, so the card has its line about what and how.
+      state.lastHitBy = ObstacleType.scooter;
+      while (state.status == GameStatus.running) {
+        state.applyHazardDamage();
+      }
+      for (var i = 0; i < 40 && find.text('START NEXT SHIFT').evaluate().isEmpty; i++) {
+        await settle(tester, frames: 4);
+      }
+      expect(tester.takeException(), isNull);
+      expect(cutOffText(tester), isEmpty);
+      expect(wrappedButtonLabels(tester), isEmpty);
+
+      final screen = Offset.zero & size;
+      final button = tester.getRect(find.widgetWithText(ElevatedButton, 'START NEXT SHIFT'));
+      expect(screen.contains(button.topLeft) && screen.contains(button.bottomRight), isTrue,
+          reason: 'the button is at $button on $size');
+      expect(button.height, greaterThanOrEqualTo(44.0));
+
+      // The record is said, and can be seen without scrolling for it.
+      final banner = tester.getRect(find.byKey(const Key('game_over_record_banner')));
+      expect(banner.top, greaterThan(0.0));
+      expect(banner.bottom, lessThan(button.top));
+      expect(find.byKey(const Key('game_over_trophy_first_delivery')), findsOneWidget);
+      await tester.pump(const Duration(seconds: 5));
     });
   }
 

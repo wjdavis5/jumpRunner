@@ -219,25 +219,12 @@ class GameOverModal extends StatelessWidget {
             ],
             SizedBox(height: compact ? 8 : 16),
 
-            if (isNewRecord)
-              Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1C40F),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text.rich(
-                  withStars(
-                    '★ NEW DISTANCE RECORD! ★',
-                    const TextStyle(
-                      color: Color(0xFF1C2833),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              ),
+            // On a phone held sideways the banner goes at the head of the
+            // scrolling list below. As a row of its own it left that list no
+            // height at all on a 320 px screen: a record shift showed none of
+            // its trophies or badges, and the buttons ran a pixel off the
+            // card.
+            if (isNewRecord && !compact) _buildRecordBanner(),
 
             // Every badge below lives in one scrolling, wrapping list. A strong
             // run earns a dozen or more, which used to push the stats and the
@@ -264,6 +251,7 @@ class GameOverModal extends StatelessWidget {
                   alignment: WrapAlignment.center,
                   spacing: 8,
                   children: [
+            if (isNewRecord && compact) _buildRecordBanner(),
             for (final trophy in trophies)
               Container(
                 key: Key('game_over_trophy_${trophy.id}'),
@@ -1540,6 +1528,28 @@ class GameOverModal extends StatelessWidget {
 
 extension _OutfitGoal on GameOverModal {
   /// A slim bar: how far the career tips have got toward the next outfit.
+  Widget _buildRecordBanner() {
+    return Container(
+      key: const Key('game_over_record_banner'),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1C40F),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text.rich(
+        withStars(
+          '★ NEW DISTANCE RECORD! ★',
+          const TextStyle(
+            color: Color(0xFF1C2833),
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildOutfitGoal(CourierSkin outfit) {
     final ready = careerTips >= outfit.price;
     final progress = outfit.price > 0 ? (careerTips / outfit.price).clamp(0.0, 1.0) : 1.0;
