@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jump_runner/game/courier_game.dart';
 import 'package:jump_runner/game/logic/game_state.dart';
 import 'package:jump_runner/game/logic/qa_flags.dart';
+import 'package:jump_runner/game/logic/world_chunk_manager.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -27,7 +28,7 @@ void main() {
       game.restartRun();
       expect(game.gameState.distanceMeters, equals(0.0));
       // And the street is generated at its ordinary odds.
-      expect(game.chunkManager.subwayStationChance, equals(0.35));
+      expect(game.chunkManager.subwayStationChance, equals(WorldChunkManager.defaultSubwayStationChance));
     });
 
     test('losing every package still ends the shift', () async {

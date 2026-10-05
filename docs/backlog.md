@@ -47,6 +47,14 @@ build below.
   they are built. Anything that rolls toward the courier (train, skater) is
   set back by the ground it will make up (`closingDistance`,
   `subwayTrainSetback`).
+- Behind a hazard that only a full leap clears (van, subway train) the street
+  stays clear to where that leap can land plus a quarter second
+  (`clearanceAfter`, `clearanceBetween`). A new hazard that cannot be hopped
+  goes in `needsFullLeap`. Every hazard keeps a floor of room for error:
+  200 ms of tap timings, 300 ms for a leap (`hazard_fairness_floor_test.dart`).
+- A test that needs an empty street uses `test/support/bare_street.dart`.
+  Removing the hazards from a generated street leaves its energy drinks, and
+  one run in twelve picked one up and ran a fifth faster.
 - Hazard behaviour that depends on the courier's approach is timed in seconds,
   not pixels: the pigeon flock takes off 1.2 s ahead at any speed
   (`pigeon_flock_fairness_test.dart`).

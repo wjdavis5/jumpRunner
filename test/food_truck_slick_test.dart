@@ -273,7 +273,10 @@ void main() {
       final manager = WorldChunkManager(random: math.Random(1));
       var found = false;
 
-      for (var i = 0; i < 30; i++) {
+      // About one chunk in eight has a truck, so 30 tries missed one time
+      // in fifty: which fifty depends on the random sequence, and any change
+      // to the generator reshuffles that.
+      for (var i = 0; i < 200; i++) {
         manager.reset();
         final chunk = manager.generateChunk(
           startX: 0.0,

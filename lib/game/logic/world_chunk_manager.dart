@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import '../components/obstacle_component.dart';
 import '../components/pickup_component.dart';
 import 'chunk_declutter.dart';
+import 'jump_physics.dart';
 
 /// Data representation of an obstacle placement within a procedural chunk.
 class ObstacleData {
@@ -684,7 +685,12 @@ class WorldChunkManager {
 
   /// Chance that a chunk with room for one becomes a subway station. A
   /// field so a QA build can raise it; play uses the default.
-  double subwayStationChance = 0.35;
+  double subwayStationChance = defaultSubwayStationChance;
+
+  /// About 1.3 stations per 1,000 m. It was 0.35 until a station could no
+  /// longer follow a van whose landing would be on its third rail; that
+  /// rule turns away about one station in five, and this makes them up.
+  static const double defaultSubwayStationChance = 0.45;
 
   static const double baseSpeed = 200.0;
   static const double maxSpeed = 550.0;
@@ -710,6 +716,94 @@ class WorldChunkManager {
   double calculateMinClearance(double speed) {
     // Courier jump airtime is ~0.5s; minimum landing footprint scales with speed + safety reaction room
     return math.max(180.0, speed * 0.75);
+  }
+
+  /// How long a full, held leap stays in the air, in seconds: about 1.3.
+  /// Measured from the jump physics, with the small extra lift a Caffeine
+  /// Surge gives, so the room left for it holds with or without one.
+  static final double fullLeapAirtime = _measureFullLeapAirtime();
+
+  static double _measureFullLeapAirtime() {
+    const dt = 1.0 / 240.0;
+    final leap = JumpPhysicsSimulator()..startJump(impulseMultiplier: 1.10);
+    var seconds = 0.0;
+    while (!leap.isGrounded && seconds < 5.0) {
+      leap.update(dt);
+      seconds += dt;
+    }
+    return seconds;
+  }
+
+  /// The latest a leap can start, in seconds ahead of a van, and still
+  /// clear it. Measured at 0.06 s at the start of a shift and 0.15 s at
+  /// speed; the earlier figure leaves the most room.
+  static const double latestLeapStart = 0.10;
+
+  /// The time a courier gets between landing a leap and having to press
+  /// for whatever comes next.
+  static const double landingReaction = 0.25;
+
+  /// Whether [type] can only be cleared by the full, held leap. A hop
+  /// clears everything else.
+  static bool needsFullLeap(ObstacleType type) =>
+      type == ObstacleType.van || type == ObstacleType.subwayTrain;
+
+  /// The clear street a hazard of [type] needs behind it.
+  ///
+  /// [calculateMinClearance] is three quarters of a second of street, which
+  /// is room to land a hop (0.76 s in the air, started ahead of the hazard)
+  /// and react. A van cannot be hopped, and the leap that clears it is in
+  /// the air for 1.3 s. Pressed late, that leap came down on the next
+  /// hazard or within a few frames of it: for up to four in ten of the
+  /// press timings that clear a van, nothing the player did next could
+  /// save the package behind it. So behind such a hazard the street stays
+  /// clear to the furthest point the leap can land, plus time to react.
+  double clearanceAfter(ObstacleType type, double speed) {
+    final usual = calculateMinClearance(speed);
+    if (!needsFullLeap(type)) return usual;
+    final closing = math.max(speed, baseSpeed) + ObstacleComponent.defaultRelativeVelocityForType(type);
+    final furthestLanding = fullLeapAirtime * math.max(speed, baseSpeed) -
+        latestLeapStart * closing -
+        ObstacleComponent.defaultSizeForType(type).x;
+    return math.max(usual, furthestLanding + landingReaction * math.max(speed, baseSpeed));
+  }
+
+  /// How far ahead of a hazard that needs a leap the leap has to start, in
+  /// seconds: the run-up a second van needs behind a first.
+  static const double leapRunUp = 0.15;
+
+  /// The street between the far edge of [ahead] and the near edge of [next]
+  /// at the moment the courier reaches [ahead].
+  ///
+  /// [clearanceAfter], and behind a hazard that takes a full leap two things
+  /// more. A hazard that rolls toward the courier keeps coming while the
+  /// courier is in the air, so it is set back by what it covers in that
+  /// time. And one that needs a leap of its own gets that leap's run-up.
+  double clearanceBetween(ObstacleType ahead, ObstacleType next, double speed) {
+    var clearance = clearanceAfter(ahead, speed);
+    if (needsFullLeap(ahead)) {
+      clearance += ObstacleComponent.defaultRelativeVelocityForType(next) *
+          (fullLeapAirtime + landingReaction);
+      if (needsFullLeap(next)) clearance += leapRunUp * math.max(speed, baseSpeed);
+    }
+    return clearance;
+  }
+
+  /// Records that a hazard of [type] ends at [endX].
+  ///
+  /// Whatever is built next keeps the usual clearance from
+  /// [_lastObstacleEndX], so for a hazard that takes a full leap that point
+  /// is moved out by the extra street its landing needs.
+  void _hazardEndsAt(double endX, ObstacleType type, double speed) {
+    _lastObstacleEndX = endX + clearanceAfter(type, speed) - calculateMinClearance(speed);
+    _lastHazardType = type;
+  }
+
+  /// Records that a street piece which is not itself a hazard (a rail, a
+  /// scaffold, a solar array) ends at [endX].
+  void _pieceEndsAt(double endX) {
+    _lastObstacleEndX = endX;
+    _lastHazardType = null;
   }
 
   /// What an ordinary street can serve once it is up to speed: the five
@@ -755,6 +849,9 @@ class WorldChunkManager {
     return seconds > 0 ? (approach - aheadApproach) * seconds : 0.0;
   }
 
+  /// The nearest a station's third rail stands to the start of its chunk.
+  static const double stationRailEarliest = 220.0;
+
   /// How far behind the start of the third rail the subway train is built,
   /// for a rail [railOffset] px into its chunk on a street moving at [speed].
   ///
@@ -771,12 +868,17 @@ class WorldChunkManager {
 
   double _lastObstacleEndX = -9999.0;
 
+  /// The hazard [_lastObstacleEndX] belongs to, or null when the last thing
+  /// built was a street piece that is not a hazard.
+  ObstacleType? _lastHazardType;
+
   /// Where the previous chunk ended, in the coordinates it was generated in.
   double? _lastChunkEndX;
 
   /// Resets the generator state for a new run.
   void reset() {
     _lastObstacleEndX = -9999.0;
+    _lastHazardType = null;
     _lastChunkEndX = null;
   }
 
@@ -810,6 +912,11 @@ class WorldChunkManager {
       _lastObstacleEndX += startX - previousChunkEnd;
     }
     _lastChunkEndX = startX + chunkWidth;
+
+    // The hazard ahead of this chunk, and where it leaves the street free
+    // again, before this chunk's own hazards replace them.
+    final hazardAheadOfChunk = _lastHazardType;
+    final streetFreeFrom = _lastObstacleEndX;
 
     final minClearance = calculateMinClearance(speed);
     final naturalStart = startX + 60.0 + _random.nextDouble() * 40.0;
@@ -890,7 +997,7 @@ class WorldChunkManager {
             ));
           }
 
-          _lastObstacleEndX = railX + railWidth;
+          _pieceEndsAt(railX + railWidth);
           cursorX = _lastObstacleEndX + minClearance + 1.0;
         } else if (_random.nextDouble() < 0.40 && remainingScaffoldSpace >= 180.0) {
           final panelX = scaffoldingX + scaffoldingWidth + 12.0;
@@ -912,10 +1019,10 @@ class WorldChunkManager {
             ));
           }
 
-          _lastObstacleEndX = panelX + panelWidth;
+          _pieceEndsAt(panelX + panelWidth);
           cursorX = _lastObstacleEndX + minClearance + 1.0;
         } else {
-          _lastObstacleEndX = scaffoldingX + scaffoldingWidth;
+          _pieceEndsAt(scaffoldingX + scaffoldingWidth);
           cursorX = _lastObstacleEndX + minClearance + 1.0;
         }
       }
@@ -958,7 +1065,7 @@ class WorldChunkManager {
         height: gSize.y,
       ));
 
-      _lastObstacleEndX = railX + railWidth;
+      _pieceEndsAt(railX + railWidth);
       cursorX = _lastObstacleEndX + minClearance + 1.0;
     }
 
@@ -997,7 +1104,7 @@ class WorldChunkManager {
         height: obsSize.y,
       ));
 
-      _lastObstacleEndX = obstacleX + obsSize.x;
+      _hazardEndsAt(obstacleX + obsSize.x, obstacleType, speed);
       cursorX = _lastObstacleEndX + minClearance + 1.0;
     }
 
@@ -1045,7 +1152,7 @@ class WorldChunkManager {
         height: gSize.y,
       ));
 
-      _lastObstacleEndX = panelX + panelWidth;
+      _pieceEndsAt(panelX + panelWidth);
       cursorX = _lastObstacleEndX + minClearance + 1.0;
     }
 
@@ -1094,7 +1201,11 @@ class WorldChunkManager {
         height: gSize.y,
       ));
 
-      _lastObstacleEndX = tunnelX + tunnelHousingWidth + tunnelWindLength;
+      // The van can be leapt instead of ridden over on the wind, so the
+      // street past it stays clear for that landing too.
+      _hazardEndsAt(gX + gSize.x, groundType, speed);
+      _lastObstacleEndX =
+          math.max(_lastObstacleEndX, tunnelX + tunnelHousingWidth + tunnelWindLength);
       cursorX = _lastObstacleEndX + minClearance + 1.0;
     }
     final rooftopKitCoinsTo = pickups.length;
@@ -1146,16 +1257,23 @@ class WorldChunkManager {
       // arrives. Measured before this: skaters arrived a median 214 px
       // behind the hazard ahead where 400 was meant, one in five under 150.
       final approach = ObstacleComponent.defaultRelativeVelocityForType(type);
+      // What this hazard needs on top of the room its neighbour ahead
+      // already keeps behind it: see [clearanceBetween].
+      final hazardAhead = _lastHazardType;
+      final leapRoom = hazardAhead == null
+          ? 0.0
+          : clearanceBetween(hazardAhead, type, speed) - clearanceAfter(hazardAhead, speed);
       final builtGap = math.max(
-        minBuiltGap,
-        minClearance +
-            closingDistance(
-              aheadEndOffset: _lastObstacleEndX - startX,
-              speed: speed,
-              approach: approach,
-              aheadApproach: approachOfHazardAhead,
-            ),
-      );
+            minBuiltGap,
+            minClearance +
+                closingDistance(
+                  aheadEndOffset: _lastObstacleEndX - startX,
+                  speed: speed,
+                  approach: approach,
+                  aheadApproach: approachOfHazardAhead,
+                ),
+          ) +
+          leapRoom;
       final variety = varietyAfterHazardAhead;
       final obstacleX = variety == null
           ? math.max(cursorX, _lastObstacleEndX + builtGap + 1.0)
@@ -1170,6 +1288,10 @@ class WorldChunkManager {
             approach *
                 ((chunkSpawnLead + obstacleX - startX) / (math.max(speed, baseSpeed) + approach)),
       );
+      // A hazard belongs to the chunk it is met in. The room kept behind a
+      // leap can put the next one past the end of this chunk, and then it
+      // is the next chunk's to place.
+      if (meetingX >= endX) break;
       approachOfHazardAhead = approach;
 
       final obstacleY = groundY - size.y;
@@ -1182,7 +1304,7 @@ class WorldChunkManager {
       );
       obstacles.add(obstacle);
       obstaclesPlaced++;
-      _lastObstacleEndX = obstacle.x + obstacle.width;
+      _hazardEndsAt(obstacle.x + obstacle.width, type, speed);
 
       // Reward jump: Place a coin or pickup above the hazard in jump arc
       final roll = _random.nextDouble();
@@ -1205,7 +1327,7 @@ class WorldChunkManager {
       final extraClearance = (type == ObstacleType.skateMessenger) ? 60.0 : 0.0;
       final varietyAfter = extraClearance + (_random.nextDouble() * 120.0);
       varietyAfterHazardAhead = varietyAfter;
-      cursorX = obstacleX + size.x + minClearance + varietyAfter;
+      cursorX = _lastObstacleEndX + minClearance + varietyAfter;
     }
 
     // Place extra trail coins in the gaps if no hazard is nearby
@@ -1299,7 +1421,14 @@ class WorldChunkManager {
         scaffoldings.isEmpty &&
         grindRails.isEmpty &&
         steamVents.isEmpty &&
-        dropZones.isEmpty) {
+        dropZones.isEmpty &&
+        // At speed a station needs its whole chunk to fit the train behind
+        // the third rail, so the rail cannot be moved back to make room.
+        // After a van or a train whose leap would come down on the rail,
+        // the chunk stays a street.
+        (hazardAheadOfChunk == null ||
+            !needsFullLeap(hazardAheadOfChunk) ||
+            streetFreeFrom + minClearance <= startX + stationRailEarliest)) {
       final stationNames = [
         '8th Ave Express',
         'Broadway Metro',
@@ -1326,7 +1455,7 @@ class WorldChunkManager {
       // In a subway station, spawn authentic subterranean hazards:
       // An electrified third rail on track
       obstacles.clear();
-      final thirdRailX = startX + 220.0 + (_random.nextDouble() * 80.0);
+      final thirdRailX = startX + stationRailEarliest + (_random.nextDouble() * 80.0);
       obstacles.add(
         ObstacleData(
           type: ObstacleType.thirdRail,
@@ -1357,6 +1486,17 @@ class WorldChunkManager {
           height: 64.0,
         ),
       );
+
+      // The next chunk keeps its distance from the train, which is the last
+      // hazard here now that the street's own have been cleared away. The
+      // train is leapt where the courier meets it, well short of where it
+      // is built.
+      final trainApproach =
+          ObstacleComponent.defaultRelativeVelocityForType(ObstacleType.subwayTrain);
+      final trainMeetingX = trainX -
+          trainApproach *
+              ((chunkSpawnLead + trainX - startX) / (math.max(speed, baseSpeed) + trainApproach));
+      _hazardEndsAt(trainMeetingX + 110.0, ObstacleType.subwayTrain, speed);
     }
 
     final List<CraneSwingData> craneSwings = [];
