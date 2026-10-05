@@ -32,11 +32,29 @@ class LocalStorageService {
     _prefs = mockPrefs ?? await SharedPreferences.getInstance();
   }
 
+  /// A saved value, or [fallback] if there is none or it is not a [T].
+  ///
+  /// The plugin's own typed getters throw on a value of another type, and
+  /// every saved value is read while the app starts. A save with one wrong
+  /// value in it (a number someone put quotes round is enough) left a blank
+  /// screen for good. A value that cannot be read counts as never saved.
+  T _read<T>(String key, T fallback) {
+    final value = _prefs?.get(key);
+    return value is T ? value : fallback;
+  }
+
+  /// A saved list of names, or [fallback]. Anything in it that is not a
+  /// name is left out.
+  List<String> _readList(String key, List<String> fallback) {
+    final value = _prefs?.get(key);
+    return value is List ? value.whereType<String>().toList() : fallback;
+  }
+
   /// Personal best distance in meters.
-  int get highDistance => _prefs?.getInt(_keyHighDistance) ?? 0;
+  int get highDistance => _read<int>(_keyHighDistance, 0);
 
   /// Total career tips collected in dollars ($).
-  int get careerTips => _prefs?.getInt(_keyCareerTips) ?? 0;
+  int get careerTips => _read<int>(_keyCareerTips, 0);
 
   /// Every tip ever banked, whether or not it has since been spent.
   ///
@@ -44,22 +62,22 @@ class LocalStorageService {
   /// bought, so it cannot stand in for this. A career saved before this was
   /// tracked counts at least what it is still holding.
   int get lifetimeTips {
-    final recorded = _prefs?.getInt(_keyLifetimeTips) ?? 0;
+    final recorded = _read<int>(_keyLifetimeTips, 0);
     return recorded > careerTips ? recorded : careerTips;
   }
 
   /// Lifetime delivery contracts completed by the courier.
-  int get completedContracts => _prefs?.getInt(_keyCompletedContracts) ?? 0;
+  int get completedContracts => _read<int>(_keyCompletedContracts, 0);
 
   /// List of achievement identifiers unlocked by the player.
   List<String> get unlockedAchievements =>
-      _prefs?.getStringList(_keyUnlockedAchievements) ?? const [];
+      _readList(_keyUnlockedAchievements, const []);
 
   /// Whether audio is muted by player preference.
-  bool get isSoundMuted => _prefs?.getBool(_keySoundMuted) ?? false;
+  bool get isSoundMuted => _read<bool>(_keySoundMuted, false);
 
   /// Whether lightning and strobe flashes are dimmed for photosensitivity accessibility.
-  bool get isReduceFlash => _prefs?.getBool(_keyReduceFlash) ?? false;
+  bool get isReduceFlash => _read<bool>(_keyReduceFlash, false);
 
   /// Saves photosensitive screen flash reduction preference.
   Future<void> setReduceFlash(bool reduce) async {
@@ -68,11 +86,11 @@ class LocalStorageService {
 
   /// Whether the phone may vibrate on hits and milestones. On until the
   /// player turns it off.
-  bool get isHapticsEnabled => _prefs?.getBool(_keyHaptics) ?? true;
+  bool get isHapticsEnabled => _read<bool>(_keyHaptics, true);
 
   /// In how many shifts the "run under the birds" hint has been shown over a flock
   /// of pigeons. It stops after a few.
-  int get pigeonCoachRuns => _prefs?.getInt(_keyPigeonCoachRuns) ?? 0;
+  int get pigeonCoachRuns => _read<int>(_keyPigeonCoachRuns, 0);
 
   Future<void> addPigeonCoachRun() async {
     await _prefs?.setInt(_keyPigeonCoachRuns, pigeonCoachRuns + 1);
@@ -85,19 +103,19 @@ class LocalStorageService {
 
   /// List of skin identifiers unlocked by the player.
   List<String> get unlockedSkins =>
-      _prefs?.getStringList(_keyUnlockedSkins) ?? const ['standard'];
+      _readList(_keyUnlockedSkins, const ['standard']);
 
   /// Identifier of the currently equipped vanity courier outfit.
-  String get equippedSkin => _prefs?.getString(_keyEquippedSkin) ?? 'standard';
+  String get equippedSkin => _read<String>(_keyEquippedSkin, 'standard');
 
   /// YYYY-MM-DD string of the most recently completed daily shift.
-  String? get lastCompletedDaily => _prefs?.getString(_keyLastCompletedDaily);
+  String? get lastCompletedDaily => _read<String?>(_keyLastCompletedDaily, null);
 
   /// Cumulative daily shift completion stars earned by the courier.
-  int get dailyStars => _prefs?.getInt(_keyDailyStars) ?? 0;
+  int get dailyStars => _read<int>(_keyDailyStars, 0);
 
   /// Total customer doorstep deliveries completed across career shifts.
-  int get lifetimeDeliveries => _prefs?.getInt(_keyLifetimeDeliveries) ?? 0;
+  int get lifetimeDeliveries => _read<int>(_keyLifetimeDeliveries, 0);
 
   /// Records doorstep deliveries fulfilled, updating cumulative career deliveries.
   Future<void> recordDeliveries(int count) async {
@@ -210,7 +228,7 @@ class LocalStorageService {
 
   /// Returns the stored inventory count for a consumable booster.
   int getBoosterCount(String boosterId) =>
-      _prefs?.getInt('$_keyBoosterPrefix$boosterId') ?? 0;
+      _read<int>('$_keyBoosterPrefix$boosterId', 0);
 
   /// Purchases a consumable booster using accumulated career tips.
   ///
