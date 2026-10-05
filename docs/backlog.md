@@ -25,7 +25,8 @@ Verified shipped work lands as conventional commits; move done items to Shipped.
    vault window, #130 the synthesized sounds, #131 the app icon, #132 sprite
    sheets for older phones, #133 a phone playtest, #134 the deploy that never
    publishes, #135 whether a courier the street has thrown is safe until
-   landing). File new decisions there rather than in this file.
+   landing, #136 whether street pieces are introduced gradually: all 34
+   kinds unlock by 240 m). File new decisions there rather than in this file.
 
 The cosmetic captures that used to be item 3 are done: the death zoom showed a
 black void beside the street and was fixed; the coin magnet and the billboards
