@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../game/components/obstacle_component.dart';
 import '../game/game_font.dart';
+import '../game/models/achievement.dart';
 import '../game/models/courier_skin.dart';
 import 'fit_to_screen.dart';
 import 'hazard_lesson.dart';
@@ -20,6 +21,7 @@ class GameOverModal extends StatelessWidget {
     required this.onRestart,
     this.onReturnToDepot,
     this.nextOutfit,
+    this.trophies = const [],
     this.completedContracts = 0,
     this.contractBonusTips = 0,
     this.deliveriesCompleted = 0,
@@ -81,6 +83,12 @@ class GameOverModal extends StatelessWidget {
   /// The outfit the courier is saving for, if any. The card shows how much
   /// closer this shift brought it.
   final CourierSkin? nextOutfit;
+
+  /// The trophies this shift earned. Some are only judged once the shift is
+  /// over (a career's worth of tips, of contracts), and their pop-up on the
+  /// street came up behind this card: the only sign of them was a number
+  /// going up on the Trophies button.
+  final List<Achievement> trophies;
   final int completedContracts;
   final int contractBonusTips;
   final int deliveriesCompleted;
@@ -256,6 +264,35 @@ class GameOverModal extends StatelessWidget {
                   alignment: WrapAlignment.center,
                   spacing: 8,
                   children: [
+            for (final trophy in trophies)
+              Container(
+                key: Key('game_over_trophy_${trophy.id}'),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1C40F),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.emoji_events_rounded, color: Color(0xFF1C2833), size: 16),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        'TROPHY: ${trophy.title.toUpperCase()}',
+                        style: const TextStyle(
+                          color: Color(0xFF1C2833),
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
             if (completedContracts > 0)
               Container(
                 key: const Key('game_over_contracts_badge'),

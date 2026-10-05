@@ -6,6 +6,7 @@ import 'game/audio_controller.dart';
 import 'game/courier_game.dart';
 import 'game/logic/achievement_manager.dart';
 import 'game/logic/game_state.dart';
+import 'game/models/achievement.dart';
 import 'game/models/courier_skin.dart';
 import 'game/models/daily_shift.dart';
 import 'game/models/run_booster.dart';
@@ -104,6 +105,28 @@ class _CourierDashAppState extends State<CourierDashApp>
 
   /// The run the tally above belongs to.
   int _bankedRun = -1;
+
+  /// The trophies the courier held when the shift under way began, and the
+  /// run that was. What has been added since is what this shift earned.
+  Set<String> _trophiesAtShiftStart = const {};
+  int _trophiesRun = -1;
+
+  void _noteShiftStart() {
+    _trophiesAtShiftStart = widget.storageService.unlockedAchievements.toSet();
+    _trophiesRun = _gameState.runNumber;
+  }
+
+  /// The trophies earned in the shift that has just ended, in catalog order.
+  List<Achievement> get _trophiesThisShift {
+    // A shift that began some way this does not know about shows none,
+    // sooner than every trophy the courier has.
+    if (_trophiesRun != _gameState.runNumber) return const [];
+    final held = widget.storageService.unlockedAchievements.toSet();
+    return [
+      for (final trophy in Achievement.catalog)
+        if (held.contains(trophy.id) && !_trophiesAtShiftStart.contains(trophy.id)) trophy,
+    ];
+  }
 
   /// Starts the tally from nothing if the run is not the one it was kept
   /// for. Asked of the run itself, not left to each place a shift can
@@ -318,6 +341,7 @@ class _CourierDashAppState extends State<CourierDashApp>
       // Set outright: a regular start must not inherit an earlier daily shift.
       _game.dailyShift = dailyShift;
       _game.restartRun(shift: dailyShift, equippedBoosters: boostersToApply);
+      _noteShiftStart();
       _game.overlays.remove('TitleScreen');
       _game.overlays.add('HUD');
       if (mounted) setState(() {});
@@ -359,6 +383,7 @@ class _CourierDashAppState extends State<CourierDashApp>
   void _restartGame() {
     _game.overlays.remove('GameOver');
     _game.restartRun();
+    _noteShiftStart();
   }
 
   void _pauseGame() {
@@ -646,6 +671,7 @@ class _CourierDashAppState extends State<CourierDashApp>
             endedBy: _gameState.lastHitBy,
             careerTips: widget.storageService.careerTips,
             nextOutfit: CourierSkin.nextToUnlock(widget.storageService.unlockedSkins),
+            trophies: _trophiesThisShift,
             completedContracts: _gameState.contractManager.completedCount,
             contractBonusTips: _gameState.contractManager.totalBonusTips,
             deliveriesCompleted: _gameState.deliveriesInRun,

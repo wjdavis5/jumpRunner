@@ -84,6 +84,9 @@ void main() {
       await settle(tester, frames: 10);
       final next = gameOf(tester).gameState;
       next.addTip(4321);
+      // Far enough for a trophy, so the results card carries its badge.
+      next.distanceMeters = 520.0;
+      await settle(tester, frames: 4);
       while (next.status == GameStatus.running) {
         next.applyHazardDamage();
       }

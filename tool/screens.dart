@@ -221,8 +221,11 @@ void main() {
       await _shot(tester, '$name-4-pause');
 
       await tester.tap(find.byKey(const Key('resume_shift_button')));
-      // The resume count, then on with the shift.
+      // The resume count, then on with the shift: far enough for a trophy,
+      // so the results card is shown with its badges.
       await _frames(tester, 260);
+      state.distanceMeters = 520.0;
+      await _frames(tester, 6);
       while (state.status == GameStatus.running) {
         state.applyHazardDamage();
       }
