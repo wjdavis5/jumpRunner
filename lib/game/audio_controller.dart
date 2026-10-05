@@ -28,6 +28,9 @@ enum CustomerReactionType {
   fiveStars,
 }
 
+/// Crossfade lifecycle between the day and night background tracks.
+enum _MusicSwapState { idle, fadingOut, fadingIn }
+
 /// Abstract interface for audio playback to decouple flame_audio platform calls
 /// and allow deterministic headless testing without hardware audio plugins.
 abstract class AudioPlayerInterface {
@@ -160,6 +163,17 @@ class GameAudioController {
   double currentBgmVolume = defaultBgmVolume;
   double currentPlaybackRate = 1.0;
 
+  /// Whether the mellow night track is currently the music target.
+  bool isNightTrack = false;
+
+  /// Fade progress multiplier applied on top of the target BGM volume
+  /// while crossfading between day and night tracks (1.0 = full).
+  double _trackFadeMultiplier = 1.0;
+  _MusicSwapState _swapState = _MusicSwapState.idle;
+  bool _swapTargetIsNight = false;
+  double _fadeTimer = 0.0;
+  String _activeTrack = musicBgm;
+
   final List<String> attemptedPlays = [];
 
   // Asset paths relative to assets/audio/
@@ -176,6 +190,67 @@ class GameAudioController {
   static const String sfxCustomerThankYou = 'sfx/customer_thank_you.ogg';
   static const String sfxCustomerFiveStars = 'sfx/customer_five_stars.ogg';
   static const String musicBgm = 'music/courier_groove.ogg';
+
+  /// Mellow midnight-city loop that crossfades in during the night phase.
+  static const String musicBgmNight = 'music/courier_night.ogg';
+
+  /// Crossfade duration in seconds for day <-> night track swaps.
+  static const double trackFadeDuration = 0.8;
+
+  /// Volume the BGM should hold right now, ignoring any track fade.
+  double get _effectiveBgmVolume => isPaused
+      ? duckedBgmVolume
+      : (isMilestoneDucking ? milestoneDuckedBgmVolume : currentBgmVolume);
+
+  /// Advances the day <-> night music crossfade; call once per frame.
+  ///
+  /// When the night flag flips, the current track fades out over
+  /// [trackFadeDuration], swaps at silence, and the new track fades in.
+  /// Ducking (pause/milestone) remains authoritative: fades multiply the
+  /// effective ducked volume and never overwrite the base.
+  Future<void> updateMusicPhase({required bool isNight, required double dt}) async {
+    if (!isMusicActive || isMuted) return;
+
+    if (_swapState == _MusicSwapState.idle && isNight != isNightTrack) {
+      _swapState = _MusicSwapState.fadingOut;
+      _swapTargetIsNight = isNight;
+      _fadeTimer = 0.0;
+    }
+
+    switch (_swapState) {
+      case _MusicSwapState.idle:
+        return;
+
+      case _MusicSwapState.fadingOut:
+        _fadeTimer += dt;
+        final t = (_fadeTimer / trackFadeDuration).clamp(0.0, 1.0);
+        _trackFadeMultiplier = 1.0 - t;
+        await _backend.setBgmVolume(_effectiveBgmVolume * _trackFadeMultiplier);
+        if (t >= 1.0) {
+          isNightTrack = _swapTargetIsNight;
+          _activeTrack = isNightTrack ? musicBgmNight : musicBgm;
+          await _backend.startBgm(_activeTrack, volume: 0.0);
+          if (currentPlaybackRate != 1.0) {
+            await _backend.setPlaybackRate(currentPlaybackRate);
+          }
+          _swapState = _MusicSwapState.fadingIn;
+          _fadeTimer = 0.0;
+        }
+        return;
+
+      case _MusicSwapState.fadingIn:
+        _fadeTimer += dt;
+        final t = (_fadeTimer / trackFadeDuration).clamp(0.0, 1.0);
+        _trackFadeMultiplier = t;
+        await _backend.setBgmVolume(_effectiveBgmVolume * t);
+        if (t >= 1.0) {
+          _trackFadeMultiplier = 1.0;
+          _swapState = _MusicSwapState.idle;
+          await setBgmVolume(_effectiveBgmVolume);
+        }
+        return;
+    }
+  }
 
   /// Voice bark text line variations by courier bark category.
   static const Map<CourierBarkType, List<String>> courierBarkLines = {
@@ -277,6 +352,7 @@ class GameAudioController {
         sfxCustomerThankYou,
         sfxCustomerFiveStars,
         musicBgm,
+        musicBgmNight,
       ]);
     } catch (_) {}
   }
@@ -354,7 +430,7 @@ class GameAudioController {
         final vol = isPaused
             ? duckedBgmVolume
             : (isMilestoneDucking ? milestoneDuckedBgmVolume : currentBgmVolume);
-        await _backend.startBgm(musicBgm, volume: vol);
+        await _backend.startBgm(_activeTrack, volume: vol);
         if (currentPlaybackRate != 1.0) {
           await _backend.setPlaybackRate(currentPlaybackRate);
         }
@@ -453,9 +529,15 @@ class GameAudioController {
   /// Starts looping background music track.
   Future<void> startMusic({double? volume}) async {
     isMusicActive = true;
+    // Runs begin in daylight; snap back to the day track without a fade
+    // (a run restart is already a hard scene cut).
+    isNightTrack = false;
+    _swapState = _MusicSwapState.idle;
+    _trackFadeMultiplier = 1.0;
+    _activeTrack = musicBgm;
     currentBgmVolume = volume ?? (isPaused ? duckedBgmVolume : defaultBgmVolume);
     if (isMuted) return;
-    await _backend.startBgm(musicBgm, volume: currentBgmVolume);
+    await _backend.startBgm(_activeTrack, volume: currentBgmVolume);
     if (currentPlaybackRate != 1.0) {
       await _backend.setPlaybackRate(currentPlaybackRate);
     }

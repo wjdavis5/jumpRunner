@@ -1393,6 +1393,10 @@ class CourierGame extends FlameGame
     lightningComponent.rainIntensity = weatherController.rainIntensity;
     lightningComponent.isRaining = weatherController.isRaining;
     audio.updateWeather(weatherController.rainIntensity);
+    audio.updateMusicPhase(
+      isNight: parallaxCity.currentPhase == TimeOfDayPhase.night,
+      dt: dt,
+    );
 
     // 3. Update parallax city velocity & dynamic environment lighting
     parallaxCity.speedMultiplier = currentSpeed / 200.0;
