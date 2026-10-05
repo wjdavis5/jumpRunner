@@ -226,6 +226,9 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   double _bufferedImpulseMultiplier = 1.0;
   bool _jumpInputHeld = false;
 
+  /// Whether the press that made the current jump is still down.
+  bool get isJumpHeld => _jumpInputHeld;
+
   /// Whether a jump press is queued to fire on the next touchdown.
   bool get hasBufferedJump => _jumpBufferTimer > 0;
 

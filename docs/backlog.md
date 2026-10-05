@@ -72,6 +72,11 @@ build below.
 - Android: back is handled by `_handleSystemBack` (pause, close a card, leave
   results; exit only from the title) and the app runs in sticky immersive
   mode (`app_back_button_test.dart`, `immersive_mode_test.dart`).
+- The street reads a touch as a press and a release
+  (`PressHoldGestureRecognizer`), never as a tap. Do not put `TapCallbacks`
+  back on the game: a tap recognizer drops a touch that slides 18 px and a
+  held jump comes down as the smallest hop. The hold belongs to the latest
+  press only (`touch_hold_test.dart`).
 - The app draws its text at its designed sizes whatever the phone's
   text-size setting is (the clamp in `MaterialApp.builder`,
   `system_text_size_test.dart`). Without it the cards overflow from 115%.

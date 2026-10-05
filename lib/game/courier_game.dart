@@ -61,6 +61,7 @@ import 'logic/death_slowmo_controller.dart';
 import 'logic/game_haptics.dart';
 import 'logic/game_state.dart';
 import 'logic/input_hints.dart';
+import 'logic/press_hold_recognizer.dart';
 import 'logic/qa_flags.dart';
 import 'logic/weather_controller.dart';
 import 'logic/world_chunk_manager.dart';
@@ -75,7 +76,7 @@ import '../ui/money.dart';
 /// collision detection, continuous parallax city scrolling, procedural obstacle/pickup spawning,
 /// low-latency audio integration, and responsive courier jumping controls.
 class CourierGame extends FlameGame
-    with HasCollisionDetection, TapCallbacks, KeyboardEvents {
+    with HasCollisionDetection, KeyboardEvents {
   CourierGame({
     GameState? gameState,
     GameAudioController? audioController,
@@ -108,7 +109,17 @@ class CourierGame extends FlameGame
             height: virtualResolution.y,
           )..viewfinder.anchor = Anchor.center
            ..viewfinder.position = Vector2(virtualResolution.x / 2, virtualResolution.y / 2),
-        );
+        ) {
+    // Touches reach the game as a press and a release, not as taps: see
+    // [PressHoldGestureRecognizer] for why a tap recognizer will not do.
+    gestureDetectors.register<PressHoldGestureRecognizer>(
+      PressHoldGestureRecognizer.new,
+      (PressHoldGestureRecognizer recognizer) {
+        recognizer.onPress = holdJump;
+        recognizer.onRelease = letGoOfJump;
+      },
+    );
+  }
 
   CourierSkin activeSkin;
   Set<RunBooster> activeBoosters;
@@ -3912,21 +3923,24 @@ class CourierGame extends FlameGame
     player.pressJump(impulseMultiplier: jumpMult);
   }
 
-  @override
-  void onTapDown(TapDownEvent event) {
-    super.onTapDown(event);
+  /// What made the latest jump press: a touch's pointer id or a key.
+  ///
+  /// The hold belongs to the latest press and to nothing else. A thumb that
+  /// is still coming off the glass from the previous jump, or a palm resting
+  /// on the edge of the screen, cannot let go of a jump it did not start.
+  Object? _jumpHolder;
+
+  /// A finger, mouse button or key ([source]) went down: jump, and hold the
+  /// jump for as long as that same source stays down.
+  void holdJump(Object source) {
+    _jumpHolder = source;
     _pressJump();
   }
 
-  @override
-  void onTapUp(TapUpEvent event) {
-    super.onTapUp(event);
-    player.releaseJump();
-  }
-
-  @override
-  void onTapCancel(TapCancelEvent event) {
-    super.onTapCancel(event);
+  /// [source] came up. Lets go of the jump only if it is the one holding it.
+  void letGoOfJump(Object source) {
+    if (source != _jumpHolder) return;
+    _jumpHolder = null;
     player.releaseJump();
   }
 
@@ -3966,10 +3980,10 @@ class CourierGame extends FlameGame
 
     if (isJumpKey) {
       if (event is KeyDownEvent) {
-        _pressJump();
+        holdJump(event.logicalKey);
         return KeyEventResult.handled;
       } else if (event is KeyUpEvent) {
-        player.releaseJump();
+        letGoOfJump(event.logicalKey);
         return KeyEventResult.handled;
       }
     }
