@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart' hide Image;
@@ -250,7 +251,7 @@ void main() {
     });
 
     test('generateChunk does not spawn food truck slicks prior to 90m milestone', () {
-      final manager = WorldChunkManager();
+      final manager = WorldChunkManager(random: math.Random(1));
       var count = 0;
 
       for (var i = 0; i < 10; i++) {
@@ -269,7 +270,7 @@ void main() {
     });
 
     test('generateChunk can spawn food truck slicks after 90m with valid clearance', () {
-      final manager = WorldChunkManager();
+      final manager = WorldChunkManager(random: math.Random(1));
       var found = false;
 
       for (var i = 0; i < 30; i++) {

@@ -75,6 +75,11 @@ class GrindRailComponent extends PositionComponent {
 
   /// Helper to check collision with player.
   bool checkCollisionWith(CourierPlayer player) {
+    // A rail only catches a courier coming down onto it. One jumping off is
+    // still within reach of it for the first few frames, and used to be
+    // pulled straight back on: at anything above about 24 frames a second
+    // the jump was cancelled before the courier had risen clear.
+    if (player.simulator.verticalVelocity > 0) return false;
     final footX = player.position.x + (player.size.x / 2);
     final footY = player.simulator.currentY;
     return isUnderCourierFootprint(footX, footY);

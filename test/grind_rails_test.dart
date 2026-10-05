@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
@@ -226,7 +227,7 @@ void main() {
 
   group('WorldChunkManager Procedural Generation with Grind Rails', () {
     test('generateChunk includes grindRails array in ChunkData', () {
-      final manager = WorldChunkManager();
+      final manager = WorldChunkManager(random: math.Random(1));
       final chunk = manager.generateChunk(
         startX: 0.0,
         speed: 250.0,
@@ -238,7 +239,7 @@ void main() {
     });
 
     test('generateChunk generates grind rails with floating reward coins past 90m', () {
-      final manager = WorldChunkManager();
+      final manager = WorldChunkManager(random: math.Random(1));
       bool foundRail = false;
 
       // Sample multiple chunks beyond 90m to verify procedural spawning

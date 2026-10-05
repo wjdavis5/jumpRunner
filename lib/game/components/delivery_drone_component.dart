@@ -47,7 +47,7 @@ class DeliveryDroneComponent extends PositionComponent {
       position.y -= 320.0 * dt;
       activeTarget = null;
 
-      if ((position.y < -100 || position.x > CourierGame.virtualResolution.x + 100) &&
+      if ((position.y < -100 || position.x > game.visibleWidth + 100) &&
           isMounted) {
         removeFromParent();
       }

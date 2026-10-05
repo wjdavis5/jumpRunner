@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart' hide Image;
@@ -219,7 +220,7 @@ void main() {
 
   group('WorldChunkManager Barricade Procedural Generation (Issue #89)', () {
     test('generates barricades after 70m road threshold', () {
-      final chunkManager = WorldChunkManager();
+      final chunkManager = WorldChunkManager(random: math.Random(1));
       var generatedBarricade = false;
 
       for (var chunkIndex = 0; chunkIndex < 50; chunkIndex++) {

@@ -20,7 +20,7 @@ void main() {
     });
 
     test('Achievement catalog contains all 6 required career milestones', () {
-      expect(Achievement.catalog.length, equals(6));
+      expect(Achievement.catalog.length, equals(10));
 
       final ids = Achievement.catalog.map((a) => a.id).toSet();
       expect(ids, contains('first_delivery'));
@@ -59,7 +59,7 @@ void main() {
       };
 
       expect(manager.unlockedCount, equals(0));
-      expect(manager.totalCount, equals(6));
+      expect(manager.totalCount, equals(10));
 
       // Initial early shift: no unlocks
       final round1 = await manager.evaluateProgress(
@@ -83,19 +83,22 @@ void main() {
       expect(manager.isUnlocked('master_acrobat'), isTrue);
       expect(unlockedNotifications, containsAll(['first_delivery', 'master_acrobat']));
 
-      // Cross Midnight City 2500m, 10 contracts, $150 tips, and 5 wet hazards
+      // Cross Midnight City 2500m, 10 contracts, the Big Tipper total, and
+      // 5 wet hazards
       final round3 = await manager.evaluateProgress(
         distanceMeters: 2600.0,
         stuntCombo: 1,
         lifetimeContracts: 12,
-        lifetimeCareerTips: 180,
+        lifetimeCareerTips: AchievementManager.bigTipperLifetimeTips + 30,
         wetHazardsCleared: 6,
       );
       expect(
         round3.map((a) => a.id),
         containsAll(['shift_veteran', 'contract_specialist', 'big_tipper', 'rain_rider']),
       );
-      expect(manager.unlockedCount, equals(6));
+      // The original six, plus Long Haul: 2,600 m is past its 1,000 m too.
+      expect(round3.map((a) => a.id), contains('long_haul'));
+      expect(manager.unlockedCount, equals(7));
     });
 
     testWidgets('AchievementsModal renders trophy shelf, progress bar, and handles close', (tester) async {
@@ -116,7 +119,7 @@ void main() {
 
       // Verify header and progress
       expect(find.text('CAREER TROPHIES'), findsOneWidget);
-      expect(find.text('2 / 6 UNLOCKED'), findsOneWidget);
+      expect(find.text('2 / 10 UNLOCKED'), findsOneWidget);
 
       // Verify specific achievements
       expect(find.text('First Delivery'), findsOneWidget);

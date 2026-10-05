@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart' hide Image;
@@ -214,7 +215,7 @@ void main() {
 
   group('WorldChunkManager AC Condenser Procedural Generation (Issue #93)', () {
     test('generates AC condensers after 100m threshold', () {
-      final chunkManager = WorldChunkManager();
+      final chunkManager = WorldChunkManager(random: math.Random(1));
       var generatedCondenser = false;
 
       for (var chunkIndex = 0; chunkIndex < 50; chunkIndex++) {

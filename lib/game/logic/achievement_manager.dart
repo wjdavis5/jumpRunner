@@ -40,6 +40,20 @@ class AchievementManager {
     return true;
   }
 
+  /// Lifetime tips that earn the Big Tipper trophy. It was $150, which the
+  /// first shift of any career cleared; this is roughly the whole Locker.
+  static const int bigTipperLifetimeTips = 25000;
+
+  /// One shift this long earns Long Haul.
+  static const double longHaulMeters = 1000.0;
+
+  /// Career doorstep deliveries that earn Door to Door. A street has about
+  /// six drop zones per 1,000 m.
+  static const int doorToDoorDeliveries = 25;
+
+  /// Daily goals reached, on different days, that earn Regular.
+  static const int regularDailyGoals = 5;
+
   /// Evaluates progress against run metrics and lifetime records.
   Future<List<Achievement>> evaluateProgress({
     required double distanceMeters,
@@ -47,6 +61,9 @@ class AchievementManager {
     required int lifetimeContracts,
     required int lifetimeCareerTips,
     int wetHazardsCleared = 0,
+    int subwayStationsInRun = 0,
+    int lifetimeDeliveries = 0,
+    int dailyStars = 0,
   }) async {
     final newlyUnlocked = <Achievement>[];
 
@@ -74,7 +91,7 @@ class AchievementManager {
       }
     }
 
-    if (lifetimeCareerTips >= 150 && !isUnlocked('big_tipper')) {
+    if (lifetimeCareerTips >= bigTipperLifetimeTips && !isUnlocked('big_tipper')) {
       if (await unlock('big_tipper')) {
         newlyUnlocked.add(Achievement.findById('big_tipper')!);
       }
@@ -83,6 +100,18 @@ class AchievementManager {
     if (wetHazardsCleared >= 5 && !isUnlocked('rain_rider')) {
       if (await unlock('rain_rider')) {
         newlyUnlocked.add(Achievement.findById('rain_rider')!);
+      }
+    }
+
+    final more = <String, bool>{
+      'long_haul': distanceMeters >= longHaulMeters,
+      'straphanger': subwayStationsInRun >= 1,
+      'door_to_door': lifetimeDeliveries >= doorToDoorDeliveries,
+      'daily_regular': dailyStars >= regularDailyGoals,
+    };
+    for (final entry in more.entries) {
+      if (entry.value && !isUnlocked(entry.key) && await unlock(entry.key)) {
+        newlyUnlocked.add(Achievement.findById(entry.key)!);
       }
     }
 

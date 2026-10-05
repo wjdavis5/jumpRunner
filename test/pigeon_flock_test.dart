@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
@@ -228,7 +229,7 @@ void main() {
     });
 
     test('does not spawn pigeon flocks before 80 meters', () {
-      final manager = WorldChunkManager();
+      final manager = WorldChunkManager(random: math.Random(1));
       final chunk0 = manager.generateChunk(startX: 0.0, speed: 200.0, distanceMeters: 0.0);
       expect(chunk0.pigeonFlocks, isEmpty);
     });
@@ -236,7 +237,7 @@ void main() {
     test('can generate chunk with pigeon flocks beyond 80 meters', () {
       var spawnedPigeons = false;
       for (var i = 0; i < 20; i++) {
-        final manager = WorldChunkManager();
+        final manager = WorldChunkManager(random: math.Random(i));
         final chunk = manager.generateChunk(startX: 1000.0, speed: 250.0, distanceMeters: 120.0);
         if (chunk.pigeonFlocks.isNotEmpty) {
           spawnedPigeons = true;

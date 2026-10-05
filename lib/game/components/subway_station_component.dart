@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
@@ -16,7 +18,13 @@ class SubwayStationComponent extends PositionComponent {
   }) : super(
           position: position,
           size: size ?? Vector2(1000.0, 260.0),
+          priority: wallPriority,
         );
+
+  /// The station is a wall a whole chunk wide and it is solid. It has to be
+  /// drawn behind the courier and everything else on the street, which all
+  /// sit at the default priority of 0, or it paints over them.
+  static const int wallPriority = -1;
 
   final double groundY;
   final String stationName;
@@ -47,10 +55,50 @@ class SubwayStationComponent extends PositionComponent {
     }
   }
 
+  // The station is some 900 shapes and five text layouts, and none of it
+  // moves: only the tube lights toggle. Each of its two looks is recorded
+  // once and replayed, instead of being rebuilt on every frame it is alive.
+  final Map<bool, ui.Picture> _recorded = {};
+  final Vector2 _recordedSize = Vector2.zero();
+
+  /// How many times the station has been painted from scratch.
+  @visibleForTesting
+  int paintCount = 0;
+
   @override
   void render(Canvas canvas) {
     super.render(canvas);
+    if (_recordedSize != size) {
+      _discardRecordings();
+      _recordedSize.setFrom(size);
+    }
+    final picture = _recorded[_lightsFlicker] ??= _record();
+    canvas.drawPicture(picture);
+  }
 
+  ui.Picture _record() {
+    final recorder = ui.PictureRecorder();
+    paintStation(Canvas(recorder));
+    return recorder.endRecording();
+  }
+
+  void _discardRecordings() {
+    for (final picture in _recorded.values) {
+      picture.dispose();
+    }
+    _recorded.clear();
+  }
+
+  @override
+  void onRemove() {
+    _discardRecordings();
+    super.onRemove();
+  }
+
+  /// Paints the whole station as it looks right now.
+  @visibleForTesting
+  void paintStation(Canvas canvas) {
+    paintCount++;
     final w = size.x;
     final h = size.y;
 
@@ -68,6 +116,11 @@ class SubwayStationComponent extends PositionComponent {
     final numCols = (w / tileW).ceil() + 1;
     final numRows = (h / tileH).ceil();
 
+    // The brick-bond rows start half a tile outside the wall and run past
+    // its far end; clipped so the wall has straight sides where it meets
+    // the street.
+    canvas.save();
+    canvas.clipRect(Rect.fromLTWH(0, 0, w, h));
     for (int r = 2; r < numRows; r++) {
       final y = r * tileH;
       final xOffset = r.isEven ? 0.0 : tileW / 2;
@@ -77,6 +130,7 @@ class SubwayStationComponent extends PositionComponent {
       }
       canvas.drawLine(Offset(0, y), Offset(w, y), groutPaint);
     }
+    canvas.restore();
 
     // 2. Colored Transit Line Mosaic Stripe & Station Name Band
     final bandY = h * 0.45;

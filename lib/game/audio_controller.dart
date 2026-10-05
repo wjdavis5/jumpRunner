@@ -345,6 +345,7 @@ class GameAudioController {
         sfxFumble,
         sfxMilestone,
         sfxRainAmbience,
+        sfxThunder,
         sfxBarkStunt,
         sfxBarkNearMiss,
         sfxBarkDamage,
@@ -441,6 +442,40 @@ class GameAudioController {
         currentRainVolume = targetVolume;
         await _backend.startAmbience(sfxRainAmbience, volume: targetVolume);
       }
+    }
+  }
+
+  /// True while the app is in the background and all looping audio is held.
+  bool isBackgrounded = false;
+
+  /// Silences music and ambience when the app leaves the foreground.
+  ///
+  /// Nothing else stops them: without this the soundtrack keeps playing
+  /// behind a phone call or another app.
+  Future<void> suspendForBackground() async {
+    if (isBackgrounded) return;
+    isBackgrounded = true;
+    if (isMuted) return;
+    await _backend.stopBgm();
+    if (isRainAudioActive) {
+      await _backend.stopAmbience();
+    }
+  }
+
+  /// Restores whatever was playing when the app returns to the foreground.
+  Future<void> resumeFromBackground() async {
+    if (!isBackgrounded) return;
+    isBackgrounded = false;
+    if (isMuted) return;
+    if (isMusicActive) {
+      // Whichever of the day and night tracks was playing comes back.
+      await _backend.startBgm(_activeTrack, volume: _effectiveBgmVolume);
+      if (currentPlaybackRate != 1.0) {
+        await _backend.setPlaybackRate(currentPlaybackRate);
+      }
+    }
+    if (isRainAudioActive) {
+      await _backend.startAmbience(sfxRainAmbience, volume: currentRainVolume);
     }
   }
 

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart' hide Image;
@@ -262,7 +263,7 @@ void main() {
     });
 
     test('WorldChunkManager procedurally generates puddles at distance >= 50m', () {
-      final manager = WorldChunkManager();
+      final manager = WorldChunkManager(random: math.Random(1));
       var foundPuddle = false;
 
       for (var i = 0; i < 40; i++) {

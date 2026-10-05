@@ -54,6 +54,9 @@ class DailyShift {
   final int targetDistanceMeters;
   final int completionBonusTips;
 
+  /// What reaching a daily goal of [targetDistanceMeters] pays.
+  static int bonusForTarget(int targetDistanceMeters) => targetDistanceMeters;
+
   /// Deterministically derives the daily shift parameters for any given [date].
   factory DailyShift.forDate(DateTime date) {
     final year = date.year;
@@ -70,8 +73,10 @@ class DailyShift {
     // Distance targets: 1000m, 1250m, 1500m, or 1750m
     final targetDistance = 1000 + ((seed ~/ 4) % 4) * 250;
 
-    // Bonus tips payout: $100 to $200
-    final bonusTips = 100 + ((seed ~/ 2) % 3) * 50;
+    // The bonus is a dollar a metre: $1,000 to $1,750, more for the longer
+    // goals. Reaching the goal is itself worth $5,000 or more in tips, so
+    // the $100 to $200 this used to pay was lost in the noise.
+    final bonusTips = bonusForTarget(targetDistance);
 
     return DailyShift(
       dateString: dateString,

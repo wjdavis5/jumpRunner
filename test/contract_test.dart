@@ -58,21 +58,22 @@ void main() {
       ShiftContract? completedContract;
       manager.onContractCompleted = (c) => completedContract = c;
 
-      // Daredevil Shift requires 3 stunts
-      manager.onStuntPerformed();
-      manager.onStuntPerformed();
+      // Daredevil Shift requires 20 stunts
+      for (var i = 0; i < 19; i++) {
+        manager.onStuntPerformed();
+      }
       expect(manager.completedCount, equals(0));
 
       manager.onStuntPerformed();
       expect(manager.completedCount, equals(1));
-      expect(completedContract?.id, equals('stunts_3'));
+      expect(completedContract?.id, equals('stunts_20'));
       expect(completedContract?.isCompleted, isTrue);
-      expect(manager.totalBonusTips, equals(20));
+      expect(manager.totalBonusTips, equals(150));
     });
 
     test('fragile freight fails if courier sustains hazard damage before target distance', () {
-      // 300m without damage -> still in progress
-      manager.onDistanceProgress(300.0, damageCount: 0);
+      // 200m without damage -> still in progress
+      manager.onDistanceProgress(200.0, damageCount: 0);
       final fragileContract = manager.contracts.firstWhere((c) => c.type == ContractType.fragileFreight);
       expect(fragileContract.isCompleted, isFalse);
       expect(fragileContract.isFailed, isFalse);
@@ -86,20 +87,24 @@ void main() {
       expect(fragileContract.isCompleted, isFalse);
     });
 
-    test('fragile freight completes if courier reaches 500m with zero damage', () {
-      manager.onDistanceProgress(550.0, damageCount: 0);
+    test('fragile freight completes if courier reaches 300m with zero damage', () {
+      manager.onDistanceProgress(299.0, damageCount: 0);
+      expect(manager.completedCount, equals(0));
+      manager.onDistanceProgress(300.0, damageCount: 0);
       final fragileContract = manager.contracts.firstWhere((c) => c.type == ContractType.fragileFreight);
       expect(fragileContract.isCompleted, isTrue);
       expect(fragileContract.isFailed, isFalse);
-      expect(manager.totalBonusTips, equals(25));
+      expect(manager.totalBonusTips, equals(400));
     });
 
-    test('tip collector completes upon gathering 15 tips', () {
-      manager.onTipCollected(5);
-      manager.onTipCollected(10);
+    test(r'tip collector completes upon gathering $500 of tips', () {
       final tipContract = manager.contracts.firstWhere((c) => c.type == ContractType.tipCollector);
+      manager.onTipCollected(200);
+      manager.onTipCollected(299);
+      expect(tipContract.isCompleted, isFalse);
+      manager.onTipCollected(1);
       expect(tipContract.isCompleted, isTrue);
-      expect(tipContract.rewardTips, equals(15));
+      expect(tipContract.rewardTips, equals(100));
     });
 
     test('speed demon completes upon activating 2 energy boosts', () {
@@ -113,7 +118,7 @@ void main() {
       manager.onDistanceProgress(2600.0, damageCount: 0);
       final nightContract = manager.contracts.firstWhere((c) => c.type == ContractType.nightOwl);
       expect(nightContract.isCompleted, isTrue);
-      expect(nightContract.rewardTips, equals(35));
+      expect(nightContract.rewardTips, equals(1500));
     });
   });
 
@@ -125,18 +130,22 @@ void main() {
       expect(state.tips, equals(0));
       expect(state.isContractCelebrationVisible, isFalse);
 
-      // Trigger stunt specialist (3 stunts)
+      // Three stunts pay 6 + 8 + 10 = 24 tips and finish nothing yet.
       state.recordStunt();
       state.recordStunt();
       state.recordStunt();
-
-      // Stunts contract completed! Stunt rewards (6 + 8 + 10 = 24 tips)
-      // 'stunts_3' completed, awarding 20 bonus tips!
-      expect(state.contractManager.completedCount, equals(1));
-      expect(state.contractManager.totalBonusTips, equals(20));
       expect(state.tips, equals(24));
+      expect(state.contractManager.completedCount, equals(0));
+      expect(state.isContractCelebrationVisible, isFalse);
+
+      // The twentieth stunt completes 'stunts_20', awarding 150 bonus tips.
+      for (var i = 3; i < 20; i++) {
+        state.recordStunt();
+      }
+      expect(state.contractManager.completedCount, equals(1));
+      expect(state.contractManager.totalBonusTips, equals(150));
       expect(state.isContractCelebrationVisible, isTrue);
-      expect(state.activeContractCelebration?.id, equals('stunts_3'));
+      expect(state.activeContractCelebration?.id, equals('stunts_20'));
 
       // Celebration banner decays over time
       state.updateContractTimer(3.5);
@@ -170,15 +179,15 @@ void main() {
       expect(find.byKey(const Key('contract_celebration_banner')), findsNothing);
 
       // Complete stunt contract
-      state.recordStunt();
-      state.recordStunt();
-      state.recordStunt();
+      for (var i = 0; i < 20; i++) {
+        state.recordStunt();
+      }
       await tester.pump();
 
       // Banner appears!
       expect(find.byKey(const Key('contract_celebration_banner')), findsOneWidget);
       expect(find.textContaining('DAREDEVIL SHIFT'), findsOneWidget);
-      expect(find.textContaining('20 BONUS CAREER TIPS'), findsOneWidget);
+      expect(find.textContaining(r'+$150 BONUS CAREER TIPS'), findsOneWidget);
 
       // Timer expires -> banner fades
       state.updateContractTimer(3.5);

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flame/game.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -130,7 +131,7 @@ void main() {
 
   group('WorldChunkManager Aerial Route Generation', () {
     test('ChunkData includes scaffoldings and ramps lists', () {
-      final manager = WorldChunkManager();
+      final manager = WorldChunkManager(random: math.Random(1));
       final chunk = manager.generateChunk(
         startX: 0.0,
         speed: 200.0,
@@ -147,7 +148,7 @@ void main() {
       ChunkData? aerialChunk;
 
       for (int seed = 0; seed < 50; seed++) {
-        final m = WorldChunkManager();
+        final m = WorldChunkManager(random: math.Random(seed));
         final c = m.generateChunk(
           startX: 1000.0,
           speed: 300.0,

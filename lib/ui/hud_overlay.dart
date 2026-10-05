@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../game/logic/game_state.dart';
 import '../game/models/shift_contract.dart';
+import 'money.dart';
 
 /// Top HUD overlay displaying carried package HP, current distance, and tip earnings.
 class HUDOverlay extends StatelessWidget {
@@ -25,6 +26,34 @@ class HUDOverlay extends StatelessWidget {
   /// milestone banner (bannerTopOffset + milestone banner height + gap).
   static const double stackedBannerTopOffset = 160.0;
 
+  /// Height one status badge (boost, combo, VIP...) takes under the
+  /// distance pill, gap included.
+  static const double statusBadgePitch = 30.0;
+
+  bool get _shiftIsOver => gameState.status == GameStatus.gameOver;
+
+  /// How many status badges are showing under the distance pill. One entry
+  /// per badge in [_buildDistanceCounter], in the same order.
+  int get activeBadgeCount => [
+        gameState.isEnergyBoostActive,
+        gameState.isDroneActive,
+        gameState.isComboActive,
+        gameState.deliveryStreak > 1,
+        gameState.isVipMissionActive,
+        gameState.isDrafting,
+        gameState.isFloralAromaActive,
+        gameState.isNotorietyActive,
+        gameState.isCaffeineSurgeActive,
+        gameState.isUrbanGrooveActive,
+        gameState.isHydroplaneActive,
+        gameState.isThermalUpdraftActive,
+      ].where((showing) => showing).length;
+
+  /// Celebration banners sit below the status badges rather than on top of
+  /// them: a milestone used to hide the boost timer for its whole three
+  /// seconds.
+  double get _badgeStackHeight => activeBadgeCount * statusBadgePitch;
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -38,32 +67,43 @@ class HUDOverlay extends StatelessWidget {
                 // Left: Carried Package Lives (3 boxes)
                 _buildPackageLives(),
 
-                const Spacer(),
-
-                // Center: Distance & Next Milestone
-                _buildDistanceCounter(),
-
-                const Spacer(),
+                // Center: Distance & Next Milestone. Takes the width the side
+                // clusters leave and scales down to fit it, so a wide status
+                // badge can no longer push the pause button off a small phone.
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.topCenter,
+                      child: _buildDistanceCounter(),
+                    ),
+                  ),
+                ),
 
                 // Right: Tips Earned & Mute Toggle
                 _buildTipsAndMute(),
               ],
             ),
           ),
-          if (gameState.isMilestoneBannerVisible && gameState.activeMilestone != null)
+          // Banners only count down while a shift is live, so one that is up
+          // when the last package drops would otherwise stay on screen for
+          // good, poking out from behind the results card.
+          if (!_shiftIsOver && gameState.isMilestoneBannerVisible && gameState.activeMilestone != null)
             Positioned(
-              top: HUDOverlay.bannerTopOffset,
+              top: HUDOverlay.bannerTopOffset + _badgeStackHeight,
               left: 0,
               right: 0,
               child: Center(
                 child: _buildMilestoneBanner(gameState.activeMilestone!),
               ),
             ),
-          if (gameState.isContractCelebrationVisible && gameState.activeContractCelebration != null)
+          if (!_shiftIsOver && gameState.isContractCelebrationVisible && gameState.activeContractCelebration != null)
             Positioned(
-              top: gameState.isMilestoneBannerVisible
-                  ? HUDOverlay.stackedBannerTopOffset
-                  : HUDOverlay.bannerTopOffset,
+              top: (gameState.isMilestoneBannerVisible
+                      ? HUDOverlay.stackedBannerTopOffset
+                      : HUDOverlay.bannerTopOffset) +
+                  _badgeStackHeight,
               left: 0,
               right: 0,
               child: Center(
@@ -217,7 +257,7 @@ class HUDOverlay extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '+${contract.rewardTips} BONUS CAREER TIPS EARNED',
+                    '+${dollars(contract.rewardTips)} BONUS CAREER TIPS EARNED',
                     style: const TextStyle(
                       color: Color(0xFFF1C40F),
                       fontSize: 11,
@@ -297,11 +337,18 @@ class HUDOverlay extends StatelessWidget {
               ),
               Text(
                 gameState.isDailyShiftActive
-                    ? 'DAILY GOAL: ${gameState.activeDailyShift!.targetDistanceMeters}m (${gameState.activeDailyShift!.modifier.title})'
+                    // Once the goal is passed the label says so, instead of
+                    // still pointing at a line the courier has crossed.
+                    ? (gameState.hasCompletedDailyShiftInRun
+                        ? 'DAILY GOAL COMPLETE ★ (${gameState.activeDailyShift!.modifier.title})'
+                        : 'DAILY GOAL: ${gameState.activeDailyShift!.targetDistanceMeters}m (${gameState.activeDailyShift!.modifier.title})')
                     : 'Shift Goal: ${nextMilestone}m',
+                key: const Key('hud_goal_label'),
                 style: TextStyle(
                   color: gameState.isDailyShiftActive
-                      ? gameState.activeDailyShift!.modifier.color
+                      ? (gameState.hasCompletedDailyShiftInRun
+                          ? const Color(0xFFF1C40F)
+                          : gameState.activeDailyShift!.modifier.color)
                       : const Color(0xFF85C1E9),
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
@@ -786,7 +833,9 @@ class HUDOverlay extends StatelessWidget {
             ],
           ),
         ),
-        if (onPause != null) ...[
+        // Nothing is left to pause once the shift is over, and a button that
+        // does nothing sat beside the results card.
+        if (onPause != null && !_shiftIsOver) ...[
           const SizedBox(width: 8),
           IconButton(
             key: const Key('pause_button'),

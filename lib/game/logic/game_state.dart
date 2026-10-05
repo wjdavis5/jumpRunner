@@ -975,7 +975,7 @@ class SecurityShutterEvent {
 /// - Couriers start with 3 package lives.
 /// - Hazards decrement 1 package life and reset active stunt combo streak.
 /// - Reaching 0 packages triggers GameOver.
-/// - Every 500m milestone restores 1 lost package; if already at 3 packages, awards $50 tip bonus.
+/// - Every 500m milestone restores 1 lost package; if already at 3 packages, awards a $250 tip bonus.
 /// - Near-miss jumps over hazards reward bonus tips and ramp up a stunt combo multiplier (up to 2.5x).
 class GameState extends ChangeNotifier {
   GameState({ContractManager? contractManager})
@@ -990,7 +990,9 @@ class GameState extends ChangeNotifier {
 
   static const int defaultMaxPackages = 3;
   static const double milestoneIntervalMeters = 500.0;
-  static const int milestoneBonusTips = 50;
+  /// Paid at a 500 m milestone when no package needs restoring. A courier
+  /// that far in has about $2,000 of tips, so this is a tenth again.
+  static const int milestoneBonusTips = 250;
 
   static const double defaultEnergyDrinkDuration = 5.0;
   static const double defaultDroneDuration = 8.0;
@@ -1597,6 +1599,7 @@ class GameState extends ChangeNotifier {
         : withGroove;
     final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
     tips += awarded;
+    contractManager.onTipCollected(awarded);
 
     contractManager.onStuntPerformed();
 
@@ -1845,7 +1848,9 @@ class GameState extends ChangeNotifier {
     final adjusted = amount * modifierMultiplier;
     final earned = isEnergyBoostActive ? adjusted * 2 : adjusted;
     tips += earned;
-    contractManager.onTipCollected(amount);
+    // What was banked, not the face value: a doubled coin is two coins' worth
+    // of progress on the tips contract.
+    contractManager.onTipCollected(earned);
     notifyListeners();
   }
 
@@ -2964,6 +2969,7 @@ class GameState extends ChangeNotifier {
           packages++;
         } else {
           tips += milestoneBonusTips;
+          contractManager.onTipCollected(milestoneBonusTips);
         }
 
         final event = MilestoneEvent(
@@ -2985,6 +2991,7 @@ class GameState extends ChangeNotifier {
         distanceMeters >= activeDailyShift!.targetDistanceMeters) {
       hasCompletedDailyShiftInRun = true;
       tips += activeDailyShift!.completionBonusTips;
+      contractManager.onTipCollected(activeDailyShift!.completionBonusTips);
     }
 
     notifyListeners();

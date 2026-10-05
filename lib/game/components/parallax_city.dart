@@ -1,4 +1,6 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
+
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
@@ -174,6 +176,23 @@ class ParallaxCityComponent extends PositionComponent {
 
   double speedMultiplier = 1.0;
 
+  /// Width of the street in view. The city pattern repeats every [size].x; a
+  /// wider view paints more repeats of it rather than stretching it.
+  double viewWidth = 0.0;
+
+  /// How far past the view the backdrop is painted, to cover camera shake
+  /// and the high-speed zoom-out.
+  static const double paintBleed = 60.0;
+
+  double get _paintWidth => math.max(size.x, viewWidth);
+
+  /// Index of the last pattern repeat needed to reach the right paint edge.
+  int get _lastSlice => ((_paintWidth + paintBleed) / size.x).ceil();
+
+  /// Whether something spanning [left]..[right] can be seen at all.
+  bool _inPaintRange(double left, double right) =>
+      right >= -paintBleed && left <= _paintWidth + paintBleed;
+
   double skylineOffset = 0.0;
   double midgroundOffset = 0.0;
   double sidewalkOffset = 0.0;
@@ -340,6 +359,12 @@ class ParallaxCityComponent extends PositionComponent {
     sidewalkOffset = (sidewalkOffset + baseSidewalkSpeed * speedMultiplier * dt) % width;
   }
 
+  // The sky gradient, kept until the palette or the view changes.
+  ui.Shader? _skyShader;
+  Rect _skyShaderRect = Rect.zero;
+  Color? _skyShaderTop;
+  Color? _skyShaderBottom;
+
   @override
   void render(Canvas canvas) {
     super.render(canvas);
@@ -347,23 +372,32 @@ class ParallaxCityComponent extends PositionComponent {
     final w = size.x;
     final h = size.y;
     final groundY = h - 80;
-    const bleed = 60.0;
+    const bleed = paintBleed;
+    final paintW = _paintWidth;
 
     // 1. Dynamic Sky Gradient (with margin bleed for camera shake & zoom)
-    final skyPaint = Paint()
-      ..shader = LinearGradient(
+    final skyRect = Rect.fromLTWH(-bleed, -bleed, paintW + bleed * 2, groundY + bleed);
+    if (_skyShader == null ||
+        _skyShaderRect != skyRect ||
+        _skyShaderTop != currentPalette.skyTop ||
+        _skyShaderBottom != currentPalette.skyBottom) {
+      _skyShaderRect = skyRect;
+      _skyShaderTop = currentPalette.skyTop;
+      _skyShaderBottom = currentPalette.skyBottom;
+      _skyShader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [currentPalette.skyTop, currentPalette.skyBottom],
-      ).createShader(Rect.fromLTWH(-bleed, -bleed, w + bleed * 2, groundY + bleed));
-    canvas.drawRect(Rect.fromLTWH(-bleed, -bleed, w + bleed * 2, groundY + bleed), skyPaint);
+      ).createShader(skyRect);
+    }
+    canvas.drawRect(skyRect, Paint()..shader = _skyShader);
 
     // 2. Stars & Moon (Rendered behind distant skyline)
     if (currentPalette.stars > 0.01) {
-      _renderStars(canvas, w, groundY);
+      _renderStars(canvas, paintW, groundY);
     }
     if (currentPalette.moonAlpha > 0.01) {
-      _renderMoon(canvas, w);
+      _renderMoon(canvas, paintW);
     }
 
     // 3. Far Skyline Layer (scrolls at skylineOffset)
@@ -406,54 +440,139 @@ class ParallaxCityComponent extends PositionComponent {
     canvas.drawCircle(moonCenter + const Offset(8.0, -4.0), 19.0, shadowPaint);
   }
 
-  void _renderSkyline(Canvas canvas, double w, double groundY, double offset) {
-    final paint = Paint()..color = currentPalette.skyline;
+  // The skyline and the facades are the same rectangles every frame, a
+  // couple of hundred of them, and on the web every rectangle drawn from
+  // Dart costs a trip into the renderer. One repeat of each layer is
+  // recorded and replayed instead. A recording is kept until the palette
+  // has moved two levels in some channel, so the slow day-to-dusk fades
+  // re-record about twice a second rather than every frame.
+  ui.Picture? _skylineSlice;
+  Color _skylineSliceColor = const Color(0x00000000);
+  double _skylineSliceGroundY = double.nan;
 
-    // Draw two slices side-by-side for seamless wrapping
-    for (var slice = -1; slice <= 1; slice++) {
-      final startX = slice * w - offset;
+  ui.Picture? _facadeSlice;
+  List<Color> _facadeSliceColors = const [];
+  double _facadeSliceGroundY = double.nan;
 
-      for (var i = 0; i < 12; i++) {
-        final bx = startX + i * 80.0;
-        final bh = 140.0 + ((i * 37) % 80);
-        const bw = 65.0;
-        canvas.drawRect(
-          Rect.fromLTWH(bx, groundY - bh, bw, bh),
-          paint,
-        );
+  /// How many times a layer has been recorded from scratch.
+  @visibleForTesting
+  int sliceRecordings = 0;
+
+  /// Whether [a] and [b] are the same colour to within two levels of 255 in
+  /// every channel: closer than anyone can see.
+  static bool _sameToTheEye(Color a, Color b) {
+    const tolerance = 2.0 / 255.0;
+    return (a.r - b.r).abs() <= tolerance &&
+        (a.g - b.g).abs() <= tolerance &&
+        (a.b - b.b).abs() <= tolerance &&
+        (a.a - b.a).abs() <= tolerance;
+  }
+
+  ui.Picture _skylineSliceFor(double groundY) {
+    final color = currentPalette.skyline;
+    final kept = _skylineSlice;
+    if (kept != null && _skylineSliceGroundY == groundY && _sameToTheEye(color, _skylineSliceColor)) {
+      return kept;
+    }
+    kept?.dispose();
+    sliceRecordings++;
+    final recorder = ui.PictureRecorder();
+    final slice = Canvas(recorder);
+    final paint = Paint()..color = color;
+    for (var i = 0; i < 12; i++) {
+      final bh = 140.0 + ((i * 37) % 80);
+      slice.drawRect(Rect.fromLTWH(i * 80.0, groundY - bh, 65.0, bh), paint);
+    }
+    _skylineSliceColor = color;
+    _skylineSliceGroundY = groundY;
+    return _skylineSlice = recorder.endRecording();
+  }
+
+  /// Whether the window in [row] and [column] of facade [building] has its
+  /// light on: four in five do. It is a fact about the window. It used to
+  /// be worked out from the window's pixel position on screen, so every
+  /// window blinked off for a frame each time its building scrolled 5 px.
+  static bool isWindowLit(int building, int row, int column) =>
+      ((building * 5 + row * 7 + column * 11) % 5) != 0;
+
+  ui.Picture _facadeSliceFor(double groundY) {
+    final colors = [currentPalette.building, currentPalette.windowLit, currentPalette.windowUnlit];
+    final kept = _facadeSlice;
+    if (kept != null && _facadeSliceGroundY == groundY) {
+      var same = true;
+      for (var i = 0; i < colors.length && same; i++) {
+        same = _sameToTheEye(colors[i], _facadeSliceColors[i]);
       }
+      if (same) return kept;
+    }
+    kept?.dispose();
+    sliceRecordings++;
+    final recorder = ui.PictureRecorder();
+    final slice = Canvas(recorder);
+    final buildingPaint = Paint()..color = colors[0];
+    final litWindowPaint = Paint()..color = colors[1];
+    final unlitWindowPaint = Paint()..color = colors[2];
+    for (var i = 0; i < 8; i++) {
+      final bx = i * 120.0;
+      final bh = 90.0 + ((i * 29) % 60);
+      const bw = 100.0;
+      slice.drawRect(Rect.fromLTWH(bx, groundY - bh, bw, bh), buildingPaint);
+      var row = 0;
+      for (var wy = groundY - bh + 15; wy < groundY - 20; wy += 25) {
+        var column = 0;
+        for (var wx = bx + 12; wx < bx + bw - 15; wx += 25) {
+          slice.drawRect(
+            Rect.fromLTWH(wx, wy, 15, 15),
+            isWindowLit(i, row, column) ? litWindowPaint : unlitWindowPaint,
+          );
+          column++;
+        }
+        row++;
+      }
+    }
+    _facadeSliceColors = colors;
+    _facadeSliceGroundY = groundY;
+    return _facadeSlice = recorder.endRecording();
+  }
+
+  void _replaySlices(Canvas canvas, ui.Picture slice, double w, double offset) {
+    // Side by side, for seamless wrapping.
+    for (var index = -1; index <= _lastSlice; index++) {
+      final startX = index * w - offset;
+      if (!_inPaintRange(startX, startX + w)) continue;
+      canvas.save();
+      canvas.translate(startX, 0);
+      canvas.drawPicture(slice);
+      canvas.restore();
     }
   }
 
-  void _renderMidground(Canvas canvas, double w, double groundY, double offset) {
-    final buildingPaint = Paint()..color = currentPalette.building;
-    final litWindowPaint = Paint()..color = currentPalette.windowLit;
-    final unlitWindowPaint = Paint()..color = currentPalette.windowUnlit;
+  @override
+  void onRemove() {
+    _skylineSlice?.dispose();
+    _skylineSlice = null;
+    _facadeSlice?.dispose();
+    _facadeSlice = null;
+    super.onRemove();
+  }
 
-    for (var slice = -1; slice <= 1; slice++) {
+  void _renderSkyline(Canvas canvas, double w, double groundY, double offset) {
+    _replaySlices(canvas, _skylineSliceFor(groundY), w, offset);
+  }
+
+  void _renderMidground(Canvas canvas, double w, double groundY, double offset) {
+    // Facades and their windows, from the recording.
+    _replaySlices(canvas, _facadeSliceFor(groundY), w, offset);
+
+    // The neon signs flicker, so they are drawn fresh on top.
+    for (var slice = -1; slice <= _lastSlice; slice++) {
       final startX = slice * w - offset;
 
       for (var i = 0; i < 8; i++) {
         final bx = startX + i * 120.0;
         final bh = 90.0 + ((i * 29) % 60);
         const bw = 100.0;
-
-        // Building facade
-        canvas.drawRect(
-          Rect.fromLTWH(bx, groundY - bh, bw, bh),
-          buildingPaint,
-        );
-
-        // Storefront windows / glowing residential windows
-        for (var wy = groundY - bh + 15; wy < groundY - 20; wy += 25) {
-          for (var wx = bx + 12; wx < bx + bw - 15; wx += 25) {
-            final isLit = ((i * 5 + wy.toInt() * 7 + wx.toInt() * 11) % 5) != 0;
-            canvas.drawRect(
-              Rect.fromLTWH(wx, wy, 15, 15),
-              isLit ? litWindowPaint : unlitWindowPaint,
-            );
-          }
-        }
+        if (!_inPaintRange(bx, bx + bw)) continue;
 
         // Neon billboard advertisement mounted above the windows.
         // Every third building carries one; ads persist per facade tile so
@@ -505,26 +624,27 @@ class ParallaxCityComponent extends PositionComponent {
   }
 
   void _renderSidewalk(Canvas canvas, double w, double h, double groundY, double offset) {
-    const bleed = 60.0;
+    const bleed = paintBleed;
+    final paintW = _paintWidth;
 
     // 1. Sidewalk body - darken concrete slightly when wet
     final wetSidewalkColor = rainIntensity > 0.05
         ? Color.lerp(currentPalette.sidewalk, const Color(0xFF2B3033), rainIntensity * 0.45)!
         : currentPalette.sidewalk;
     final sidewalkPaint = Paint()..color = wetSidewalkColor;
-    canvas.drawRect(Rect.fromLTWH(-bleed, groundY, w + bleed * 2, 24), sidewalkPaint);
+    canvas.drawRect(Rect.fromLTWH(-bleed, groundY, paintW + bleed * 2, 24), sidewalkPaint);
 
     // 2. Curb edge
     final wetCurbColor = rainIntensity > 0.05
         ? Color.lerp(currentPalette.curb, const Color(0xFF1E2224), rainIntensity * 0.45)!
         : currentPalette.curb;
     final curbPaint = Paint()..color = wetCurbColor;
-    canvas.drawRect(Rect.fromLTWH(-bleed, groundY + 20, w + bleed * 2, 4), curbPaint);
+    canvas.drawRect(Rect.fromLTWH(-bleed, groundY + 20, paintW + bleed * 2, 4), curbPaint);
 
     // 3. Street asphalt below curb
     final streetPaint = Paint()..color = currentPalette.street;
     canvas.drawRect(
-      Rect.fromLTWH(-bleed, groundY + 24, w + bleed * 2, h - (groundY + 24) + bleed),
+      Rect.fromLTWH(-bleed, groundY + 24, paintW + bleed * 2, h - (groundY + 24) + bleed),
       streetPaint,
     );
 
@@ -538,7 +658,7 @@ class ParallaxCityComponent extends PositionComponent {
                 .withValues(alpha: wetSheenAlpha)
             : const Color(0xFF81D4FA).withValues(alpha: wetSheenAlpha);
       canvas.drawRect(
-        Rect.fromLTWH(-bleed, groundY + 24, w + bleed * 2, h - (groundY + 24) + bleed),
+        Rect.fromLTWH(-bleed, groundY + 24, paintW + bleed * 2, h - (groundY + 24) + bleed),
         sheenPaint,
       );
     }
@@ -548,10 +668,10 @@ class ParallaxCityComponent extends PositionComponent {
       ..color = wetCurbColor
       ..strokeWidth = 2;
 
-    for (var slice = -1; slice <= 1; slice++) {
+    for (var slice = -1; slice <= _lastSlice; slice++) {
       final startX = slice * w - offset;
       for (var x = startX; x < startX + w; x += 60.0) {
-        if (x >= -10 && x <= w + 10) {
+        if (x >= -10 && x <= paintW + 10) {
           canvas.drawLine(Offset(x, groundY), Offset(x, groundY + 20), jointPaint);
         }
       }
@@ -560,10 +680,10 @@ class ParallaxCityComponent extends PositionComponent {
     // 4b. Sidewalk rain puddles with sky/lamp reflections
     if (rainIntensity > 0.1) {
       const puddleSpacing = 160.0;
-      for (var slice = -1; slice <= 1; slice++) {
+      for (var slice = -1; slice <= _lastSlice; slice++) {
         final startX = slice * w - offset;
         for (var px = startX + 110.0; px < startX + w; px += puddleSpacing) {
-          if (px >= -50.0 && px <= w + 50.0) {
+          if (px >= -50.0 && px <= paintW + 50.0) {
             _renderPuddle(canvas, px, groundY + 11.0, rainIntensity);
           }
         }
@@ -572,10 +692,10 @@ class ParallaxCityComponent extends PositionComponent {
 
     // 5. Streetlamps along the sidewalk
     const lampSpacing = 240.0;
-    for (var slice = -1; slice <= 1; slice++) {
+    for (var slice = -1; slice <= _lastSlice; slice++) {
       final startX = slice * w - offset;
       for (var lx = startX + 70.0; lx < startX + w; lx += lampSpacing) {
-        if (lx >= -60.0 && lx <= w + 60.0) {
+        if (lx >= -60.0 && lx <= paintW + 60.0) {
           _renderStreetlamp(canvas, lx, groundY, currentPalette.lampGlow);
         }
       }

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart' hide Image;
@@ -253,7 +254,7 @@ void main() {
     });
 
     test('WorldChunkManager procedurally produces storm drains at distance >= 120m', () {
-      final manager = WorldChunkManager();
+      final manager = WorldChunkManager(random: math.Random(1));
       var foundDrain = false;
 
       for (var i = 0; i < 40; i++) {
@@ -306,7 +307,9 @@ void main() {
       expect(drain.hasTriggered, isTrue);
       expect(game.gameState.drainGeysersInRun, equals(1));
       expect(game.gameState.tips, greaterThan(0));
-      expect(game.player.simulator.verticalVelocity, equals(450.0));
+      // Launched at the geyser impulse. A 50 ms frame is simulated as three
+      // 60 Hz steps, so gravity has had up to 33 ms to act by the time we look.
+      expect(game.player.simulator.verticalVelocity, closeTo(450.0, 40.0));
 
       // 3 golden coins were spawned in active pickups
       expect(game.activePickups.length, equals(initialPickupCount + 3));

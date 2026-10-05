@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart' hide Image;
@@ -231,7 +232,7 @@ void main() {
 
   group('WorldChunkManager Satellite Dish Procedural Generation (Issue #86)', () {
     test('generates satellite dishes after 130m threshold', () {
-      final chunkManager = WorldChunkManager();
+      final chunkManager = WorldChunkManager(random: math.Random(1));
       var generatedDish = false;
 
       for (var chunkIndex = 0; chunkIndex < 50; chunkIndex++) {
@@ -331,7 +332,9 @@ void main() {
 
       expect(dish.hasLaunched, isTrue);
       expect(game.gameState.satelliteLaunchesInRun, equals(1));
-      expect(game.player.simulator.verticalVelocity, equals(540.0)); // Launched!
+      // Launched! (A 20 ms frame is two 60 Hz steps, so gravity has had
+      // 10 ms to act on the launch by the time we look.)
+      expect(game.player.simulator.verticalVelocity, closeTo(540.0, 15.0));
     });
 
     testWidgets('recycles offscreen satellite dishes cleanly', (tester) async {

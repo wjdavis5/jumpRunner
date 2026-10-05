@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../game/logic/input_hints.dart';
+import '../game/models/courier_skin.dart';
 import '../game/models/run_booster.dart';
+import 'fit_to_screen.dart';
+import 'key_hint.dart';
+import 'money.dart';
 
 /// Title screen welcoming players with career statistics, instructions, and launch button.
 class TitleScreen extends StatelessWidget {
@@ -19,6 +24,7 @@ class TitleScreen extends StatelessWidget {
     this.totalAchievementsCount = 6,
     this.dailyStars = 0,
     this.equippedBoosters = const {},
+    this.nextOutfit,
   });
 
   final int highDistance;
@@ -35,9 +41,20 @@ class TitleScreen extends StatelessWidget {
   final int dailyStars;
   final Set<RunBooster> equippedBoosters;
 
+  /// The outfit the courier is saving for, if any is left to buy. Shown
+  /// beside the tips so they visibly lead somewhere.
+  final CourierSkin? nextOutfit;
+
+  /// The one-line control guide, in the words of the input the device has.
+  static String controlGuide({required bool keyboard}) => keyboard
+      ? 'Space or Click = Hop (Scooters, Dogs)  •  Hold = Leap (Vans)  •  P = Pause\n'
+          'Press again in the air = Glide'
+      : 'Short Tap = Hop (Scooters, Dogs)  •  Hold = Leap (Vans)\n'
+          'Tap again in the air = Glide';
+
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return FitToScreen(
       child: Container(
         width: 640,
         padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 22),
@@ -121,7 +138,7 @@ class TitleScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '$highDistance m',
+                        meters(highDistance),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 20,
@@ -139,7 +156,7 @@ class TitleScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '\$$careerTips',
+                        dollars(careerTips),
                         style: const TextStyle(
                           color: Color(0xFFF1C40F),
                           fontSize: 20,
@@ -148,6 +165,36 @@ class TitleScreen extends StatelessWidget {
                       ),
                     ],
                   ),
+                  if (nextOutfit != null) ...[
+                    Container(width: 1, height: 32, color: Colors.white24),
+                    // Tapping the goal opens the Locker it points at.
+                    InkWell(
+                      key: const Key('next_outfit_goal'),
+                      onTap: onOpenLocker,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Column(
+                        children: [
+                          Text(
+                            'NEXT: ${nextOutfit!.name.toUpperCase()}',
+                            style: const TextStyle(color: Colors.white54, fontSize: 11),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            outfitGoalText(nextOutfit!, careerTips),
+                            key: const Key('next_outfit_goal_text'),
+                            style: TextStyle(
+                              color: careerTips >= nextOutfit!.price
+                                  ? const Color(0xFF2ECC71)
+                                  : Colors.white,
+                              fontSize: careerTips >= nextOutfit!.price ? 15 : 20,
+                              height: careerTips >= nextOutfit!.price ? 1.6 : null,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -161,9 +208,11 @@ class TitleScreen extends StatelessWidget {
                 color: Colors.black.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Text(
-                'Short Tap = Hop (Scooters, Dogs)  •  Hold = Leap (Vans)',
-                style: TextStyle(
+              child: Text(
+                controlGuide(keyboard: expectsKeyboard),
+                key: const Key('control_guide'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
                   color: Colors.white70,
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
@@ -229,8 +278,9 @@ class TitleScreen extends StatelessWidget {
               child: ElevatedButton.icon(
                 onPressed: onStartGame,
                 icon: const Icon(Icons.play_arrow, size: 28),
-                label: const Text(
-                  'START SHIFT',
+                label: const KeyHintLabel(
+                  label: 'START SHIFT',
+                  keyLabel: 'SPACE',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w900,

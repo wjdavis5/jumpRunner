@@ -160,8 +160,9 @@ void main() {
 
       state.updateDistance(1005.0);
       expect(state.hasCompletedDailyShiftInRun, isTrue);
-      // $100 from 2 shift milestones (500m, 1000m) + $150 daily shift reward
-      expect(state.tips, equals(250));
+      // $500 from 2 shift milestones (500m, 1000m) + $150 daily shift reward
+      expect(state.tips, equals(2 * GameState.milestoneBonusTips + 150));
+      expect(state.tips, equals(650));
     });
   });
 

@@ -1,8 +1,13 @@
+import 'dart:math' as math;
+
 /// Pure Dart jump physics simulator using semi-implicit Euler integration.
 ///
 /// Implements variable height jump mechanics for Courier Dash:
 /// - A quick 80ms tap produces a short ~70px hop to clear small obstacles (scooters, dogs).
 /// - A full 250ms hold produces a high ~180px leap to clear vans or elevated hazards.
+/// - Any shorter tap is stretched to the 80ms hop, so a quick flick always clears
+///   a scooter or dog instead of producing a hop too low to matter.
+/// - Running off a ledge leaves a brief coyote window in which a jump still registers.
 /// - Gravity acceleration: 980 px/s²
 /// - Headless testable without Flame canvas dependencies.
 class JumpPhysicsSimulator {
@@ -11,6 +16,8 @@ class JumpPhysicsSimulator {
     this.initialImpulse = 240.0,
     this.holdAcceleration = 1760.0,
     this.maxHoldTime = 0.250,
+    this.minHoldTime = 0.080,
+    this.coyoteDuration = 0.100,
     this.groundY = 460.0,
   }) {
     targetSurfaceY = groundY;
@@ -28,6 +35,14 @@ class JumpPhysicsSimulator {
 
   /// Maximum duration in seconds that holding input sustains upward force.
   final double maxHoldTime;
+
+  /// Minimum duration in seconds a jump is sustained even if input is released
+  /// sooner, so every tap produces at least the short hop.
+  final double minHoldTime;
+
+  /// Grace window in seconds after running off a ledge during which a jump
+  /// is still accepted as if grounded.
+  final double coyoteDuration;
 
   /// Baseline ground surface Y coordinate in screen coordinates.
   final double groundY;
@@ -64,6 +79,25 @@ class JumpPhysicsSimulator {
   /// Elapsed duration in seconds for the current jump hold.
   double holdTimer = 0.0;
 
+  /// True when input was released before [minHoldTime]; the hold ends as soon
+  /// as the minimum is reached.
+  bool _releasePending = false;
+
+  /// Remaining coyote grace in seconds (only armed by running off a ledge).
+  double _coyoteTimer = 0.0;
+
+  /// Whether a jump would currently be accepted: grounded, or just ran off a ledge.
+  bool get canJump => isGrounded || _coyoteTimer > 0;
+
+  /// Estimated seconds until touchdown on the current surface under free fall,
+  /// or 0 when grounded. Ignores glide drag and jump hold thrust.
+  double get timeToLanding {
+    if (isGrounded) return 0.0;
+    final height = (targetSurfaceY - currentY).clamp(0.0, double.infinity);
+    final v = verticalVelocity;
+    return (v + math.sqrt((v * v) + (2.0 * gravity * height))) / gravity;
+  }
+
   /// Height in pixels above the ground plane (0.0 when grounded).
   double get heightAboveGround =>
       (groundY - currentY).clamp(0.0, double.infinity);
@@ -75,6 +109,7 @@ class JumpPhysicsSimulator {
       // Surface beneath avatar dropped (e.g. walked off scaffolding edge)
       isGrounded = false;
       verticalVelocity = 0.0;
+      _coyoteTimer = coyoteDuration;
     }
   }
 
@@ -87,6 +122,8 @@ class JumpPhysicsSimulator {
   void launch(double impulse) {
     isGrounded = false;
     isHolding = false;
+    _releasePending = false;
+    _coyoteTimer = 0.0;
     holdTimer = 0.0;
     verticalVelocity = impulse;
   }
@@ -95,38 +132,63 @@ class JumpPhysicsSimulator {
   void applyUpdraft(double upwardVelocity, {double maxUpwardSpeed = 420.0}) {
     isGrounded = false;
     isHolding = false;
+    _releasePending = false;
+    _coyoteTimer = 0.0;
     holdTimer = 0.0;
     if (verticalVelocity < upwardVelocity) {
       verticalVelocity = upwardVelocity.clamp(-maxUpwardSpeed, maxUpwardSpeed);
     }
   }
 
-  /// Initiates a jump from the ground.
+  /// Initiates a jump from the ground, or within the coyote window after
+  /// running off a ledge.
   ///
   /// Returns `true` if jump successfully initiated; `false` if rejected (e.g. mid-air).
   bool startJump({double impulseMultiplier = 1.0}) {
-    if (!isGrounded) return false;
+    if (!canJump) return false;
 
     isGrounded = false;
     isHolding = true;
+    _releasePending = false;
+    _coyoteTimer = 0.0;
     holdTimer = 0.0;
     verticalVelocity = initialImpulse * impulseMultiplier;
     return true;
   }
 
   /// Cancels holding the jump button, allowing gravity to take full effect.
+  ///
+  /// A release before [minHoldTime] is deferred until the minimum is reached.
   void stopJump() {
+    if (isHolding && holdTimer < minHoldTime) {
+      _releasePending = true;
+      return;
+    }
     isHolding = false;
   }
 
   /// Updates physics state by [dt] seconds using semi-implicit Euler integration.
   void update(double dt) {
-    if (isGrounded) return;
+    if (isGrounded) {
+      _coyoteTimer = 0.0;
+      return;
+    }
+
+    if (_coyoteTimer > 0) {
+      _coyoteTimer = math.max(0.0, _coyoteTimer - dt);
+    }
 
     if (isHolding) {
-      holdTimer += dt;
-      if (holdTimer >= maxHoldTime) {
+      if (_releasePending && holdTimer >= minHoldTime) {
+        // Deferred release: the minimum hold has been fully served.
         isHolding = false;
+        _releasePending = false;
+      } else {
+        holdTimer += dt;
+        if (holdTimer >= maxHoldTime) {
+          isHolding = false;
+          _releasePending = false;
+        }
       }
     }
 
@@ -156,6 +218,8 @@ class JumpPhysicsSimulator {
       verticalVelocity = 0.0;
       isGrounded = true;
       isHolding = false;
+      _releasePending = false;
+      _coyoteTimer = 0.0;
       isGliding = false;
       holdTimer = 0.0;
     } else if (currentY >= groundY) {
@@ -164,6 +228,8 @@ class JumpPhysicsSimulator {
       verticalVelocity = 0.0;
       isGrounded = true;
       isHolding = false;
+      _releasePending = false;
+      _coyoteTimer = 0.0;
       isGliding = false;
       holdTimer = 0.0;
       targetSurfaceY = groundY;

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../game/models/achievement.dart';
+import 'visible_scrollbar.dart';
 
 /// Modal dialog displaying career trophies, unlock progress, and requirements.
 class AchievementsModal extends StatelessWidget {
@@ -12,6 +13,12 @@ class AchievementsModal extends StatelessWidget {
 
   final List<String> unlockedAchievementIds;
   final VoidCallback onClose;
+
+  /// Height of one trophy tile: room for a title and a two-line description
+  /// beside the badge. The tiles used to take their height from their width
+  /// (2.5:1), which left them half empty and pushed the third row off the
+  /// card.
+  static const double tileHeight = 88.0;
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +44,7 @@ class AchievementsModal extends StatelessWidget {
           ],
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             // Header Bar
             Row(
@@ -107,20 +115,25 @@ class AchievementsModal extends StatelessWidget {
             const SizedBox(height: 16),
 
             // Grid of Achievement Cards
-            Expanded(
-              child: GridView.builder(
+            Flexible(
+              child: VisibleScrollbar(
+                key: const Key('trophies_scrollbar'),
+                builder: (context, controller) => GridView.builder(
+                controller: controller,
+                shrinkWrap: true,
                 itemCount: Achievement.catalog.length,
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 2,
                   crossAxisSpacing: 14,
                   mainAxisSpacing: 14,
-                  childAspectRatio: 2.5,
+                  mainAxisExtent: tileHeight,
                 ),
                 itemBuilder: (context, index) {
                   final achievement = Achievement.catalog[index];
                   final isUnlocked = unlockedSet.contains(achievement.id);
 
                   return Container(
+                    key: Key('trophy_tile_${achievement.id}'),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: isUnlocked
@@ -171,7 +184,7 @@ class AchievementsModal extends StatelessWidget {
                                     child: Text(
                                       achievement.title,
                                       style: TextStyle(
-                                        color: isUnlocked ? Colors.white : Colors.white54,
+                                        color: isUnlocked ? Colors.white : Colors.white70,
                                         fontSize: 14,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -190,7 +203,9 @@ class AchievementsModal extends StatelessWidget {
                               Text(
                                 achievement.description,
                                 style: TextStyle(
-                                  color: isUnlocked ? Colors.white70 : Colors.white30,
+                                  // A locked trophy's text is the to-do
+                                  // list, so it must stay readable.
+                                  color: isUnlocked ? Colors.white70 : Colors.white54,
                                   fontSize: 11,
                                 ),
                                 maxLines: 2,
@@ -203,6 +218,7 @@ class AchievementsModal extends StatelessWidget {
                     ),
                   );
                 },
+              ),
               ),
             ),
           ],

@@ -17,8 +17,11 @@ class SpeechBubbleComponent extends PositionComponent {
     this.duration = 1.25,
     this.driftVelocity = -22.0,
     this.tailOffsetX = 16.0,
+    this.speaker,
   }) {
     this.position = position;
+    final who = speaker;
+    if (who != null) _offsetFromSpeaker = position - who.position;
   }
 
   final String text;
@@ -29,6 +32,13 @@ class SpeechBubbleComponent extends PositionComponent {
   final double driftVelocity;
   final double tailOffsetX;
 
+  /// Who is talking. When given, the bubble keeps its place relative to them
+  /// as they jump and fall, instead of being left behind in mid-air or run
+  /// into from below.
+  final PositionComponent? speaker;
+
+  Vector2 _offsetFromSpeaker = Vector2.zero();
+
   double _elapsed = 0.0;
 
   /// Whether this speech bubble has completed its display duration.
@@ -38,7 +48,15 @@ class SpeechBubbleComponent extends PositionComponent {
   void update(double dt) {
     super.update(dt);
     _elapsed += dt;
-    position.y += driftVelocity * dt;
+    final who = speaker;
+    if (who != null) {
+      position.setValues(
+        who.position.x + _offsetFromSpeaker.x,
+        who.position.y + _offsetFromSpeaker.y + driftVelocity * _elapsed,
+      );
+    } else {
+      position.y += driftVelocity * dt;
+    }
 
     if (_elapsed >= duration && isMounted && (parent?.isMounted ?? false)) {
       removeFromParent();

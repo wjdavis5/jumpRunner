@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import '../components/obstacle_component.dart';
 import '../components/pickup_component.dart';
+import 'chunk_declutter.dart';
 
 /// Data representation of an obstacle placement within a procedural chunk.
 class ObstacleData {
@@ -681,6 +682,10 @@ class WorldChunkManager {
 
   final math.Random _random;
 
+  /// Chance that a chunk with room for one becomes a subway station. A
+  /// field so a QA build can raise it; play uses the default.
+  double subwayStationChance = 0.35;
+
   static const double baseSpeed = 200.0;
   static const double maxSpeed = 550.0;
   static const double speedRampDistance = 2000.0;
@@ -707,11 +712,72 @@ class WorldChunkManager {
     return math.max(180.0, speed * 0.75);
   }
 
+  /// What an ordinary street can serve once it is up to speed: the five
+  /// fixed hazards plus the two that move.
+  ///
+  /// This was `ObstacleType.values`, which meant the same thing until the
+  /// third rail and the subway train were added to the enum for stations.
+  /// From then on two street hazards in nine past 800 m were a live rail or
+  /// a train on the open street, with no station anywhere near.
+  static const List<ObstacleType> streetHazards = [
+    ObstacleType.scooter,
+    ObstacleType.dog,
+    ObstacleType.hydrant,
+    ObstacleType.mailbox,
+    ObstacleType.van,
+    ObstacleType.skateMessenger,
+    ObstacleType.pigeonFlock,
+  ];
+
+  /// How far ahead of the courier a chunk starts when the game builds it.
+  static const double chunkSpawnLead = 1320.0;
+
+  /// Width of the third rail hazard.
+  static const double thirdRailWidth = 58.0;
+
+  /// The least room left between two hazards where they are built, however
+  /// far apart they will have drifted by the time they arrive.
+  static const double minBuiltGap = 20.0;
+
+  /// How much ground a hazard rolling toward the courier at [approach] px/s
+  /// makes up on the hazard ahead of it, which ends [aheadEndOffset] px into
+  /// the chunk and rolls at [aheadApproach], by the time that one reaches
+  /// the courier. Negative when the one ahead is the faster: they drift
+  /// apart.
+  double closingDistance({
+    required double aheadEndOffset,
+    required double speed,
+    required double approach,
+    double aheadApproach = 0.0,
+  }) {
+    final seconds =
+        (chunkSpawnLead + aheadEndOffset) / (math.max(speed, baseSpeed) + aheadApproach);
+    return seconds > 0 ? (approach - aheadApproach) * seconds : 0.0;
+  }
+
+  /// How far behind the start of the third rail the subway train is built,
+  /// for a rail [railOffset] px into its chunk on a street moving at [speed].
+  ///
+  /// When the courier has just passed the rail, the train is still the usual
+  /// clearance away, measured at the speed the two are closing.
+  double subwayTrainSetback({required double railOffset, required double speed}) {
+    final street = math.max(speed, baseSpeed);
+    final approach = ObstacleComponent.defaultRelativeVelocityForType(ObstacleType.subwayTrain);
+    final secondsUntilRailIsPassed = (chunkSpawnLead + railOffset + thirdRailWidth) / street;
+    return thirdRailWidth +
+        calculateMinClearance(street + approach) +
+        approach * secondsUntilRailIsPassed;
+  }
+
   double _lastObstacleEndX = -9999.0;
+
+  /// Where the previous chunk ended, in the coordinates it was generated in.
+  double? _lastChunkEndX;
 
   /// Resets the generator state for a new run.
   void reset() {
     _lastObstacleEndX = -9999.0;
+    _lastChunkEndX = null;
   }
 
   /// Procedurally generates a slice of world terrain of [chunkWidth] pixels starting at [startX].
@@ -722,6 +788,7 @@ class WorldChunkManager {
     double groundY = 460.0,
     double distanceMeters = 0.0,
     bool isVipActive = false,
+    bool heavySkateTraffic = false,
   }) {
     final obstacles = <ObstacleData>[];
     final pickups = <PickupData>[];
@@ -731,6 +798,18 @@ class WorldChunkManager {
     final steamVents = <SteamVentData>[];
     final solarPanels = <SolarPanelData>[];
     final windTunnels = <HvacWindTunnelData>[];
+
+    // Carry the previous hazard's position into this chunk's coordinates.
+    // The game spawns every chunk at about the same screen x, because the
+    // street has scrolled a chunk's width since the last one. Without this
+    // shift the remembered position sat a full chunk too far right, the
+    // clearance check found "no room", and most chunks got no hazard at all.
+    // Callers that pass ever-growing world x are unaffected: the shift is 0.
+    final previousChunkEnd = _lastChunkEndX;
+    if (previousChunkEnd != null) {
+      _lastObstacleEndX += startX - previousChunkEnd;
+    }
+    _lastChunkEndX = startX + chunkWidth;
 
     final minClearance = calculateMinClearance(speed);
     final naturalStart = startX + 60.0 + _random.nextDouble() * 40.0;
@@ -922,6 +1001,11 @@ class WorldChunkManager {
       cursorX = _lastObstacleEndX + minClearance + 1.0;
     }
 
+    // The coins laid along a solar array or a wind tunnel are the ones added
+    // between these two marks. A chunk that turns out to be a subway station
+    // takes the kit and its coins back out.
+    final rooftopKitCoinsFrom = pickups.length;
+
     // Rooftop Photovoltaic Solar Panel Array: Spawns after 110m when no scaffolding or rail occupies the stretch
     if (scaffoldings.isEmpty &&
         grindRails.isEmpty &&
@@ -1013,6 +1097,7 @@ class WorldChunkManager {
       _lastObstacleEndX = tunnelX + tunnelHousingWidth + tunnelWindLength;
       cursorX = _lastObstacleEndX + minClearance + 1.0;
     }
+    final rooftopKitCoinsTo = pickups.length;
 
     // Introduce dynamic hazards (skate messenger, pigeon flock) at distance/speed milestones.
     // The warm-up stretch only serves small tap-hop hazards so new couriers
@@ -1026,7 +1111,7 @@ class WorldChunkManager {
     final availableTypes = isWarmup
         ? const [ObstacleType.scooter, ObstacleType.dog]
         : (distanceMeters >= 800.0 || speed >= 340.0)
-            ? ObstacleType.values
+            ? streetHazards
             : const [
                 ObstacleType.scooter,
                 ObstacleType.dog,
@@ -1037,15 +1122,60 @@ class WorldChunkManager {
 
     // Pick 1 to 2 obstacle placements per chunk to avoid cluttered bottlenecks
     int obstaclesPlaced = 0;
+    // How fast the hazard placed before this one rolls toward the courier,
+    // and the random extra spacing rolled after it (null before the first).
+    var approachOfHazardAhead = 0.0;
+    double? varietyAfterHazardAhead;
     while (cursorX < endX && obstaclesPlaced < maxObstaclesPerChunk) {
       final typeIndex = _random.nextInt(availableTypes.length);
-      final type = availableTypes[typeIndex];
+      var type = availableTypes[typeIndex];
+      // Skate Commute daily shift: past the warm-up, about half of all street
+      // hazards are oncoming skaters, whatever the distance. The extra roll is
+      // only made on such a shift, so regular generation is unchanged.
+      if (heavySkateTraffic && !isWarmup && _random.nextDouble() < 0.5) {
+        type = ObstacleType.skateMessenger;
+      }
       final size = ObstacleComponent.defaultSizeForType(type);
+
+      // A hazard that rolls toward the courier (the skater) changes its
+      // distance from its neighbours all the way in: it makes up ground on
+      // a standing hazard ahead of it and pulls away from one behind. The
+      // clearance has to be there when the courier meets them, so the gap
+      // built here is the clearance plus what this hazard will make up on
+      // the one ahead (or less what it will lose) by the time that one
+      // arrives. Measured before this: skaters arrived a median 214 px
+      // behind the hazard ahead where 400 was meant, one in five under 150.
+      final approach = ObstacleComponent.defaultRelativeVelocityForType(type);
+      final builtGap = math.max(
+        minBuiltGap,
+        minClearance +
+            closingDistance(
+              aheadEndOffset: _lastObstacleEndX - startX,
+              speed: speed,
+              approach: approach,
+              aheadApproach: approachOfHazardAhead,
+            ),
+      );
+      final variety = varietyAfterHazardAhead;
+      final obstacleX = variety == null
+          ? math.max(cursorX, _lastObstacleEndX + builtGap + 1.0)
+          : _lastObstacleEndX + builtGap + variety;
+      // Where this hazard will be, in today's coordinates, when it reaches
+      // the courier: the reward above it is hung there, not where it starts.
+      // Never before the start of the chunk, which is the only part of the
+      // street sure to be off screen while it is being built.
+      final meetingX = math.max(
+        startX + 20.0,
+        obstacleX -
+            approach *
+                ((chunkSpawnLead + obstacleX - startX) / (math.max(speed, baseSpeed) + approach)),
+      );
+      approachOfHazardAhead = approach;
 
       final obstacleY = groundY - size.y;
       final obstacle = ObstacleData(
         type: type,
-        x: cursorX,
+        x: obstacleX,
         y: obstacleY,
         width: size.x,
         height: size.y,
@@ -1066,14 +1196,16 @@ class WorldChunkManager {
       pickups.add(
         PickupData(
           type: arcPickupType,
-          x: cursorX + size.x / 2 - 14,
+          x: meetingX + size.x / 2 - 14,
           y: obstacleY - 60.0 - (_random.nextDouble() * 30.0),
         ),
       );
 
       // Advance cursor past obstacle + guaranteed clearance (granting extra buffer for oncoming skate messengers)
       final extraClearance = (type == ObstacleType.skateMessenger) ? 60.0 : 0.0;
-      cursorX += size.x + minClearance + extraClearance + (_random.nextDouble() * 120.0);
+      final varietyAfter = extraClearance + (_random.nextDouble() * 120.0);
+      varietyAfterHazardAhead = varietyAfter;
+      cursorX = obstacleX + size.x + minClearance + varietyAfter;
     }
 
     // Place extra trail coins in the gaps if no hazard is nearby
@@ -1163,7 +1295,7 @@ class WorldChunkManager {
 
     // Subterranean Subway Tunnel Stations (after 200m, exclusive with aerial scaffolding, rails, and steam vents)
     if (distanceMeters >= 200.0 &&
-        _random.nextDouble() < 0.35 &&
+        _random.nextDouble() < subwayStationChance &&
         scaffoldings.isEmpty &&
         grindRails.isEmpty &&
         steamVents.isEmpty &&
@@ -1184,6 +1316,13 @@ class WorldChunkManager {
         ),
       );
 
+      // A station is the platform, the third rail and the train, and nothing
+      // from the street above. A solar array could be left standing over the
+      // train, its deck ten pixels lower than the train's roof.
+      solarPanels.clear();
+      windTunnels.clear();
+      pickups.removeRange(rooftopKitCoinsFrom, rooftopKitCoinsTo);
+
       // In a subway station, spawn authentic subterranean hazards:
       // An electrified third rail on track
       obstacles.clear();
@@ -1198,8 +1337,17 @@ class WorldChunkManager {
         ),
       );
 
-      // And an oncoming express subway train further along the station with generous clearance
-      final trainX = thirdRailX + 280.0 + (_random.nextDouble() * 60.0);
+      // And an oncoming express subway train further along the station with generous clearance.
+      // "Generous" has to be judged where the courier meets them, not where
+      // they are built: the train rolls toward the courier on top of the
+      // street's own speed, and the 280-340 px it used to be given was gone
+      // by the time the pair arrived. At 300 px/s the train was just ahead
+      // of the rail, at 400 on top of it and at 550 just behind: one block
+      // up to 230 px wide. It is set back by the ground it will make up
+      // before the rail has gone by, plus the room any two hazards get.
+      final trainX = thirdRailX +
+          subwayTrainSetback(railOffset: thirdRailX - startX, speed: speed) +
+          (_random.nextDouble() * 60.0);
       obstacles.add(
         ObstacleData(
           type: ObstacleType.subwayTrain,
@@ -2076,7 +2224,7 @@ class WorldChunkManager {
     }
 
     final List<ClotheslineData> clotheslines = [];
-    if (distanceMeters >= 75.0 && _random.nextDouble() < 0.32) {
+    if (distanceMeters >= 75.0 && _random.nextDouble() < 0.32 && subwayStations.isEmpty) {
       const clotheslineWidth = 96.0;
       const clotheslineHeight = 48.0;
 
@@ -2137,7 +2285,7 @@ class WorldChunkManager {
     }
 
     final List<SubwayExhaustGrateData> subwayExhaustGrates = [];
-    if (distanceMeters >= 80.0 && _random.nextDouble() < 0.28) {
+    if (distanceMeters >= 80.0 && _random.nextDouble() < 0.28 && subwayStations.isEmpty) {
       const grateWidth = 88.0;
       const grateHeight = 14.0;
 
@@ -2176,7 +2324,7 @@ class WorldChunkManager {
     }
 
     final List<CatenaryZiplineData> catenaryZiplines = [];
-    if (distanceMeters >= 120.0 && _random.nextDouble() < 0.28) {
+    if (distanceMeters >= 120.0 && _random.nextDouble() < 0.28 && subwayStations.isEmpty) {
       const zipSpan = 240.0;
       const zipDrop = 24.0;
 
@@ -2204,7 +2352,7 @@ class WorldChunkManager {
     }
 
     final List<BusShelterData> busShelters = [];
-    if (distanceMeters >= 75.0 && _random.nextDouble() < 0.28) {
+    if (distanceMeters >= 75.0 && _random.nextDouble() < 0.28 && subwayStations.isEmpty) {
       const shelterWidth = 96.0;
       const shelterHeight = 54.0;
 
@@ -2242,7 +2390,7 @@ class WorldChunkManager {
     }
 
     final List<SecurityShutterData> securityShutters = [];
-    if (distanceMeters >= 90.0 && _random.nextDouble() < 0.26) {
+    if (distanceMeters >= 90.0 && _random.nextDouble() < 0.26 && subwayStations.isEmpty) {
       const shutterWidth = 48.0;
       const shutterHeight = 80.0;
 
@@ -2280,6 +2428,49 @@ class WorldChunkManager {
         }
       }
     }
+
+    // Thin out optional street set pieces that would be drawn on top of each
+    // other or on a hazard. Puddles (a ground decal), cyclists (they ride
+    // through) and crane masts (background structure) may share space.
+    // Features are listed rarest first: the rare ones claim their spot and the
+    // thinning falls on the features the street already shows most often.
+    StreetPiece street(double x, double y, double width, double height, [void Function()? remove]) =>
+        StreetPiece(x: x, width: width, baseY: y + height, remove: remove);
+    declutterStreet(
+      groundY: groundY,
+      anchors: [
+        for (final p in obstacles) street(p.x, p.y, p.width, p.height),
+        for (final p in dropZones) street(p.x, p.y, p.width, p.height),
+        for (final p in turnstiles) street(p.x, p.y, p.width, p.height),
+        for (final p in ramps) street(p.x, p.y, p.width, p.height),
+        for (final p in scaffoldings) street(p.x, p.y, p.width, p.height),
+        for (final p in grindRails) street(p.x, p.y, p.width, p.height),
+      ],
+      optionalByPriority: [
+        for (final p in streetBuskers.toList()) street(p.x, p.y, p.width, p.height, () => streetBuskers.remove(p)),
+        for (final p in fireHydrants.toList()) street(p.x, p.y, p.width, p.height, () => fireHydrants.remove(p)),
+        for (final p in cafeBistros.toList()) street(p.x, p.y, p.width, p.height, () => cafeBistros.remove(p)),
+        for (final p in newsstands.toList()) street(p.x, p.y, p.width, p.height, () => newsstands.remove(p)),
+        for (final p in waterTowers.toList()) street(p.x, p.y, p.width, p.height, () => waterTowers.remove(p)),
+        for (final p in stormDrains.toList()) street(p.x, p.y, p.width, p.height, () => stormDrains.remove(p)),
+        for (final p in steamVents.toList()) street(p.x, p.y, p.width, p.height, () => steamVents.remove(p)),
+        for (final p in solarPanels.toList()) street(p.x, p.y, p.width, p.height, () => solarPanels.remove(p)),
+        for (final p in foodCarts.toList()) street(p.x, p.y, p.width, p.height, () => foodCarts.remove(p)),
+        for (final p in foodTruckSlicks.toList()) street(p.x, p.y, p.width, p.height, () => foodTruckSlicks.remove(p)),
+        for (final p in glassSkylights.toList()) street(p.x, p.y, p.width, p.height, () => glassSkylights.remove(p)),
+        for (final p in fireEscapes.toList()) street(p.x, p.y, p.width, p.height, () => fireEscapes.remove(p)),
+        for (final p in acCondensers.toList()) street(p.x, p.y, p.width, p.height, () => acCondensers.remove(p)),
+        for (final p in flowerKiosks.toList()) street(p.x, p.y, p.width, p.height, () => flowerKiosks.remove(p)),
+        for (final p in barricades.toList()) street(p.x, p.y, p.width, p.height, () => barricades.remove(p)),
+        for (final p in postalMailboxes.toList()) street(p.x, p.y, p.width, p.height, () => postalMailboxes.remove(p)),
+        for (final p in droneCargos.toList()) street(p.x, p.y, p.width, p.height, () => droneCargos.remove(p)),
+        for (final p in securityShutters.toList()) street(p.x, p.y, p.width, p.height, () => securityShutters.remove(p)),
+        for (final p in busShelters.toList()) street(p.x, p.y, p.width, p.height, () => busShelters.remove(p)),
+        for (final p in subwayExhaustGrates.toList()) street(p.x, p.y, p.width, p.height, () => subwayExhaustGrates.remove(p)),
+        for (final p in satelliteDishes.toList()) street(p.x, p.y, p.width, p.height, () => satelliteDishes.remove(p)),
+        for (final p in clotheslines.toList()) street(p.x, p.y, p.width, p.height, () => clotheslines.remove(p)),
+      ],
+    );
 
     return ChunkData(
       obstacles: obstacles,

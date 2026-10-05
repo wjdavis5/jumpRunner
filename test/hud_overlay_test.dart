@@ -82,7 +82,7 @@ void main() {
 
       expect(find.byKey(const Key('milestone_celebration_banner')), findsOneWidget);
       expect(find.text('SHIFT #1 COMPLETED! (500m)'), findsOneWidget);
-      expect(find.text(r'FLAWLESS SHIFT BONUS: +$50 TIPS!'), findsOneWidget);
+      expect(find.text(r'FLAWLESS SHIFT BONUS: +$250 TIPS!'), findsOneWidget);
     });
 
     testWidgets('HUDOverlay renders pause button and triggers onPause callback', (tester) async {
@@ -148,7 +148,7 @@ void main() {
       );
 
       expect(find.text('COURIER DASH'), findsOneWidget);
-      expect(find.text('1250 m'), findsOneWidget);
+      expect(find.text('1,250 m'), findsOneWidget);
       expect(find.text(r'$430'), findsOneWidget);
 
       await tester.tap(find.text('START SHIFT'));

@@ -54,6 +54,30 @@ class ObstacleComponent extends PositionComponent with CollisionCallbacks {
   /// Whether a pigeon flock has been startled into flight.
   bool isFlocking = false;
 
+  /// How fast the street is scrolling, in px/s. The game keeps this current;
+  /// a flock uses it to decide when to take off.
+  double streetSpeed = 200.0;
+
+  /// The closest a courier gets to a roosting flock before it takes off.
+  static const double pigeonStartleDistance = 180.0;
+
+  /// How long before the courier arrives a flock takes off. It climbs at
+  /// 140 px/s, so this lifts it clear of a courier running or hopping
+  /// underneath, whatever the speed of the street. (A hop puts the top of
+  /// the courier's head about 123 px up, and at walking pace the hop can
+  /// peak a fifth of a second before the two cross.)
+  ///
+  /// The take-off used to be at [pigeonStartleDistance] and nothing else.
+  /// That is 0.9 s of warning at the start of a shift and a third of a
+  /// second at top speed, by which time the flock was at head height: early
+  /// on the way through was to keep running, later the same flock hit a
+  /// courier who kept running and could not be hopped at all.
+  static const double pigeonStartleSeconds = 1.2;
+
+  /// How far ahead of the courier a flock takes off at the current speed.
+  double get pigeonStartleRange =>
+      math.max(pigeonStartleDistance, streetSpeed * pigeonStartleSeconds);
+
   /// Internal timer for procedural movement and wing flapping animations.
   double animationTimer = 0.0;
 
@@ -159,7 +183,7 @@ class ObstacleComponent extends PositionComponent with CollisionCallbacks {
 
     if (type == ObstacleType.pigeonFlock) {
       // Courier runs around x = 120. When approaching within 180px, startle flock into air
-      if (!isFlocking && (position.x - 120.0) < 180.0) {
+      if (!isFlocking && (position.x - 120.0) < pigeonStartleRange) {
         isFlocking = true;
         velocityY = -140.0;
       }

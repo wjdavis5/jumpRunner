@@ -25,6 +25,41 @@ class FloatingTextComponent extends PositionComponent {
   /// Whether this floating indicator has completed its display duration.
   bool get isFinished => _elapsed >= duration;
 
+  /// Vertical room one line of feedback needs to stay legible.
+  static const double lineHeight = 18.0;
+
+  /// Indicators whose left edges are closer than this are treated as sharing
+  /// a column and are stacked rather than drawn over each other.
+  static const double columnWidth = 260.0;
+
+  @override
+  void onMount() {
+    super.onMount();
+    _stackAboveLiveSiblings();
+  }
+
+  /// Lifts this indicator clear of any live one it would be drawn over.
+  ///
+  /// Rewards often land on the same frame (a near miss, a vault and a trophy)
+  /// and every indicator spawns beside the courier, so without this they
+  /// print on top of each other and none can be read.
+  void _stackAboveLiveSiblings() {
+    final siblings = parent?.children
+        .whereType<FloatingTextComponent>()
+        .where((other) => !identical(other, this) && !other.isFinished)
+        .toList();
+    if (siblings == null || siblings.isEmpty) return;
+
+    // Walk from the lowest indicator upward so each lift is final.
+    siblings.sort((a, b) => b.position.y.compareTo(a.position.y));
+    for (final other in siblings) {
+      final sameColumn = (position.x - other.position.x).abs() < columnWidth;
+      if (sameColumn && (position.y - other.position.y).abs() < lineHeight) {
+        position.y = other.position.y - lineHeight;
+      }
+    }
+  }
+
   @override
   void update(double dt) {
     super.update(dt);

@@ -64,7 +64,7 @@ class Achievement {
     Achievement(
       id: 'big_tipper',
       title: 'Big Tipper',
-      description: 'Accumulate \$150 in lifetime career tips.',
+      description: 'Accumulate \$25,000 in lifetime career tips.',
       category: AchievementCategory.economy,
       icon: Icons.monetization_on_rounded,
       badgeColor: Color(0xFFF1C40F),
@@ -76,6 +76,41 @@ class Achievement {
       category: AchievementCategory.special,
       icon: Icons.water_drop_rounded,
       badgeColor: Color(0xFF3498DB),
+    ),
+    // Four more, each on something the game already counted: the step
+    // between the 500 m and 2,500 m trophies, the subway, doorstep
+    // deliveries and the daily goal.
+    Achievement(
+      id: 'long_haul',
+      title: 'Long Haul',
+      description: 'Reach 1,000m in a single shift.',
+      category: AchievementCategory.distance,
+      icon: Icons.route_rounded,
+      badgeColor: Color(0xFF1ABC9C),
+    ),
+    Achievement(
+      id: 'straphanger',
+      title: 'Straphanger',
+      description: 'Take a shortcut through a subway station.',
+      category: AchievementCategory.special,
+      icon: Icons.subway_rounded,
+      badgeColor: Color(0xFF2980B9),
+    ),
+    Achievement(
+      id: 'door_to_door',
+      title: 'Door to Door',
+      description: 'Make 25 doorstep deliveries over your career.',
+      category: AchievementCategory.contracts,
+      icon: Icons.home_rounded,
+      badgeColor: Color(0xFFE74C3C),
+    ),
+    Achievement(
+      id: 'daily_regular',
+      title: 'Regular',
+      description: 'Complete 5 daily shift goals.',
+      category: AchievementCategory.special,
+      icon: Icons.event_available_rounded,
+      badgeColor: Color(0xFFAF7AC5),
     ),
   ];
 

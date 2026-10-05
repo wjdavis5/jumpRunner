@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../game/models/run_booster.dart';
 import '../services/storage_service.dart';
+import 'money.dart';
+import 'visible_scrollbar.dart';
 
 /// Modal dialog allowing couriers to purchase single-run consumable boosters
 /// from the Corner Bodega and equip them before starting a delivery shift.
@@ -149,7 +151,7 @@ class _BodegaModalState extends State<BodegaModal> {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        '\$$careerTips TIPS',
+                        '${dollars(careerTips)} TIPS',
                         style: const TextStyle(
                           color: Color(0xFFF1C40F),
                           fontSize: 13,
@@ -203,7 +205,10 @@ class _BodegaModalState extends State<BodegaModal> {
 
             // Booster Catalog List
             Expanded(
-              child: ListView.separated(
+              child: VisibleScrollbar(
+                key: const Key('bodega_scrollbar'),
+                builder: (context, controller) => ListView.separated(
+                controller: controller,
                 itemCount: RunBooster.values.length,
                 separatorBuilder: (context, _) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
@@ -322,7 +327,9 @@ class _BodegaModalState extends State<BodegaModal> {
                                   ),
                                 ),
                                 child: Text(
-                                  isMaxed ? 'MAX' : '+\$${booster.cost}',
+                                  // "BUY", as in the Locker. A bare
+                                  // "+$150" read like a reward.
+                                  isMaxed ? 'MAX' : 'BUY \$${booster.cost}',
                                   style: const TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
@@ -379,6 +386,7 @@ class _BodegaModalState extends State<BodegaModal> {
                     ),
                   );
                 },
+              ),
               ),
             ),
             const SizedBox(height: 10),

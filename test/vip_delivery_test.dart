@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
@@ -201,7 +202,7 @@ void main() {
     });
 
     test('generateChunk prioritizes VIP drop zone when isVipActive is true', () {
-      final manager = WorldChunkManager();
+      final manager = WorldChunkManager(random: math.Random(1));
       var foundVipDropZone = false;
 
       for (int i = 0; i < 20; i++) {

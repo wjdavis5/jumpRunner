@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../game/models/courier_skin.dart';
+import 'key_hint.dart';
+import 'money.dart';
 
 /// Modal dialog presented when all carried packages are dropped (Game Over).
 class GameOverModal extends StatelessWidget {
@@ -7,8 +10,11 @@ class GameOverModal extends StatelessWidget {
     required this.distance,
     required this.tips,
     required this.isNewRecord,
+    this.personalBest = 0,
     required this.careerTips,
     required this.onRestart,
+    this.onReturnToDepot,
+    this.nextOutfit,
     this.completedContracts = 0,
     this.contractBonusTips = 0,
     this.deliveriesCompleted = 0,
@@ -51,7 +57,22 @@ class GameOverModal extends StatelessWidget {
   final int distance;
   final int tips;
   final bool isNewRecord;
+
+  /// The courier's best distance, this shift included. Shown beside the
+  /// distance when this shift fell short of it.
+  final int personalBest;
+
+  /// What the distance figure is labelled: a shift that fell short of the
+  /// record says what the record is, because "how close was that?" is the
+  /// question that starts the next shift.
+  String get distanceLabel => !isNewRecord && personalBest > distance
+      ? 'Distance \u00b7 best ${meters(personalBest)}'
+      : 'Distance';
   final int careerTips;
+
+  /// The outfit the courier is saving for, if any. The card shows how much
+  /// closer this shift brought it.
+  final CourierSkin? nextOutfit;
   final int completedContracts;
   final int contractBonusTips;
   final int deliveriesCompleted;
@@ -91,12 +112,35 @@ class GameOverModal extends StatelessWidget {
   final int securityShuttersCompleted;
   final VoidCallback onRestart;
 
+  /// Leaves for the title screen, where the Locker, Bodega and Daily Shift
+  /// live. Without it the only way to spend tips after a run was to start
+  /// another one and quit from its pause menu.
+  final VoidCallback? onReturnToDepot;
+
+  /// Card width on screens with room for it: wide enough that most badges
+  /// sit two to a row.
+  static const double maxCardWidth = 520.0;
+
+  /// Screens shorter than this get the compact header and spacing.
+  static const double compactBelowHeight = 430.0;
+
+  /// Height of the fade at the bottom of the badge list; matches the gap
+  /// under each badge row.
+  static const double _badgeFadeHeight = 12.0;
+
   @override
   Widget build(BuildContext context) {
+    // The card never grows past the screen: the badge list in the middle
+    // scrolls instead, so the restart button is always reachable.
+    final screen = MediaQuery.sizeOf(context);
+    // A phone held sideways has under 400 px of height: drop the subtitle and
+    // tighten the spacing there so the badge list keeps a usable window.
+    final compact = screen.height < compactBelowHeight;
     return Center(
       child: Container(
-        width: 440,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+        width: screen.width < maxCardWidth + 32 ? screen.width - 32 : maxCardWidth,
+        constraints: BoxConstraints(maxHeight: screen.height - 24),
+        padding: EdgeInsets.symmetric(horizontal: 24, vertical: compact ? 12 : 20),
         decoration: BoxDecoration(
           color: const Color(0xFF1C2833).withValues(alpha: 0.95),
           borderRadius: BorderRadius.circular(20),
@@ -121,16 +165,18 @@ class GameOverModal extends StatelessWidget {
                 letterSpacing: 1.2,
               ),
             ),
-            const SizedBox(height: 4),
-            const Text(
-              'Shift Concluded',
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
+            if (!compact) ...[
+              const SizedBox(height: 4),
+              const Text(
+                'Shift Concluded',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
+            ],
+            SizedBox(height: compact ? 8 : 16),
 
             if (isNewRecord)
               Container(
@@ -150,6 +196,31 @@ class GameOverModal extends StatelessWidget {
                 ),
               ),
 
+            // Every badge below lives in one scrolling, wrapping list. A strong
+            // run earns a dozen or more, which used to push the stats and the
+            // restart button off the bottom of the screen. The badge blocks
+            // keep their original indentation to keep this change small.
+            Flexible(
+              // Fade the bottom edge so a cut-off row reads as "more below".
+              // The fade only spans the gap under a row, so it is invisible
+              // when every badge fits.
+              child: ShaderMask(
+                blendMode: BlendMode.dstIn,
+                shaderCallback: (bounds) => LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: const [Colors.white, Colors.white, Colors.transparent],
+                  stops: [
+                    0.0,
+                    bounds.height <= _badgeFadeHeight ? 0.0 : 1.0 - (_badgeFadeHeight / bounds.height),
+                    1.0,
+                  ],
+                ).createShader(bounds),
+              child: _BadgeScroller(
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 8,
+                  children: [
             if (completedContracts > 0)
               Container(
                 key: const Key('game_over_contracts_badge'),
@@ -167,7 +238,7 @@ class GameOverModal extends StatelessWidget {
                     const SizedBox(width: 8),
                     Flexible(
                       child: Text(
-                        '$completedContracts CONTRACT${completedContracts > 1 ? 'S' : ''} (+\$$contractBonusTips BONUS)',
+                        '$completedContracts CONTRACT${completedContracts > 1 ? 'S' : ''} (+${dollars(contractBonusTips)} BONUS)',
                         style: const TextStyle(
                           color: Color(0xFF2ECC71),
                           fontWeight: FontWeight.bold,
@@ -1265,41 +1336,85 @@ class GameOverModal extends StatelessWidget {
                   ],
                 ),
               ),
+                  ],
+                ),
+              ),
+              ),
+            ),
 
             // Stats grid
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildStatItem('Distance', '$distance m', Icons.straighten),
-                _buildStatItem('Run Tips', '\$$tips', Icons.monetization_on),
-                _buildStatItem('Career Tips', '\$$careerTips', Icons.savings),
+                _buildStatItem(distanceLabel, meters(distance), Icons.straighten,
+                    labelKey: const Key('game_over_distance_label')),
+                _buildStatItem('Run Tips', dollars(tips), Icons.monetization_on),
+                _buildStatItem('Career Tips', dollars(careerTips), Icons.savings),
               ],
             ),
 
-            const SizedBox(height: 20),
+            if (nextOutfit != null) ...[
+              SizedBox(height: compact ? 8 : 12),
+              _buildOutfitGoal(nextOutfit!),
+            ],
 
-            // Restart Button
+            SizedBox(height: compact ? 12 : 20),
+
+            // Depot (title screen, where tips are spent) and Restart buttons
             SizedBox(
-              width: double.infinity,
               height: 48,
-              child: ElevatedButton.icon(
-                onPressed: onRestart,
-                icon: const Icon(Icons.replay, size: 20),
-                label: const Text(
-                  'START NEXT SHIFT',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.8,
+              child: Row(
+                children: [
+                  if (onReturnToDepot != null) ...[
+                    OutlinedButton.icon(
+                      key: const Key('game_over_depot_button'),
+                      onPressed: onReturnToDepot,
+                      icon: const Icon(Icons.storefront, size: 20),
+                      label: const Text(
+                        'DEPOT',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white70,
+                        minimumSize: const Size(0, 48),
+                        side: const BorderSide(color: Colors.white24, width: 1.5),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                  Expanded(
+                    child: SizedBox(
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        onPressed: onRestart,
+                        icon: const Icon(Icons.replay, size: 20),
+                        label: const KeyHintLabel(
+                          label: 'START NEXT SHIFT',
+                          keyLabel: 'SPACE',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF27AE60),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF27AE60),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
+                ],
               ),
             ),
           ],
@@ -1308,27 +1423,130 @@ class GameOverModal extends StatelessWidget {
     );
   }
 
-  Widget _buildStatItem(String label, String value, IconData icon) {
-    return Column(
-      children: [
-        Icon(icon, color: Colors.white54, size: 20),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
+  /// One of the three figures. Each takes a third of the row; a long figure
+  /// or label shrinks to its third instead of pushing the others off the card.
+  Widget _buildStatItem(String label, String value, IconData icon, {Key? labelKey}) {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Column(
+          children: [
+            Icon(icon, color: Colors.white54, size: 20),
+            const SizedBox(height: 4),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                value,
+                maxLines: 1,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                key: labelKey,
+                maxLines: 1,
+                style: const TextStyle(
+                  color: Colors.white54,
+                  fontSize: 11,
+                ),
+              ),
+            ),
+          ],
         ),
-        Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white54,
-            fontSize: 11,
+      ),
+    );
+  }
+}
+
+extension _OutfitGoal on GameOverModal {
+  /// A slim bar: how far the career tips have got toward the next outfit.
+  Widget _buildOutfitGoal(CourierSkin outfit) {
+    final ready = careerTips >= outfit.price;
+    final progress = outfit.price > 0 ? (careerTips / outfit.price).clamp(0.0, 1.0) : 1.0;
+    final accent = ready ? const Color(0xFF2ECC71) : const Color(0xFFF1C40F);
+    return Column(
+      key: const Key('game_over_outfit_goal'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'NEXT: ${outfit.name.toUpperCase()}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white54,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.6,
+                ),
+              ),
+            ),
+            Text(
+              outfitGoalText(outfit, careerTips),
+              key: const Key('game_over_outfit_goal_text'),
+              style: TextStyle(
+                color: ready ? accent : Colors.white70,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(3),
+          child: LinearProgressIndicator(
+            value: progress,
+            minHeight: 5,
+            backgroundColor: Colors.white12,
+            valueColor: AlwaysStoppedAnimation<Color>(accent),
           ),
         ),
       ],
+    );
+  }
+}
+
+/// The scrolling badge list, with a scrollbar that stays visible whenever
+/// there are more badges than fit. The fade alone could not say so when the
+/// list happened to end exactly between two rows.
+class _BadgeScroller extends StatefulWidget {
+  const _BadgeScroller({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_BadgeScroller> createState() => _BadgeScrollerState();
+}
+
+class _BadgeScrollerState extends State<_BadgeScroller> {
+  final ScrollController _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scrollbar(
+      key: const Key('game_over_badges_scrollbar'),
+      controller: _controller,
+      thumbVisibility: true,
+      child: SingleChildScrollView(
+        key: const Key('game_over_badges_scroll'),
+        controller: _controller,
+        child: widget.child,
+      ),
     );
   }
 }

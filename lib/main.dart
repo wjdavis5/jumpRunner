@@ -16,7 +16,10 @@ import 'ui/daily_shift_modal.dart';
 import 'ui/game_over_modal.dart';
 import 'ui/hud_overlay.dart';
 import 'ui/locker_modal.dart';
+import 'ui/modal_scrim.dart';
 import 'ui/pause_menu_modal.dart';
+import 'ui/resume_countdown.dart';
+import 'ui/throttled_listenable_builder.dart';
 import 'ui/title_screen.dart';
 
 /// The orientations this app supports (landscape only).
@@ -63,7 +66,8 @@ class CourierDashApp extends StatefulWidget {
   State<CourierDashApp> createState() => _CourierDashAppState();
 }
 
-class _CourierDashAppState extends State<CourierDashApp> {
+class _CourierDashAppState extends State<CourierDashApp>
+    with WidgetsBindingObserver {
   late final GameState _gameState;
   late final CourierGame _game;
 
@@ -72,12 +76,15 @@ class _CourierDashAppState extends State<CourierDashApp> {
   int _lastTips = 0;
   Set<RunBooster> _equippedBoosters = {};
   bool _isReduceFlash = false;
+  bool _isHapticsOn = true;
+  bool _isStartingRun = false;
 
   @override
   void initState() {
     super.initState();
     _gameState = GameState();
     _isReduceFlash = widget.storageService.isReduceFlash;
+    _isHapticsOn = widget.storageService.isHapticsEnabled;
     final equippedSkin =
         CourierSkin.findById(widget.storageService.equippedSkin);
     _game = CourierGame(
@@ -91,6 +98,61 @@ class _CourierDashAppState extends State<CourierDashApp> {
 
     _game.onRunConcluded = _handleRunConcluded;
     _game.onPauseRequested = _togglePause;
+    _game.onStartRequested = _startGame;
+    _game.onRestartRequested = _restartGame;
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _overlayRevision.dispose();
+    super.dispose();
+  }
+
+  /// Bumped on every `setState`.
+  ///
+  /// The game widget is built once and never rebuilt (see [_gameWidget]), so
+  /// on their own its overlays keep showing whatever they read when they were
+  /// first built: an outfit just bought still on sale, a mute button that
+  /// does not change. Each overlay listens to this instead.
+  final ValueNotifier<int> _overlayRevision = ValueNotifier<int>(0);
+
+  @override
+  void setState(VoidCallback fn) {
+    super.setState(fn);
+    _overlayRevision.value++;
+  }
+
+  /// Wraps every overlay so it rebuilds when [_overlayRevision] changes.
+  Map<String, OverlayWidgetBuilder<CourierGame>> _liveOverlays(
+    Map<String, OverlayWidgetBuilder<CourierGame>> builders,
+  ) {
+    return builders.map(
+      (name, build) => MapEntry(
+        name,
+        (context, game) => ValueListenableBuilder<int>(
+          valueListenable: _overlayRevision,
+          builder: (context, _, __) => build(context, game),
+        ),
+      ),
+    );
+  }
+
+  /// Leaving the app mid-run opens the pause menu and silences the music, so
+  /// the soundtrack does not play on behind another app and the courier is
+  /// not thrown straight back into traffic when the player returns.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      widget.audioController.resumeFromBackground();
+    } else {
+      _pauseGame();
+      // Leaving in the middle of the count puts the menu back up, so the
+      // shift does not restart while nobody is looking.
+      _cancelResumeCountdown();
+      widget.audioController.suspendForBackground();
+    }
   }
 
   void _handleToggleReduceFlash(bool reduce) async {
@@ -101,28 +163,56 @@ class _CourierDashAppState extends State<CourierDashApp> {
     _game.lightningComponent.reduceFlash = reduce;
   }
 
-  Future<void> _handleRunConcluded() async {
-    _lastDistance = _gameState.distanceMeters.floor();
-    _lastTips = _gameState.tips;
-    final bonusTips = _gameState.contractManager.totalBonusTips;
+  void _handleToggleHaptics(bool on) async {
+    setState(() {
+      _isHapticsOn = on;
+    });
+    _game.haptics.enabled = on;
+    // Turning it on answers with one buzz, so the switch is felt to work.
+    if (on) _game.haptics.hit();
+    await widget.storageService.setHapticsEnabled(on);
+  }
 
-    _isNewRecord = await widget.storageService.recordRun(
-      distance: _lastDistance,
-      tips: _lastTips + bonusTips,
+  /// Writes the current shift's distance, tips and contracts to the courier's
+  /// career record. Returns whether the distance is a new personal best.
+  ///
+  /// Everything is read from the run state before the first await, so the
+  /// caller is free to reset that state straight afterwards.
+  Future<bool> _bankShift() async {
+    final distance = _gameState.distanceMeters.floor();
+    final tips = _gameState.tips + _gameState.contractManager.totalBonusTips;
+    final contracts = _gameState.contractManager.completedCount;
+    final stuntCombo = _gameState.stuntStreak;
+    final stations = _gameState.subwayStationsInRun;
+
+    final isNewRecord = await widget.storageService.recordRun(
+      distance: distance,
+      tips: tips,
     );
 
-    final completed = _gameState.contractManager.completedCount;
-    if (completed > 0) {
-      await widget.storageService.recordCompletedContracts(completed);
+    if (contracts > 0) {
+      await widget.storageService.recordCompletedContracts(contracts);
     }
 
     // Evaluate lifetime achievements (contract specialist, big tipper)
     await _game.achievementManager.evaluateProgress(
-      distanceMeters: _lastDistance.toDouble(),
-      stuntCombo: _gameState.stuntMultiplier.round(),
+      distanceMeters: distance.toDouble(),
+      stuntCombo: stuntCombo,
       lifetimeContracts: widget.storageService.completedContracts,
-      lifetimeCareerTips: widget.storageService.careerTips,
+      // Lifetime earnings, not the balance: spending in the Locker must not
+      // push the Big Tipper trophy further away.
+      lifetimeCareerTips: widget.storageService.lifetimeTips,
+      subwayStationsInRun: stations,
+      lifetimeDeliveries: widget.storageService.lifetimeDeliveries,
+      dailyStars: widget.storageService.dailyStars,
     );
+    return isNewRecord;
+  }
+
+  Future<void> _handleRunConcluded() async {
+    _lastDistance = _gameState.distanceMeters.floor();
+    _lastTips = _gameState.tips;
+    _isNewRecord = await _bankShift();
 
     if (mounted) {
       setState(() {});
@@ -131,17 +221,27 @@ class _CourierDashAppState extends State<CourierDashApp> {
   }
 
   void _startGame([DailyShift? dailyShift]) async {
-    final boostersToApply = Set<RunBooster>.from(_equippedBoosters);
-    for (final booster in boostersToApply) {
-      await widget.storageService.consumeBooster(booster.id);
+    // A second press while boosters are still being consumed must not start
+    // (and charge for) the shift twice.
+    if (_isStartingRun) return;
+    _isStartingRun = true;
+    try {
+      final boostersToApply = Set<RunBooster>.from(_equippedBoosters);
+      for (final booster in boostersToApply) {
+        await widget.storageService.consumeBooster(booster.id);
+      }
+      _equippedBoosters = {};
+      _gameState.startRun(
+          dailyShift: dailyShift, equippedBoosters: boostersToApply);
+      // Set outright: a regular start must not inherit an earlier daily shift.
+      _game.dailyShift = dailyShift;
+      _game.restartRun(shift: dailyShift, equippedBoosters: boostersToApply);
+      _game.overlays.remove('TitleScreen');
+      _game.overlays.add('HUD');
+      if (mounted) setState(() {});
+    } finally {
+      _isStartingRun = false;
     }
-    _equippedBoosters = {};
-    _gameState.startRun(
-        dailyShift: dailyShift, equippedBoosters: boostersToApply);
-    _game.restartRun(shift: dailyShift, equippedBoosters: boostersToApply);
-    _game.overlays.remove('TitleScreen');
-    _game.overlays.add('HUD');
-    if (mounted) setState(() {});
   }
 
   void _openBodega() {
@@ -185,11 +285,30 @@ class _CourierDashAppState extends State<CourierDashApp> {
     }
   }
 
+  bool get _isCountingDown => _game.overlays.isActive('ResumeCountdown');
+
+  /// Swaps the pause menu for a short count. The shift stays on hold (and the
+  /// street stays frozen) until the count is done.
   void _resumeGame() {
+    if (_gameState.status != GameStatus.paused || _isCountingDown) return;
+    _game.overlays.remove('PauseMenu');
+    _game.overlays.add('ResumeCountdown');
+  }
+
+  void _finishResume() {
+    _game.overlays.remove('ResumeCountdown');
     if (_gameState.status == GameStatus.paused) {
       _gameState.resumeRun();
-      _game.overlays.remove('PauseMenu');
       widget.audioController.resumeDucking();
+    }
+  }
+
+  /// Abandons a count in progress and shows the pause menu again.
+  void _cancelResumeCountdown() {
+    if (!_isCountingDown) return;
+    _game.overlays.remove('ResumeCountdown');
+    if (_gameState.status == GameStatus.paused) {
+      _game.overlays.add('PauseMenu');
     }
   }
 
@@ -197,16 +316,86 @@ class _CourierDashAppState extends State<CourierDashApp> {
     if (_gameState.status == GameStatus.running) {
       _pauseGame();
     } else if (_gameState.status == GameStatus.paused) {
-      _resumeGame();
+      // P or Esc during the count means "not yet": back to the menu.
+      if (_isCountingDown) {
+        _cancelResumeCountdown();
+      } else {
+        _resumeGame();
+      }
+    } else {
+      // At the depot the same keys (P, Esc) back out of an open menu card.
+      _closeOpenMenuCard();
     }
   }
 
-  void _quitToTitle() {
+  bool get _isMenuCardOpen {
+    final overlays = _game.overlays;
+    return overlays.isActive('BodegaModal') ||
+        overlays.isActive('DailyShiftModal') ||
+        overlays.isActive('LockerModal') ||
+        overlays.isActive('AchievementsModal');
+  }
+
+  /// Android's back button, or the back swipe from the edge of the screen.
+  ///
+  /// Left to itself it closes the app, and during a shift that is a swipe a
+  /// thumb makes by accident: the shift and its tips were simply gone. It
+  /// now does what Esc does on a keyboard (closes a menu card, pauses,
+  /// resumes), leaves the results card for the depot, and only at the depot
+  /// itself, with nothing open, leaves the app.
+  void _handleSystemBack() {
+    switch (_gameState.status) {
+      case GameStatus.running:
+      case GameStatus.paused:
+        _togglePause();
+      case GameStatus.gameOver:
+        // Not during the crash beat, before the results card is up: there
+        // is nothing on screen yet for "back" to mean.
+        if (_game.overlays.isActive('GameOver')) _quitToTitle();
+      case GameStatus.idle:
+        if (_isMenuCardOpen) {
+          _closeOpenMenuCard();
+        } else if (!_isStartingRun) {
+          SystemNavigator.pop();
+        }
+    }
+  }
+
+  void _closeOpenMenuCard() {
+    final overlays = _game.overlays;
+    if (overlays.isActive('BodegaModal')) {
+      _closeBodega();
+    } else if (overlays.isActive('DailyShiftModal')) {
+      _closeDailyShift();
+    } else if (overlays.isActive('LockerModal')) {
+      _closeLocker();
+    } else if (overlays.isActive('AchievementsModal')) {
+      _closeAchievements();
+    }
+  }
+
+  /// Leaves the shift for the depot (title screen), from the pause menu or
+  /// from the results screen. The depot is where tips get spent, so the
+  /// results screen must be able to reach it too.
+  Future<void> _quitToTitle() async {
+    // Quitting from the pause menu abandons a live shift. Its distance and
+    // tips are banked first: the pause menu calls them "Tips Banked", and
+    // they used to be thrown away. A shift that ended on the results screen
+    // was already banked when it concluded.
+    final abandonsLiveShift = _gameState.status == GameStatus.paused ||
+        _gameState.status == GameStatus.running;
+    final banking = abandonsLiveShift ? _bankShift() : null;
+
     _game.overlays.remove('PauseMenu');
+    _game.overlays.remove('ResumeCountdown');
+    _game.overlays.remove('GameOver');
     _game.overlays.remove('HUD');
-    _gameState.status = GameStatus.idle;
-    _game.isRunning = false;
+    _game.returnToDepot();
     widget.audioController.resumeDucking();
+
+    // The title screen reads the career record as it builds, so it waits for
+    // the banking to land.
+    await banking;
     _game.overlays.add('TitleScreen');
   }
 
@@ -250,9 +439,17 @@ class _CourierDashAppState extends State<CourierDashApp> {
       title: 'Courier Dash',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark(),
-      home: Scaffold(
-        backgroundColor: Colors.black,
-        body: _gameWidget,
+      // Android's back button or back swipe is never left to close the app
+      // by itself: see [_handleSystemBack].
+      home: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _handleSystemBack();
+        },
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          body: _gameWidget,
+        ),
       ),
     );
   }
@@ -265,7 +462,7 @@ class _CourierDashAppState extends State<CourierDashApp> {
   late final GameWidget<CourierGame> _gameWidget = GameWidget<CourierGame>(
     game: _game,
     initialActiveOverlays: const ['TitleScreen'],
-    overlayBuilderMap: {
+    overlayBuilderMap: _liveOverlays({
       'TitleScreen': (context, game) => TitleScreen(
             highDistance: widget.storageService.highDistance,
             careerTips: widget.storageService.careerTips,
@@ -274,6 +471,7 @@ class _CourierDashAppState extends State<CourierDashApp> {
             totalAchievementsCount: _game.achievementManager.totalCount,
             dailyStars: widget.storageService.dailyStars,
             equippedBoosters: _equippedBoosters,
+            nextOutfit: CourierSkin.nextToUnlock(widget.storageService.unlockedSkins),
             onToggleMute: _toggleMute,
             onOpenLocker: _openLocker,
             onOpenBodega: _openBodega,
@@ -281,31 +479,46 @@ class _CourierDashAppState extends State<CourierDashApp> {
             onOpenDailyShift: _openDailyShift,
             onStartGame: _startGame,
           ),
-      'BodegaModal': (context, game) => BodegaModal(
-            storageService: widget.storageService,
-            equippedBoosters: _equippedBoosters,
-            onEquippedBoostersChanged: _handleEquippedBoostersChanged,
-            onClose: _closeBodega,
+      'BodegaModal': (context, game) => ModalScrim(
+            onDismiss: _closeBodega,
+            child: BodegaModal(
+              storageService: widget.storageService,
+              equippedBoosters: _equippedBoosters,
+              onEquippedBoostersChanged: _handleEquippedBoostersChanged,
+              onClose: _closeBodega,
+            ),
           ),
-      'DailyShiftModal': (context, game) => DailyShiftModal(
-            storageService: widget.storageService,
-            onStartDailyShift: _startDailyShift,
+      'DailyShiftModal': (context, game) => ModalScrim(
+            onDismiss: _closeDailyShift,
+            child: DailyShiftModal(
+              storageService: widget.storageService,
+              onStartDailyShift: _startDailyShift,
+              onClose: _closeDailyShift,
+            ),
           ),
-      'LockerModal': (context, game) => LockerModal(
-            careerTips: widget.storageService.careerTips,
-            unlockedSkins: widget.storageService.unlockedSkins,
-            equippedSkin: widget.storageService.equippedSkin,
-            onEquipSkin: _handleEquipSkin,
-            onUnlockSkin: _handleUnlockSkin,
-            onClose: _closeLocker,
+      'LockerModal': (context, game) => ModalScrim(
+            onDismiss: _closeLocker,
+            child: LockerModal(
+              careerTips: widget.storageService.careerTips,
+              unlockedSkins: widget.storageService.unlockedSkins,
+              equippedSkin: widget.storageService.equippedSkin,
+              onEquipSkin: _handleEquipSkin,
+              onUnlockSkin: _handleUnlockSkin,
+              onClose: _closeLocker,
+            ),
           ),
-      'AchievementsModal': (context, game) => AchievementsModal(
-            unlockedAchievementIds: widget.storageService.unlockedAchievements,
-            onClose: _closeAchievements,
+      'AchievementsModal': (context, game) => ModalScrim(
+            onDismiss: _closeAchievements,
+            child: AchievementsModal(
+              unlockedAchievementIds: widget.storageService.unlockedAchievements,
+              onClose: _closeAchievements,
+            ),
           ),
-      'HUD': (context, game) => AnimatedBuilder(
-            animation: _gameState,
-            builder: (context, _) => HUDOverlay(
+      // Not rebuilt on every frame: see [ThrottledListenableBuilder].
+      'HUD': (context, game) => ThrottledListenableBuilder(
+            key: const Key('hud_refresher'),
+            listenable: _gameState,
+            builder: (context) => HUDOverlay(
               gameState: _gameState,
               isMuted: widget.audioController.isMuted,
               onToggleMute: _toggleMute,
@@ -316,14 +529,19 @@ class _CourierDashAppState extends State<CourierDashApp> {
             gameState: _gameState,
             isReduceFlash: _isReduceFlash,
             onToggleReduceFlash: _handleToggleReduceFlash,
+            isHapticsOn: _isHapticsOn,
+            onToggleHaptics: _handleToggleHaptics,
             onResume: _resumeGame,
             onQuit: _quitToTitle,
           ),
+      'ResumeCountdown': (context, game) => ResumeCountdown(onDone: _finishResume),
       'GameOver': (context, game) => GameOverModal(
             distance: _lastDistance,
             tips: _lastTips,
             isNewRecord: _isNewRecord,
+            personalBest: widget.storageService.highDistance,
             careerTips: widget.storageService.careerTips,
+            nextOutfit: CourierSkin.nextToUnlock(widget.storageService.unlockedSkins),
             completedContracts: _gameState.contractManager.completedCount,
             contractBonusTips: _gameState.contractManager.totalBonusTips,
             deliveriesCompleted: _gameState.deliveriesInRun,
@@ -362,7 +580,8 @@ class _CourierDashAppState extends State<CourierDashApp> {
             busSheltersCompleted: _gameState.busSheltersVaultedInRun,
             securityShuttersCompleted: _gameState.shuttersReboundedInRun,
             onRestart: _restartGame,
+            onReturnToDepot: _quitToTitle,
           ),
-    },
+    }),
   );
 }

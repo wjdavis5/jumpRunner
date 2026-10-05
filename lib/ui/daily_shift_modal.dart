@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../game/models/daily_shift.dart';
 import '../services/storage_service.dart';
+import 'fit_to_screen.dart';
+import 'money.dart';
 
 /// Modal dialog presenting the current day's Daily Gig Shift challenge,
 /// active gameplay modifiers, distance target, bonus tips reward, and completion status.
@@ -10,11 +12,17 @@ class DailyShiftModal extends StatelessWidget {
     super.key,
     required this.storageService,
     required this.onStartDailyShift,
+    this.onClose,
     this.customDate,
   });
 
   final LocalStorageService storageService;
   final ValueChanged<DailyShift> onStartDailyShift;
+
+  /// Dismisses the card. The card is shown as a game overlay, not a route, so
+  /// the owner removes it; popping the Navigator here would pop the app's
+  /// only screen and leave a blank page.
+  final VoidCallback? onClose;
   final DateTime? customDate;
 
   @override
@@ -24,7 +32,7 @@ class DailyShiftModal extends StatelessWidget {
     final isCompleted = storageService.isDailyShiftCompleted(shift.dateString);
     final modifier = shift.modifier;
 
-    return Center(
+    return FitToScreen(
       child: Container(
         width: 480,
         margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -80,7 +88,8 @@ class DailyShiftModal extends StatelessWidget {
                     ],
                   ),
                   IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
+                    key: const Key('close_daily_shift_button'),
+                    onPressed: onClose,
                     icon: const Icon(Icons.close, color: Colors.white70),
                   ),
                 ],
@@ -180,7 +189,7 @@ class DailyShiftModal extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '+ \$${shift.completionBonusTips}',
+                            '+ ${dollars(shift.completionBonusTips)}',
                             style: const TextStyle(
                               color: Color(0xFFF1C40F),
                               fontSize: 16,
@@ -248,10 +257,7 @@ class DailyShiftModal extends StatelessWidget {
                   height: 50,
                   child: ElevatedButton.icon(
                     key: const Key('start_daily_shift_button'),
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      onStartDailyShift(shift);
-                    },
+                    onPressed: () => onStartDailyShift(shift),
                     icon: const Icon(Icons.flash_on, size: 24),
                     label: const Text(
                       'CLOCK IN FOR DAILY SHIFT',

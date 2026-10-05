@@ -258,6 +258,10 @@ void main() {
         spokenLine = line;
       });
 
+      // A seasoned courier: a novice's first glide shows the coaching hint
+      // in place of the speech bubble (see glide_coaching_test).
+      game.personalRecordDistance = CourierGame.leapCoachUntilRecordMeters;
+
       // Jump into air and deploy glider
       game.player.simulator.isGrounded = false;
       final deployed = game.player.deployGlide();

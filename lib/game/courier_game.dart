@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:flame/camera.dart';
 import 'package:flame/components.dart';
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
@@ -57,12 +58,16 @@ import 'components/subway_turnstile_component.dart';
 import 'logic/achievement_manager.dart';
 import 'logic/camera_juice_controller.dart';
 import 'logic/death_slowmo_controller.dart';
+import 'logic/game_haptics.dart';
 import 'logic/game_state.dart';
+import 'logic/input_hints.dart';
+import 'logic/qa_flags.dart';
 import 'logic/weather_controller.dart';
 import 'logic/world_chunk_manager.dart';
 import 'models/courier_skin.dart';
 import 'models/daily_shift.dart';
 import 'models/run_booster.dart';
+import '../ui/money.dart';
 
 /// Main Flame game loop for Courier Dash.
 ///
@@ -80,18 +85,20 @@ class CourierGame extends FlameGame
     DeathSlowmoController? deathSlowmoController,
     AchievementManager? achievementManager,
     LocalStorageService? storageService,
+    GameHaptics? haptics,
     int? personalRecordDistance,
     CourierSkin? initialSkin,
     Set<RunBooster>? initialBoosters,
     this.dailyShift,
   })  : gameState = gameState ?? GameState(),
         audio = audioController ?? GameAudioController(),
-        chunkManager = chunkManager ?? WorldChunkManager(),
+        chunkManager = chunkManager ?? WorldChunkManager(random: QaFlags.streetRandom),
         weatherController = weatherController ?? WeatherController(),
         cameraJuice = cameraJuiceController ?? CameraJuiceController(),
         deathSlowmo = deathSlowmoController ?? DeathSlowmoController(),
         achievementManager = achievementManager ?? AchievementManager(),
         storage = storageService,
+        haptics = haptics ?? GameHaptics(enabled: storageService?.isHapticsEnabled ?? true),
         personalRecordDistance = personalRecordDistance ?? storageService?.highDistance ?? 0,
         activeSkin = initialSkin ?? CourierSkin.standard,
         activeBoosters = initialBoosters ?? const {},
@@ -117,6 +124,50 @@ class CourierGame extends FlameGame
   /// Fixed virtual canvas resolution (16:9 widescreen).
   static final Vector2 virtualResolution = Vector2(960, 540);
 
+  /// The widest stretch of street the game will show: a 2.4:1 screen.
+  static const double maxVisibleWidth = 1296.0;
+
+  /// Width of the street in view, in the same units as [virtualResolution].
+  ///
+  /// 960 on a 16:9 screen. A wider phone sees further ahead rather than
+  /// getting black bars at the sides; the left edge and the courier stay
+  /// where they are. Screens narrower than 16:9 are letterboxed as before.
+  double visibleWidth = virtualResolution.x;
+
+  /// Street width shown on a screen of [screen] size.
+  static double visibleWidthFor(Vector2 screen) {
+    if (screen.x <= 0 || screen.y <= 0) return virtualResolution.x;
+    final width = virtualResolution.y * screen.x / screen.y;
+    return width.clamp(virtualResolution.x, maxVisibleWidth).roundToDouble();
+  }
+
+  @override
+  void onGameResize(Vector2 size) {
+    final width = visibleWidthFor(size);
+    if (width != visibleWidth) {
+      visibleWidth = width;
+      camera.viewport = FixedResolutionViewport(
+        resolution: Vector2(width, virtualResolution.y),
+      );
+      _applyVisibleWidth();
+    }
+    super.onGameResize(size);
+  }
+
+  bool _backdropReady = false;
+
+  /// Fits the backdrop layers and the resting camera to [visibleWidth].
+  void _applyVisibleWidth() {
+    if (_backdropReady) {
+      parallaxCity.viewWidth = visibleWidth;
+      rainComponent.size.x = visibleWidth;
+      lightningComponent.size.x = visibleWidth;
+    }
+    if (!deathSlowmo.isActive) {
+      camera.viewfinder.position = Vector2(visibleWidth / 2, cameraTargetY);
+    }
+  }
+
   /// Ground surface baseline Y coordinate in virtual coordinates.
   static const double groundY = 460.0;
 
@@ -128,6 +179,9 @@ class CourierGame extends FlameGame
   final DeathSlowmoController deathSlowmo;
   final AchievementManager achievementManager;
   final LocalStorageService? storage;
+
+  /// Vibration on hits, the end of a shift and milestones.
+  final GameHaptics haptics;
   DailyShift? dailyShift;
 
   int personalRecordDistance;
@@ -137,6 +191,32 @@ class CourierGame extends FlameGame
   bool hasRecordedDailyShiftSuccess = false;
   DeliveryDroneComponent? deliveryDrone;
   CoachHintComponent? firstRunCoach;
+
+  /// The "hold to leap" hint riding above the first van of a novice's shift.
+  CoachHintComponent? leapCoach;
+
+  /// A courier whose record is under this many meters still gets the leap
+  /// hint: they have barely met a van, if at all.
+  static const int leapCoachUntilRecordMeters = 400;
+
+  /// The hint floating over the courier the first time a novice's chute
+  /// opens. A press in mid-air opens it, often by accident, and nothing else
+  /// says what happened or how to come down.
+  CoachHintComponent? glideCoach;
+
+  /// How far above the courier's head a speech bubble starts.
+  static const double speechLift = 42.0;
+
+  /// The same while gliding: the open chute sits where the bubble would, so
+  /// the bubble starts above the canopy instead of on top of it.
+  static const double speechLiftGliding = 66.0;
+
+  bool _glideCoachShownThisRun = false;
+
+  /// The leap hint appears once its van is about to enter the screen.
+  static const double leapCoachLeadPixels = 40.0;
+
+  bool _leapCoachShownThisRun = false;
 
   int _wetHazardsCleared = 0;
 
@@ -196,8 +276,54 @@ class CourierGame extends FlameGame
   double cameraTargetY = 270.0;
   double _grindSparkTimer = 0.0;
 
+  /// The daily shift modifier in force for the current run, if any.
+  DailyModifier? get _dailyModifier => gameState.activeDailyShift?.modifier;
+
+  /// Rain held for the whole of a Rainy Rush shift.
+  static const double rainyRushIntensity = 0.8;
+
+  /// Rainy Rush promises "1.2x courier speed".
+  static const double rainyRushSpeedMultiplier = 1.2;
+
+  /// Point in the day cycle used to light a Neon Midnight shift: deep night.
+  static const double neonMidnightLightingMeters = 3200.0;
+
   VoidCallback? onRunConcluded;
   VoidCallback? onPauseRequested;
+
+  /// Fired when a keyboard player confirms on the bare title screen.
+  VoidCallback? onStartRequested;
+
+  /// Fired when a keyboard player confirms on the results screen.
+  VoidCallback? onRestartRequested;
+
+  /// Seconds the results screen ignores keyboard confirm after it appears, so
+  /// jump mashing at the moment of the crash cannot skip it.
+  static const double restartInputLockout = 0.6;
+
+  double _resultsScreenSeconds = 0.0;
+
+  /// Camera framing at the moment the death beat began. The beat eases from
+  /// here, so the camera of a fast or airborne courier does not jump on the
+  /// fatal hit.
+  double _deathStartZoom = 1.0;
+  final Vector2 _deathStartCenter = Vector2(
+    virtualResolution.x / 2,
+    virtualResolution.y / 2,
+  );
+
+  /// Whether Space / Enter should restart from the results screen.
+  bool get canRestartFromKeyboard =>
+      gameState.status == GameStatus.gameOver &&
+      overlays.isActive('GameOver') &&
+      _resultsScreenSeconds >= restartInputLockout;
+
+  /// Whether Space / Enter should start a shift: only on the bare title
+  /// screen, never while a modal (locker, bodega, ...) is stacked on top.
+  bool get canStartFromKeyboard =>
+      gameState.status == GameStatus.idle &&
+      overlays.activeOverlays.length == 1 &&
+      overlays.isActive('TitleScreen');
 
   /// Triggers impact screen trauma shake.
   void triggerScreenShake([double trauma = 0.65]) {
@@ -266,7 +392,10 @@ class CourierGame extends FlameGame
   Future<void> onLoad() async {
     await super.onLoad();
 
-    parallaxCity = ParallaxCityComponent(size: virtualResolution);
+    // The skyline sits below everything; a subway station's wall (see
+    // [SubwayStationComponent.wallPriority]) goes between it and the street.
+    parallaxCity = ParallaxCityComponent(size: virtualResolution)
+      ..priority = SubwayStationComponent.wallPriority - 1;
     world.add(parallaxCity);
 
     rainComponent = RainComponent(size: virtualResolution);
@@ -280,6 +409,8 @@ class CourierGame extends FlameGame
         triggerScreenShake(0.18);
       },
     );
+    _backdropReady = true;
+    _applyVisibleWidth();
     world.add(lightningComponent);
 
     player = CourierPlayer(
@@ -305,7 +436,13 @@ class CourierGame extends FlameGame
         audio.playCourierBark(CourierBarkType.damage);
         spawnImpact(player.position + (player.size / 2));
         triggerScreenShake(0.65);
-        gameState.applyHazardDamage();
+        final wasRunning = gameState.status == GameStatus.running;
+        final stillRunning = gameState.applyHazardDamage();
+        if (stillRunning) {
+          haptics.hit();
+        } else if (wasRunning) {
+          haptics.shiftOver();
+        }
       },
       onRailOllie: _handleRailOllie,
       checkCanVault: _canVaultObstacleAhead,
@@ -328,12 +465,20 @@ class CourierGame extends FlameGame
       } else if (type == CourierBarkType.glide) {
         borderColor = const Color(0xFFFF9F43);
       }
+      // The glide hint already says what is going on; a second bubble in the
+      // same spot would only cover it.
+      final glideHintIsUp = glideCoach != null && !glideCoach!.isDismissing;
+      if (type == CourierBarkType.glide && glideHintIsUp) return;
       addEffect(
         SpeechBubbleComponent(
           text: line,
-          position: Vector2(player.position.x - 10.0, player.position.y - 42.0),
+          position: Vector2(
+            player.position.x - 10.0,
+            player.position.y - (player.isGliding ? speechLiftGliding : speechLift),
+          ),
           borderColor: borderColor,
           textColor: textColor,
+          speaker: player,
         ),
       );
     });
@@ -358,7 +503,8 @@ class CourierGame extends FlameGame
 
     gameState.onMilestone = (event) {
       audio.playMilestone();
-      spawnConfetti(Vector2(virtualResolution.x / 2, 100));
+      haptics.milestone();
+      spawnConfetti(Vector2(visibleWidth / 2, 100));
       spawnConfetti(Vector2(player.position.x + 40, groundY - 120), count: 20);
     };
 
@@ -375,8 +521,14 @@ class CourierGame extends FlameGame
 
     gameState.onGameOver = () {
       isRunning = false;
+      // The street stops with the courier: once the run is over nothing
+      // scrolls, so the sidewalk must not keep sliding under frozen props.
+      parallaxCity.speedMultiplier = 0.0;
+      player.knockOut();
       // Kick off the slow-motion death beat; the game-over modal appears
       // when _updateDeathSlowmo finishes easing the camera onto the courier.
+      _deathStartZoom = cameraJuice.currentZoom;
+      _deathStartCenter.setValues(visibleWidth / 2, cameraTargetY);
       deathSlowmo.begin();
       triggerScreenShake(0.35);
     };
@@ -397,8 +549,8 @@ class CourierGame extends FlameGame
     if (dailyShift != null || activeBoosters.isNotEmpty) {
       gameState.startRun(dailyShift: dailyShift, equippedBoosters: activeBoosters);
       if (dailyShift?.modifier == DailyModifier.rainyRush) {
-        weatherController.rainIntensity = 0.8;
-        rainComponent.rainIntensity = 0.8;
+        weatherController.setManualIntensity(rainyRushIntensity);
+        rainComponent.rainIntensity = rainyRushIntensity;
       }
       player.isBoosted = gameState.isEnergyBoostActive;
     }
@@ -414,6 +566,7 @@ class CourierGame extends FlameGame
       groundY: groundY,
       distanceMeters: gameState.distanceMeters,
       isVipActive: gameState.isVipMissionActive,
+      heavySkateTraffic: _dailyModifier == DailyModifier.skateCommute,
     );
 
     for (final o in chunk.obstacles) {
@@ -424,6 +577,7 @@ class CourierGame extends FlameGame
       );
       activeObstacles.add(obsComp);
       world.add(obsComp);
+      if (o.type == ObstacleType.van) _coachLeapOver(obsComp);
     }
 
     for (final p in chunk.pickups) {
@@ -897,14 +1051,29 @@ class CourierGame extends FlameGame
     }
   }
 
+  /// Clears the finished or abandoned shift off the street and parks the game
+  /// behind the title screen, looking as it does on first launch.
+  void returnToDepot() {
+    dailyShift = null;
+    restartRun();
+    isRunning = false;
+    gameState.status = GameStatus.idle;
+    firstRunCoach?.removeFromParent();
+    firstRunCoach = null;
+    _clearLeapCoach();
+    parallaxCity.speedMultiplier = 1.0;
+  }
+
   /// Resets the runner for the next shift.
+  ///
+  /// A daily [shift] carries over to quick restarts so it can be retried.
+  /// Boosters do not: they are single-run supplies, so a restart starts with
+  /// none unless the caller hands over a fresh set.
   void restartRun({DailyShift? shift, Set<RunBooster>? equippedBoosters}) {
     if (shift != null) {
       dailyShift = shift;
     }
-    if (equippedBoosters != null) {
-      activeBoosters = equippedBoosters;
-    }
+    activeBoosters = equippedBoosters ?? const {};
 
     for (final o in activeObstacles.toList()) {
       o.removeFromParent();
@@ -1211,10 +1380,11 @@ class CourierGame extends FlameGame
     rainComponent.rainIntensity = 0.0;
     lightningComponent.reset();
     lightningComponent.reduceFlash = storage?.isReduceFlash ?? false;
+    haptics.enabled = storage?.isHapticsEnabled ?? haptics.enabled;
     audio.updateWeather(0.0);
     cameraJuice.reset();
     deathSlowmo.reset();
-    final baseCenter = Vector2(virtualResolution.x / 2, virtualResolution.y / 2);
+    final baseCenter = Vector2(visibleWidth / 2, virtualResolution.y / 2);
     camera.viewfinder.position = baseCenter;
     camera.viewfinder.zoom = 1.0;
     camera.viewfinder.angle = 0.0;
@@ -1224,10 +1394,17 @@ class CourierGame extends FlameGame
 
     hasRecordedDailyShiftSuccess = false;
     gameState.startRun(dailyShift: dailyShift, equippedBoosters: activeBoosters);
+    // QA builds only (see QaFlags): start part-way into the shift.
+    if (QaFlags.forceSubway) chunkManager.subwayStationChance = 1.0;
+    if (QaFlags.any && QaFlags.effectiveStartMeters > 0) {
+      gameState.distanceMeters = QaFlags.effectiveStartMeters.toDouble();
+    }
     if (dailyShift?.modifier == DailyModifier.rainyRush) {
-      weatherController.rainIntensity = 0.8;
-      rainComponent.rainIntensity = 0.8;
-      lightningComponent.rainIntensity = 0.8;
+      // Forced for the whole shift. Assigning the intensity alone lasted one
+      // frame: the weather schedule set it back to dry on the next update.
+      weatherController.setManualIntensity(rainyRushIntensity);
+      rainComponent.rainIntensity = rainyRushIntensity;
+      lightningComponent.rainIntensity = rainyRushIntensity;
       lightningComponent.isRaining = true;
     }
     player.position = Vector2(120.0, groundY - player.size.y);
@@ -1235,16 +1412,65 @@ class CourierGame extends FlameGame
     player.simulator.verticalVelocity = 0.0;
     player.simulator.isGrounded = true;
     player.state = CourierState.running;
+    player.resetForRun();
     player.isBoosted = gameState.isEnergyBoostActive;
 
     isRunning = true;
+    _clearLeapCoach();
     _spawnChunk();
     _refreshFirstRunCoach();
     audio.startMusic();
   }
 
-  /// Shows the tap-to-leap coaching hint for brand-new couriers whose
-  /// personal record is still zero, anchored above the opening hazard.
+  void _clearLeapCoach() {
+    leapCoach?.removeFromParent();
+    leapCoach = null;
+    _leapCoachShownThisRun = false;
+    glideCoach?.removeFromParent();
+    glideCoach = null;
+    _glideCoachShownThisRun = false;
+  }
+
+  /// Explains the chute the first time it opens in a novice's shift.
+  void _coachGlide() {
+    if (_glideCoachShownThisRun) return;
+    if (personalRecordDistance >= leapCoachUntilRecordMeters) return;
+    _glideCoachShownThisRun = true;
+
+    final hint = CoachHintComponent(
+      text: CoachText.glide(keyboard: expectsKeyboard),
+      position: player.position.clone(),
+      follow: player,
+      hoverAbove: 46.0,
+      maxX: visibleWidth - 16.0,
+      dismissWhen: () => !player.isGliding,
+    );
+    glideCoach = hint;
+    world.add(hint);
+  }
+
+  /// Teaches the held jump at the first van a novice courier meets. A tap
+  /// only clears scooters and dogs, and nothing on the street says so.
+  void _coachLeapOver(ObstacleComponent van) {
+    if (_leapCoachShownThisRun) return;
+    if (personalRecordDistance >= leapCoachUntilRecordMeters) return;
+    _leapCoachShownThisRun = true;
+
+    final hint = CoachHintComponent(
+      text: CoachText.leap(keyboard: expectsKeyboard),
+      position: Vector2(visibleWidth, groundY - 175.0),
+      follow: van,
+      dismissBehindX: player.position.x,
+      showWithinX: visibleWidth + leapCoachLeadPixels,
+      maxX: visibleWidth - 16.0,
+    );
+    leapCoach = hint;
+    world.add(hint);
+  }
+
+  /// Shows the tap-to-hop coaching hint for brand-new couriers whose
+  /// personal record is still zero, riding above the opening hazard. The
+  /// warm-up only serves hazards a quick tap clears, so that is what it says.
   void _refreshFirstRunCoach() {
     firstRunCoach?.removeFromParent();
     firstRunCoach = null;
@@ -1261,8 +1487,11 @@ class CourierGame extends FlameGame
         ? firstObstacle.position.x + firstObstacle.size.x / 2 - 100.0
         : player.position.x + 280.0;
     final hint = CoachHintComponent(
-      text: 'TAP & HOLD TO LEAP!',
-      position: Vector2(hintX.clamp(140.0, virtualResolution.x - 240.0), groundY - 175.0),
+      text: CoachText.hop(keyboard: expectsKeyboard),
+      position: Vector2(hintX.clamp(140.0, visibleWidth - 240.0), groundY - 175.0),
+      follow: firstObstacle,
+      dismissBehindX: player.position.x,
+      maxX: visibleWidth - 16.0,
     );
     firstRunCoach = hint;
     world.add(hint);
@@ -1274,27 +1503,86 @@ class CourierGame extends FlameGame
     if (!deathSlowmo.isActive) return;
 
     final focusX = (player.position.x + player.size.x / 2)
-        .clamp(200.0, virtualResolution.x - 200.0)
+        .clamp(200.0, visibleWidth - 200.0)
         .toDouble();
     final focus = Vector2(focusX, player.position.y - 30.0);
     final t = deathSlowmo.progress;
+    final zoom = deathSlowmo.currentZoom(_deathStartZoom);
+    // Keep the zoomed view inside the street. The backdrop is only painted a
+    // little past the virtual resolution, so panning freely toward a courier
+    // near the left edge showed a black void beside and below the scene.
+    final targetX = _centerWithinStreet(focus.x, visibleWidth, zoom);
+    final targetY = _centerWithinStreet(focus.y, virtualResolution.y, zoom);
+    // The impact shake rides on top of the eased path. It runs in real time
+    // rather than slow motion, so the hit still lands hard.
+    cameraJuice.updateShake(dt);
     camera.viewfinder.position = Vector2(
-      virtualResolution.x / 2 + (focus.x - virtualResolution.x / 2) * t,
-      virtualResolution.y / 2 + (focus.y - virtualResolution.y / 2) * t,
+      _deathStartCenter.x +
+          (targetX - _deathStartCenter.x) * t +
+          cameraJuice.shakeOffset.x,
+      _deathStartCenter.y +
+          (targetY - _deathStartCenter.y) * t +
+          cameraJuice.shakeOffset.y,
     );
-    camera.viewfinder.zoom = deathSlowmo.currentZoom(1.0);
+    camera.viewfinder.zoom = zoom;
+    camera.viewfinder.angle = cameraJuice.shakeAngle;
 
     if (deathSlowmo.update(dt)) {
       cameraJuice.reset();
-      camera.viewfinder.position = Vector2(virtualResolution.x / 2, virtualResolution.y / 2);
+      camera.viewfinder.position = Vector2(visibleWidth / 2, virtualResolution.y / 2);
       camera.viewfinder.zoom = 1.0;
       camera.viewfinder.angle = 0.0;
       onRunConcluded?.call();
     }
   }
 
+  /// The camera centre closest to [center] whose view, [extent] wide at
+  /// [zoom], stays on the street. A view wider than the street is centred.
+  static double _centerWithinStreet(double center, double extent, double zoom) {
+    final halfView = extent / (2 * zoom);
+    if (halfView * 2 >= extent) return extent / 2;
+    return center.clamp(halfView, extent - halfView).toDouble();
+  }
+
+  /// The most time one frame may simulate. A longer frame (a hitch while the
+  /// browser decodes something, a slow phone, a stalled tab) is cut down to
+  /// this: the street holds still for the rest of the stall instead of
+  /// lurching forward by a distance nobody could have reacted to.
+  double maxFrameStep = 0.1;
+
+  /// The longest single simulation step: one frame at 60 frames a second,
+  /// which is what the jump was tuned at. A longer frame is run as several
+  /// equal steps, so hazards are checked for collision along the way rather
+  /// than being moved past the courier in one jump, and a leap is the same
+  /// height on a phone managing 20 or 30 frames a second as on one managing
+  /// 60. (Stepped whole, a held leap at 20 frames a second peaked at 138 px
+  /// against 179 px: the hold thrust is applied a frame at a time.)
+  ///
+  /// Measured before leaving this alone: letting steps run to 1/48 s would
+  /// save one step a frame between 48 and 60 frames a second, about 5% of
+  /// the frame, and widen the spread in leap height from 6% to 9%, because
+  /// the hold thrust is cut off on a step boundary. Not a good trade.
+  static const double maxSubStep = 1.0 / 60.0;
+
   @override
+  // Each step below calls FlameGame.update; the lint cannot see through the
+  // loop.
+  // ignore: must_call_super
   void update(double dt) {
+    if (dt > maxFrameStep) dt = maxFrameStep;
+    final steps = dt > maxSubStep ? (dt / maxSubStep - 1e-9).ceil() : 1;
+    final stepDt = dt / steps;
+    for (var i = 0; i < steps; i++) {
+      _step(stepDt);
+    }
+  }
+
+  /// One simulation step of [dt] seconds.
+  void _step(double dt) {
+    // A paused shift is a frozen frame. Skipping the component tree keeps the
+    // skyline and sidewalk from scrolling on under a world that has stopped.
+    if (gameState.status == GameStatus.paused) return;
+
     final effectiveDt = deathSlowmo.isActive ? dt * deathSlowmo.timeScale : dt;
     _isUpdatingTree = true;
     try {
@@ -1303,9 +1591,16 @@ class CourierGame extends FlameGame
       _isUpdatingTree = false;
     }
     _flushPendingEffects();
+    _resultsScreenSeconds =
+        overlays.isActive('GameOver') ? _resultsScreenSeconds + dt : 0.0;
     if (!isRunning || gameState.status != GameStatus.running) {
       _updateDeathSlowmo(dt);
       return;
+    }
+
+    // QA builds only (see QaFlags): the shift cannot be lost.
+    if (QaFlags.immortal && gameState.packages < gameState.maxPackages) {
+      gameState.packages = gameState.maxPackages;
     }
 
     // 0. Update active energy drink buff, drone assist, celebration, and stunt combo timers
@@ -1353,7 +1648,8 @@ class CourierGame extends FlameGame
         (gameState.isHydroplaneActive ? 1.15 : 1.0) *
         (player.isGrinding ? 1.20 : 1.0) *
         (player.isVaulting ? 1.25 : 1.0) *
-        (player.isDrafting ? 1.20 : 1.0);
+        (player.isDrafting ? 1.20 : 1.0) *
+        (_dailyModifier == DailyModifier.rainyRush ? rainyRushSpeedMultiplier : 1.0);
     currentSpeed = chunkManager.calculateSpeed(gameState.distanceMeters) * speedMultiplier;
     audio.updateSpeed(currentSpeed);
 
@@ -1366,6 +1662,8 @@ class CourierGame extends FlameGame
 
     // 2a. Evaluate distance achievements at key milestones
     if ((gameState.distanceMeters >= 500.0 && !achievementManager.isUnlocked('first_delivery')) ||
+        (gameState.distanceMeters >= AchievementManager.longHaulMeters &&
+            !achievementManager.isUnlocked('long_haul')) ||
         (gameState.distanceMeters >= 2500.0 && !achievementManager.isUnlocked('shift_veteran'))) {
       _evaluateAchievements();
     }
@@ -1401,7 +1699,11 @@ class CourierGame extends FlameGame
     // 3. Update parallax city velocity & dynamic environment lighting
     parallaxCity.speedMultiplier = currentSpeed / 200.0;
     parallaxCity.updateLighting(
-      gameState.distanceMeters,
+      // Neon Midnight is night from the first metre; other shifts follow the
+      // distance-driven day cycle.
+      _dailyModifier == DailyModifier.nightDash
+          ? neonMidnightLightingMeters
+          : gameState.distanceMeters,
       dt,
       weatherController.rainIntensity,
       lightningComponent.currentSpecularBoost,
@@ -1414,7 +1716,7 @@ class CourierGame extends FlameGame
         : (virtualResolution.y / 2);
     cameraTargetY += (targetCameraY - cameraTargetY) * (3.0 * dt).clamp(0.0, 1.0);
     camera.viewfinder.position = Vector2(
-      (virtualResolution.x / 2) + cameraJuice.shakeOffset.x,
+      (visibleWidth / 2) + cameraJuice.shakeOffset.x,
       cameraTargetY + cameraJuice.shakeOffset.y,
     );
     camera.viewfinder.zoom = cameraJuice.currentZoom;
@@ -1426,6 +1728,7 @@ class CourierGame extends FlameGame
 
     for (final o in activeObstacles) {
       o.position.x -= scrollDelta;
+      o.streetSpeed = currentSpeed;
     }
     for (final p in activePickups) {
       p.position.x -= scrollDelta;
@@ -1444,6 +1747,9 @@ class CourierGame extends FlameGame
     }
     for (final sv in activeSteamVents) {
       sv.position.x -= scrollDelta;
+    }
+    for (final st in activeSubwayStations) {
+      st.position.x -= scrollDelta;
     }
     for (final c in activeCranes) {
       c.position.x -= scrollDelta;
@@ -1555,15 +1861,19 @@ class CourierGame extends FlameGame
       triggerScreenShake(0.4);
       addEffect(
         FloatingTextComponent(
-          text: 'DAILY SHIFT COMPLETED! +\$${gameState.activeDailyShift!.completionBonusTips}',
+          text: 'DAILY SHIFT COMPLETED! +${dollars(gameState.activeDailyShift!.completionBonusTips)}',
           position: Vector2(player.position.x - 20, player.position.y - 40),
           color: const Color(0xFFF1C40F),
         ),
       );
-      spawnConfetti(Vector2(virtualResolution.x / 2, 80), count: 30);
+      spawnConfetti(Vector2(visibleWidth / 2, 80), count: 30);
+      // Storage records the day and the star only. The bonus itself is
+      // already in this shift's tips (GameState adds it at the goal line) and
+      // is banked with them when the shift ends; handing it over here as well
+      // paid it twice.
       storage?.completeDailyShift(
         dateString: gameState.activeDailyShift!.dateString,
-        bonusTips: gameState.activeDailyShift!.completionBonusTips,
+        bonusTips: 0,
       );
     }
 
@@ -1759,6 +2069,7 @@ class CourierGame extends FlameGame
 
             audio.playCourierBark(CourierBarkType.stunt, line: 'VIP delivery secured!');
             storage?.recordDeliveries(1);
+            _evaluateAchievements();
           }
         } else {
           final event = gameState.recordDoorstepDelivery(
@@ -1800,6 +2111,7 @@ class CourierGame extends FlameGame
             }
 
             storage?.recordDeliveries(1);
+            _evaluateAchievements();
           }
         }
       }
@@ -1857,6 +2169,8 @@ class CourierGame extends FlameGame
               color: const Color(0xFF00E5FF),
             ),
           );
+          // The Straphanger trophy.
+          _evaluateAchievements();
         }
       }
     }
@@ -2530,7 +2844,7 @@ class CourierGame extends FlameGame
     }
 
     // 7. Spawn next procedural chunk when horizon approaches
-    if (nextChunkX <= virtualResolution.x + 480.0) {
+    if (nextChunkX <= math.max(virtualResolution.x + 480.0, visibleWidth + 200.0)) {
       _spawnChunk();
     }
 
@@ -2658,6 +2972,7 @@ class CourierGame extends FlameGame
   }
 
   void _handleGlideStarted() {
+    _coachGlide();
     audio.playJump();
     audio.playCourierBark(CourierBarkType.glide);
     triggerScreenShake(0.10);
@@ -3551,10 +3866,16 @@ class CourierGame extends FlameGame
   void _evaluateAchievements() {
     achievementManager.evaluateProgress(
       distanceMeters: gameState.distanceMeters,
-      stuntCombo: gameState.stuntMultiplier.round(),
+      // The streak length, not the tip multiplier: the multiplier tops out at
+      // 2.5x, so a "4x combo" measured on it could never be reached.
+      stuntCombo: gameState.stuntStreak,
       lifetimeContracts: gameState.contractManager.completedCount,
       lifetimeCareerTips: gameState.tips + gameState.contractManager.totalBonusTips,
       wetHazardsCleared: _wetHazardsCleared,
+      subwayStationsInRun: gameState.subwayStationsInRun,
+      // The saved career count already includes this shift's deliveries.
+      lifetimeDeliveries: storage?.lifetimeDeliveries ?? gameState.deliveriesInRun,
+      dailyStars: storage?.dailyStars ?? 0,
     );
   }
 
@@ -3579,31 +3900,34 @@ class CourierGame extends FlameGame
     );
 
     // Horizon celebratory confetti shower
-    spawnConfetti(Vector2(virtualResolution.x / 2, 80), count: 25);
+    spawnConfetti(Vector2(visibleWidth / 2, 80), count: 25);
+  }
+
+  /// Routes a jump press (tap or key) to the courier while a run is live.
+  /// Any press also dismisses the first-run coaching hint, keyboard included.
+  void _pressJump() {
+    firstRunCoach?.dismiss();
+    if (!isRunning || gameState.status != GameStatus.running) return;
+    final jumpMult = gameState.isCaffeineSurgeActive ? 1.10 : 1.0;
+    player.pressJump(impulseMultiplier: jumpMult);
   }
 
   @override
   void onTapDown(TapDownEvent event) {
     super.onTapDown(event);
-    firstRunCoach?.dismiss();
-    if (isRunning && gameState.status == GameStatus.running) {
-      final jumpMult = gameState.isCaffeineSurgeActive ? 1.10 : 1.0;
-      if (!player.jump(impulseMultiplier: jumpMult)) {
-        player.toggleGlide();
-      }
-    }
+    _pressJump();
   }
 
   @override
   void onTapUp(TapUpEvent event) {
     super.onTapUp(event);
-    player.stopJump();
+    player.releaseJump();
   }
 
   @override
   void onTapCancel(TapCancelEvent event) {
     super.onTapCancel(event);
-    player.stopJump();
+    player.releaseJump();
   }
 
   @override
@@ -3619,21 +3943,33 @@ class CourierGame extends FlameGame
       return KeyEventResult.handled;
     }
 
+    // Space / Enter double as "confirm" on the title and results screens, so a
+    // keyboard player never has to reach for the mouse between runs.
+    final isConfirmKey = event.logicalKey == LogicalKeyboardKey.space ||
+        event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.numpadEnter;
+
+    if (isConfirmKey && event is KeyDownEvent) {
+      if (canRestartFromKeyboard) {
+        onRestartRequested?.call();
+        return KeyEventResult.handled;
+      }
+      if (canStartFromKeyboard) {
+        onStartRequested?.call();
+        return KeyEventResult.handled;
+      }
+    }
+
     final isJumpKey = event.logicalKey == LogicalKeyboardKey.space ||
         event.logicalKey == LogicalKeyboardKey.arrowUp ||
         event.logicalKey == LogicalKeyboardKey.keyW;
 
     if (isJumpKey) {
       if (event is KeyDownEvent) {
-        if (isRunning && gameState.status == GameStatus.running) {
-          final jumpMult = gameState.isCaffeineSurgeActive ? 1.10 : 1.0;
-          if (!player.jump(impulseMultiplier: jumpMult)) {
-            player.toggleGlide();
-          }
-        }
+        _pressJump();
         return KeyEventResult.handled;
       } else if (event is KeyUpEvent) {
-        player.stopJump();
+        player.releaseJump();
         return KeyEventResult.handled;
       }
     }

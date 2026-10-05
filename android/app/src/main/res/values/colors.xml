@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shown while the engine starts. Matches the game's dark backdrop so the
+         app does not flash white before the first frame. -->
+    <color name="launch_background">#10151C</color>
+</resources>

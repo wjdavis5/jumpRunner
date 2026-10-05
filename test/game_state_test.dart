@@ -55,7 +55,7 @@ void main() {
       expect(state.packages, equals(3));
     });
 
-    test(r'Shift milestone bonus (AE2): reaching 500m with full 3 packages awards $50 tip bonus without exceeding 3', () {
+    test(r'Shift milestone bonus (AE2): reaching 500m with full 3 packages awards $250 tip bonus without exceeding 3', () {
       final state = GameState()..startRun();
       expect(state.packages, equals(3));
       final initialTips = state.tips;
@@ -68,9 +68,9 @@ void main() {
       expect(milestoneEvent, isNotNull);
       expect(milestoneEvent!.milestoneIndex, equals(1));
       expect(milestoneEvent!.restoredPackage, isFalse);
-      expect(milestoneEvent!.bonusTips, equals(50));
+      expect(milestoneEvent!.bonusTips, equals(250));
       expect(state.packages, equals(3));
-      expect(state.tips, equals(initialTips + 50));
+      expect(state.tips, equals(initialTips + 250));
     });
 
     test('Coin pickups add tip amounts', () {

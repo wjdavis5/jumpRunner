@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart' hide Image;
@@ -305,7 +306,7 @@ void main() {
     });
 
     test('WorldChunkManager generates wind tunnels after 160m', () {
-      final manager = WorldChunkManager();
+      final manager = WorldChunkManager(random: math.Random(1));
       var generatedTunnel = false;
 
       // Seed chunks past 160m to verify generation

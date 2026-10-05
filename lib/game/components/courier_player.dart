@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
@@ -7,6 +9,7 @@ import 'package:flutter/material.dart';
 import '../components/crane_swing_component.dart';
 import '../components/catenary_zipline_component.dart';
 import '../logic/jump_physics.dart';
+import '../logic/outfit_tailor.dart';
 import '../models/courier_skin.dart';
 
 /// Courier avatar state machine enum.
@@ -70,6 +73,104 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   /// Updates the cosmetic outfit worn by the courier.
   void setSkin(CourierSkin newSkin) {
     skin = newSkin;
+    _outfitReady = _tailorOutfit();
+  }
+
+  /// Recoloured copies of the courier art for the equipped outfit, keyed by
+  /// the sprite each one replaces. Empty for the standard uniform, and for
+  /// the few milliseconds the recolouring takes after an outfit change.
+  ///
+  /// Outfit colours used to reach only the vector fallback drawing, so with
+  /// the real sprites loaded a skin bought in the Locker changed nothing on
+  /// screen.
+  final Map<Sprite, Sprite> _dressed = {};
+  int _tailoringJob = 0;
+  Future<void> _outfitReady = Future<void>.value();
+
+  /// Completes once the equipped outfit is on every sprite.
+  Future<void> get outfitReady => _outfitReady;
+
+  /// The sprite actually drawn in place of [base] for the equipped outfit.
+  @visibleForTesting
+  Sprite wornSprite(Sprite base) => _dressed[base] ?? base;
+
+  Future<void> _tailorOutfit() async {
+    final job = ++_tailoringJob;
+    final colors = skin.outfit;
+    final dressed = <Sprite, Sprite>{};
+
+    if (!colors.isPlain) {
+      final bases = <Sprite>[
+        ...?runSprites,
+        if (jumpSprite != null) jumpSprite!,
+        if (hurtSprite != null) hurtSprite!,
+      ];
+      for (final base in bases) {
+        final image = base.image;
+        final data = await image.toByteData();
+        if (data == null) continue;
+        final pixels = OutfitTailor.dress(
+          data.buffer.asUint8List(),
+          image.width,
+          image.height,
+          colors,
+        );
+        final decoded = Completer<ui.Image>();
+        ui.decodeImageFromPixels(
+          pixels,
+          image.width,
+          image.height,
+          ui.PixelFormat.rgba8888,
+          decoded.complete,
+        );
+        dressed[base] = Sprite(
+          await decoded.future,
+          srcPosition: base.srcPosition,
+          srcSize: base.srcSize,
+        );
+      }
+    }
+
+    // A newer outfit was chosen while this one was being cut.
+    if (job != _tailoringJob) {
+      _disposeSprites(dressed.values);
+      return;
+    }
+    final previous = _dressed.values.toList();
+    _dressed
+      ..clear()
+      ..addAll(dressed);
+    _disposeSprites(previous);
+  }
+
+  void _disposeSprites(Iterable<Sprite> sprites) {
+    for (final sprite in sprites) {
+      sprite.image.dispose();
+    }
+  }
+
+  /// Draws a courier sprite wearing the equipped outfit: a glow behind, the
+  /// outfit's own clothes on the sprite, and shoe sparks for outfits that
+  /// have them.
+  void _renderSprite(Canvas canvas, Sprite sprite) {
+    if (skin.glowColor != Colors.transparent) {
+      final glowPaint = Paint()
+        ..color = skin.glowColor.withValues(alpha: 0.35)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+      canvas.drawCircle(Offset(size.x / 2, size.y / 2), 24, glowPaint);
+    }
+
+    wornSprite(sprite).render(canvas, size: size);
+
+    if (skin.hasSpeedTrail && state == CourierState.running) {
+      final sparkPaint = Paint()
+        ..color = skin.accentColor.withValues(alpha: 0.75)
+        ..strokeWidth = 2.5
+        ..strokeCap = StrokeCap.round;
+      final stride = (_currentRunFrame % 2 == 0) ? 3.0 : -2.0;
+      canvas.drawLine(Offset(2.0 + stride, size.y - 6.0), Offset(16.0 + stride, size.y - 6.0), sparkPaint);
+      canvas.drawLine(Offset(-4.0 - stride, size.y - 12.0), Offset(8.0 - stride, size.y - 12.0), sparkPaint);
+    }
   }
 
   /// Whether the courier is actively tucked inside a companion cyclist's slipstream draft wake.
@@ -110,10 +211,57 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   /// True when the courier is under the Cold Brew Energy Drink speed/magnet buff.
   bool isBoosted = false;
 
+  /// How close to touchdown, in seconds, a jump press is queued to fire on
+  /// landing instead of being spent on the glide chute.
+  ///
+  /// Without this, a tap a few frames early deploys the chute and the courier
+  /// lands flat-footed in front of the next hazard.
+  static const double jumpBufferDuration = 0.10;
+
+  /// Slack added to the queued press so frame quantization on the landing
+  /// frame cannot expire it one tick early.
+  static const double _jumpBufferSlack = 0.05;
+
+  double _jumpBufferTimer = 0.0;
+  double _bufferedImpulseMultiplier = 1.0;
+  bool _jumpInputHeld = false;
+
+  /// Whether a jump press is queued to fire on the next touchdown.
+  bool get hasBufferedJump => _jumpBufferTimer > 0;
+
   // Invulnerability
   static const double invulnerabilityDuration = 1.5;
   double _invulnerabilityTimer = 0.0;
   bool get isInvulnerable => _invulnerabilityTimer > 0;
+
+  /// True once the last package is dropped: the courier is bowled over and
+  /// stays down until the next run, instead of jogging in place behind the
+  /// results screen.
+  bool isKnockedOut = false;
+
+  /// Backward tumble rotation in radians while knocked out.
+  double knockoutAngle = 0.0;
+
+  static const double _knockoutSpinRate = 5.5;
+  static const double _knockoutMaxAngle = math.pi / 2;
+
+  /// How far the pivot rises as the courier settles, so the body rests on the
+  /// pavement instead of sinking through it once rotated flat.
+  static const double _knockoutRestLift = 14.0;
+
+  /// Bowls the courier over after the final package is dropped: a short pop
+  /// that tumbles backward onto the pavement.
+  void knockOut() {
+    if (isKnockedOut) return;
+    isKnockedOut = true;
+    knockoutAngle = 0.0;
+    _jumpBufferTimer = 0.0;
+    _jumpInputHeld = false;
+    if (isGliding) stopGlide();
+    isDrafting = false;
+    state = CourierState.hurt;
+    simulator.launch(230.0);
+  }
 
   // Animation cycle timer for running frames
   double _runCycleTimer = 0.0;
@@ -139,6 +287,9 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
       ]);
       jumpSprite = await Sprite.load('courier/jump.png');
       hurtSprite = await Sprite.load('courier/hurt.png');
+      // Not awaited: the art is usable as it is, and the outfit swaps in a
+      // moment later.
+      _outfitReady = _tailorOutfit();
     } catch (_) {
       // In headless test environments where asset bundles are mocked or unavailable,
       // fallback smoothly to procedural vector drawings.
@@ -154,6 +305,44 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
       size: Vector2(32, 48),
     );
     add(torsoHitbox);
+  }
+
+  /// Handles a jump input press (tap down / key down).
+  ///
+  /// Jumps when possible. Otherwise, a press made within [jumpBufferDuration]
+  /// of touchdown is queued and fires on landing; any other airborne press
+  /// toggles the delivery glide chute.
+  void pressJump({double impulseMultiplier = 1.0}) {
+    if (isKnockedOut) return;
+    _jumpInputHeld = true;
+    if (jump(impulseMultiplier: impulseMultiplier)) return;
+
+    final isAboutToLand = !isGliding &&
+        state != CourierState.hurt &&
+        simulator.verticalVelocity <= 0 &&
+        simulator.timeToLanding <= jumpBufferDuration;
+    if (isAboutToLand) {
+      _jumpBufferTimer = jumpBufferDuration + _jumpBufferSlack;
+      _bufferedImpulseMultiplier = impulseMultiplier;
+      return;
+    }
+    toggleGlide();
+  }
+
+  /// Handles a jump input release (tap up / key up), shortening the trajectory.
+  void releaseJump() {
+    _jumpInputHeld = false;
+    stopJump();
+  }
+
+  /// Restores input and damage state to a clean slate at the start of a run,
+  /// so a queued jump or leftover hit flicker never carries across shifts.
+  void resetForRun() {
+    _jumpBufferTimer = 0.0;
+    _jumpInputHeld = false;
+    _invulnerabilityTimer = 0.0;
+    isKnockedOut = false;
+    knockoutAngle = 0.0;
   }
 
   /// Triggers a jump. Returns `true` if initiated, `false` if rejected (e.g. airborne).
@@ -360,6 +549,14 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   void update(double dt) {
     super.update(dt);
 
+    if (isKnockedOut) {
+      simulator.update(dt);
+      position.y = simulator.currentY - size.y;
+      knockoutAngle = math.min(_knockoutMaxAngle, knockoutAngle + (_knockoutSpinRate * dt));
+      state = CourierState.hurt;
+      return;
+    }
+
     final wasAirborne = !simulator.isGrounded;
 
     if (state == CourierState.swinging && attachedCrane != null) {
@@ -383,6 +580,19 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
           position.x = defaultPlayerX;
           _isReturningFromCrane = false;
         }
+      }
+    }
+
+    // Fire a queued jump the frame the courier touches down
+    if (_jumpBufferTimer > 0) {
+      if (simulator.isGrounded) {
+        _jumpBufferTimer = 0.0;
+        if (wasAirborne) onLand?.call();
+        if (jump(impulseMultiplier: _bufferedImpulseMultiplier) && !_jumpInputHeld) {
+          simulator.stopJump();
+        }
+      } else {
+        _jumpBufferTimer = math.max(0.0, _jumpBufferTimer - dt);
       }
     }
 
@@ -451,6 +661,22 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   void render(Canvas canvas) {
     super.render(canvas);
 
+    // Knocked out: tumble backward about the feet and come to rest on the pavement
+    if (isKnockedOut) {
+      final settle = knockoutAngle / _knockoutMaxAngle;
+      canvas.save();
+      canvas.translate(size.x / 2, size.y - (_knockoutRestLift * settle));
+      canvas.rotate(-knockoutAngle);
+      canvas.translate(-size.x / 2, -size.y);
+      if (hurtSprite != null) {
+        _renderSprite(canvas, hurtSprite!);
+      } else {
+        _drawCourier(canvas);
+      }
+      canvas.restore();
+      return;
+    }
+
     // Render electric energy aura when boosted by cold brew
     if (isBoosted) {
       _drawEnergyAura(canvas);
@@ -463,11 +689,11 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
     }
 
     if (state == CourierState.hurt && hurtSprite != null) {
-      hurtSprite!.render(canvas, size: size);
+      _renderSprite(canvas, hurtSprite!);
     } else if ((state == CourierState.jumping || state == CourierState.falling) && jumpSprite != null) {
-      jumpSprite!.render(canvas, size: size);
+      _renderSprite(canvas, jumpSprite!);
     } else if (state == CourierState.running && runSprites != null && runSprites!.isNotEmpty) {
-      runSprites![_currentRunFrame % runSprites!.length].render(canvas, size: size);
+      _renderSprite(canvas, runSprites![_currentRunFrame % runSprites!.length]);
     } else {
       _drawCourier(canvas);
     }

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flame/extensions.dart';
@@ -143,7 +144,7 @@ void main() {
     });
 
     test('WorldChunkManager restricts dynamic hazards before 800m / 340 px/s milestone', () {
-      final manager = WorldChunkManager();
+      final manager = WorldChunkManager(random: math.Random(1));
 
       for (int i = 0; i < 20; i++) {
         final chunk = manager.generateChunk(
@@ -160,7 +161,7 @@ void main() {
     });
 
     test('WorldChunkManager introduces dynamic hazards at or beyond 800m milestone', () {
-      final manager = WorldChunkManager();
+      final manager = WorldChunkManager(random: math.Random(1));
       bool foundDynamicHazard = false;
 
       // Run multiple chunks beyond 800m
@@ -185,7 +186,7 @@ void main() {
     });
 
     test('WorldChunkManager provides extra clearance for oncoming skateMessenger', () {
-      final manager = WorldChunkManager();
+      final manager = WorldChunkManager(random: math.Random(1));
       final minClearance = manager.calculateMinClearance(350.0);
 
       // Verify that clearance calculation scales with speed

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart' hide Image;
@@ -216,7 +217,7 @@ void main() {
 
   group('WorldChunkManager Postal Mailbox Procedural Generation (Issue #92)', () {
     test('generates postal mailboxes after 60m threshold', () {
-      final chunkManager = WorldChunkManager();
+      final chunkManager = WorldChunkManager(random: math.Random(1));
       var generatedMailbox = false;
 
       for (var chunkIndex = 0; chunkIndex < 50; chunkIndex++) {

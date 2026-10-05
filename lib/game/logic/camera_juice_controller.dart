@@ -73,6 +73,17 @@ class CameraJuiceController {
 
   /// Advances trauma decay, calculates shake displacement, and lerps zoom.
   void update(double dt, {required double currentSpeed}) {
+    updateShake(dt);
+
+    // 3. Smoothly interpolate zoom toward velocity framing target
+    final targetZoom = calculateZoomForSpeed(currentSpeed);
+    currentZoom += (targetZoom - currentZoom) * (zoomLerpSpeed * dt).clamp(0.0, 1.0);
+  }
+
+  /// Advances trauma decay and the shake displacement, leaving zoom alone.
+  ///
+  /// The death beat drives the zoom itself but still needs the impact shake.
+  void updateShake(double dt) {
     // 1. Linearly decay trauma
     if (trauma > 0.0) {
       trauma = math.max(0.0, trauma - decayRate * dt);
@@ -94,10 +105,6 @@ class CameraJuiceController {
       shakeOffset = Vector2.zero();
       shakeAngle = 0.0;
     }
-
-    // 3. Smoothly interpolate zoom toward velocity framing target
-    final targetZoom = calculateZoomForSpeed(currentSpeed);
-    currentZoom += (targetZoom - currentZoom) * (zoomLerpSpeed * dt).clamp(0.0, 1.0);
   }
 
   /// Resets trauma, shake, and zoom back to default resting values.

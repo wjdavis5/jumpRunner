@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart' hide Image;
@@ -300,7 +301,7 @@ void main() {
     });
 
     test('WorldChunkManager procedurally produces food carts at distance >= 60m', () {
-      final manager = WorldChunkManager();
+      final manager = WorldChunkManager(random: math.Random(1));
       var foundCart = false;
 
       for (var i = 0; i < 40; i++) {
@@ -352,7 +353,9 @@ void main() {
       expect(cart.hasBounced, isTrue);
       expect(game.gameState.foodCartBouncesInRun, equals(1));
       expect(game.gameState.tips, greaterThan(0));
-      expect(game.player.simulator.verticalVelocity, equals(400.0));
+      // Launched at the bounce impulse. A 50 ms frame is simulated as three
+      // 60 Hz steps, so gravity has had up to 33 ms to act by the time we look.
+      expect(game.player.simulator.verticalVelocity, closeTo(400.0, 40.0));
 
       // Visual floating text added
       final floatingTexts = game.world.children.whereType<FloatingTextComponent>();

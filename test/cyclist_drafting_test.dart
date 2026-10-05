@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
@@ -218,7 +219,7 @@ void main() {
     });
 
     test('does not spawn cyclists before 100 meters', () {
-      final manager = WorldChunkManager();
+      final manager = WorldChunkManager(random: math.Random(1));
       // Chunk 0 is at 0m
       final chunk0 = manager.generateChunk(startX: 0.0, speed: 200.0, distanceMeters: 0.0);
       expect(chunk0.cyclists, isEmpty);
@@ -227,7 +228,7 @@ void main() {
     test('can generate chunk with cyclists beyond 100 meters', () {
       var spawnedCyclist = false;
       for (var i = 0; i < 20; i++) {
-        final manager = WorldChunkManager();
+        final manager = WorldChunkManager(random: math.Random(i));
         final chunk = manager.generateChunk(startX: 1000.0, speed: 250.0, distanceMeters: 150.0);
         if (chunk.cyclists.isNotEmpty) {
           spawnedCyclist = true;

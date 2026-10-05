@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart' hide Image;
@@ -212,7 +213,7 @@ void main() {
 
   group('WorldChunkManager Glass Skylight Procedural Generation (Issue #96)', () {
     test('generates glass skylights after 140m threshold', () {
-      final chunkManager = WorldChunkManager();
+      final chunkManager = WorldChunkManager(random: math.Random(1));
       var generatedSkylight = false;
 
       for (var chunkIndex = 0; chunkIndex < 50; chunkIndex++) {

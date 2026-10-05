@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../game/models/courier_skin.dart';
+import 'money.dart';
+import 'outfit_preview.dart';
+import 'visible_scrollbar.dart';
 
 /// Modal dialog allowing players to browse, purchase, and equip cosmetic courier outfits.
 class LockerModal extends StatelessWidget {
@@ -25,7 +28,9 @@ class LockerModal extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 680, maxHeight: 480),
+        // Tall enough for all four outfits with their pictures on a
+        // desktop-size screen; smaller screens scroll the list.
+        constraints: const BoxConstraints(maxWidth: 680, maxHeight: 520),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
         decoration: BoxDecoration(
           color: const Color(0xFF141D26).withValues(alpha: 0.96),
@@ -79,7 +84,7 @@ class LockerModal extends StatelessWidget {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        '\$$careerTips TIPS',
+                        '${dollars(careerTips)} TIPS',
                         style: const TextStyle(
                           color: Color(0xFFF1C40F),
                           fontSize: 13,
@@ -106,7 +111,10 @@ class LockerModal extends StatelessWidget {
 
             // Skin Grid
             Flexible(
-              child: ListView.separated(
+              child: VisibleScrollbar(
+                key: const Key('locker_scrollbar'),
+                builder: (context, controller) => ListView.separated(
+                controller: controller,
                 shrinkWrap: true,
                 itemCount: CourierSkin.catalog.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 10),
@@ -132,30 +140,34 @@ class LockerModal extends StatelessWidget {
                     ),
                     child: Row(
                       children: [
-                        // Color swatch preview
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: skin.primaryColor,
-                            border: Border.all(
-                              color: skin.accentColor,
-                              width: 3,
+                        // The courier wearing the outfit. The colour swatch
+                        // it replaces stands in until the picture is ready.
+                        OutfitPreview(
+                          skin: skin,
+                          placeholder: Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: skin.primaryColor,
+                              border: Border.all(
+                                color: skin.accentColor,
+                                width: 3,
+                              ),
+                              boxShadow: skin.glowColor != Colors.transparent
+                                  ? [
+                                      BoxShadow(
+                                        color: skin.glowColor.withValues(alpha: 0.6),
+                                        blurRadius: 8,
+                                      ),
+                                    ]
+                                  : null,
                             ),
-                            boxShadow: skin.glowColor != Colors.transparent
-                                ? [
-                                    BoxShadow(
-                                      color: skin.glowColor.withValues(alpha: 0.6),
-                                      blurRadius: 8,
-                                    ),
-                                  ]
-                                : null,
-                          ),
-                          child: Icon(
-                            skin.hasSpeedTrail ? Icons.electric_bolt : Icons.person,
-                            color: Colors.white,
-                            size: 22,
+                            child: Icon(
+                              skin.hasSpeedTrail ? Icons.electric_bolt : Icons.person,
+                              color: Colors.white,
+                              size: 22,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 14),
@@ -167,12 +179,19 @@ class LockerModal extends StatelessWidget {
                             children: [
                               Row(
                                 children: [
-                                  Text(
-                                    skin.name,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
+                                  // Flexible: a five-figure price makes the
+                                  // buy button wide, and on a narrow card
+                                  // the name gives way rather than overflow.
+                                  Flexible(
+                                    child: Text(
+                                      skin.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
                                   if (skin.hasSpeedTrail) ...[
@@ -261,7 +280,7 @@ class LockerModal extends StatelessWidget {
                             onPressed: canAfford ? () => onUnlockSkin(skin.id, skin.price) : null,
                             icon: const Icon(Icons.lock_open, size: 16),
                             label: Text(
-                              'BUY \$${skin.price}',
+                              'BUY ${dollars(skin.price)}',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w900,
                                 fontSize: 13,
@@ -282,6 +301,7 @@ class LockerModal extends StatelessWidget {
                     ),
                   );
                 },
+              ),
               ),
             ),
           ],

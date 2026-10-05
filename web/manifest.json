@@ -1,12 +1,12 @@
 {
-    "name": "jump_runner",
-    "short_name": "jump_runner",
+    "name": "Courier Dash",
+    "short_name": "Courier Dash",
     "start_url": ".",
-    "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "display": "fullscreen",
+    "background_color": "#10151C",
+    "theme_color": "#10151C",
+    "description": "A one-button endless runner about an on-foot delivery courier.",
+    "orientation": "landscape",
     "prefer_related_applications": false,
     "icons": [
         {

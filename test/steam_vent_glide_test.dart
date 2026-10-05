@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart' hide Image;
@@ -271,7 +272,7 @@ void main() {
       var foundVentChunk = false;
 
       for (var seed = 0; seed < 100; seed++) {
-        final manager = WorldChunkManager();
+        final manager = WorldChunkManager(random: math.Random(seed));
         final chunk = manager.generateChunk(
           startX: 1000.0,
           speed: 300.0,

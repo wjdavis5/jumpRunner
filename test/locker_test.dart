@@ -22,9 +22,12 @@ void main() {
     test('CourierSkin catalog contains standard, neon, high-tops, and golden skins', () {
       expect(CourierSkin.catalog.length, equals(4));
       expect(CourierSkin.findById('standard').id, equals('standard'));
-      expect(CourierSkin.findById('night_shift_neon').price, equals(150));
+      // Priced against what shifts pay (see CourierSkin): each one is a
+      // bigger goal than the last.
+      expect(CourierSkin.findById('night_shift_neon').price, equals(2000));
+      expect(CourierSkin.findById('high_tops').price, equals(6000));
       expect(CourierSkin.findById('high_tops').hasSpeedTrail, isTrue);
-      expect(CourierSkin.findById('golden_courier').price, equals(500));
+      expect(CourierSkin.findById('golden_courier').price, equals(15000));
 
       // Fallback for unknown ID
       expect(CourierSkin.findById('unknown_alien_skin').id, equals('standard'));
@@ -108,15 +111,15 @@ void main() {
       await tester.tap(find.byKey(const Key('equip_button_night_shift_neon')));
       expect(equippedSelection, equals('night_shift_neon'));
 
-      // High Tops ($300) is locked and unaffordable with $200 -> disabled BUY button
+      // High Tops is locked and unaffordable with $200 -> disabled BUY button
       expect(find.byKey(const Key('unlock_button_high_tops')), findsOneWidget);
 
-      // Re-pump with sufficient funds ($350)
+      // Re-pump with sufficient funds
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
             body: LockerModal(
-              careerTips: 350,
+              careerTips: CourierSkin.highTops.price + 50,
               unlockedSkins: const ['standard'],
               equippedSkin: 'standard',
               onEquipSkin: (_) {},
@@ -133,7 +136,7 @@ void main() {
       // Buy High Tops
       await tester.tap(find.byKey(const Key('unlock_button_high_tops')));
       expect(unlockedSelection, equals('high_tops'));
-      expect(unlockedPrice, equals(300));
+      expect(unlockedPrice, equals(CourierSkin.highTops.price));
 
       // Close button
       await tester.tap(find.byKey(const Key('locker_close_button')));

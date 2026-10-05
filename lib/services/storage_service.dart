@@ -15,12 +15,14 @@ class LocalStorageService {
   static const String _keyUnlockedSkins = 'courier_unlocked_skins';
   static const String _keyEquippedSkin = 'courier_equipped_skin';
   static const String _keyCompletedContracts = 'courier_completed_contracts';
+  static const String _keyLifetimeTips = 'courier_lifetime_tips';
   static const String _keyUnlockedAchievements = 'courier_unlocked_achievements';
   static const String _keyLastCompletedDaily = 'courier_last_completed_daily';
   static const String _keyDailyStars = 'courier_daily_stars';
   static const String _keyBoosterPrefix = 'courier_booster_';
   static const String _keyLifetimeDeliveries = 'courier_lifetime_deliveries';
   static const String _keyReduceFlash = 'courier_reduce_flash';
+  static const String _keyHaptics = 'courier_haptics';
 
   SharedPreferences? _prefs;
 
@@ -34,6 +36,16 @@ class LocalStorageService {
 
   /// Total career tips collected in dollars ($).
   int get careerTips => _prefs?.getInt(_keyCareerTips) ?? 0;
+
+  /// Every tip ever banked, whether or not it has since been spent.
+  ///
+  /// The balance ([careerTips]) goes down when an outfit or booster is
+  /// bought, so it cannot stand in for this. A career saved before this was
+  /// tracked counts at least what it is still holding.
+  int get lifetimeTips {
+    final recorded = _prefs?.getInt(_keyLifetimeTips) ?? 0;
+    return recorded > careerTips ? recorded : careerTips;
+  }
 
   /// Lifetime delivery contracts completed by the courier.
   int get completedContracts => _prefs?.getInt(_keyCompletedContracts) ?? 0;
@@ -51,6 +63,15 @@ class LocalStorageService {
   /// Saves photosensitive screen flash reduction preference.
   Future<void> setReduceFlash(bool reduce) async {
     await _prefs?.setBool(_keyReduceFlash, reduce);
+  }
+
+  /// Whether the phone may vibrate on hits and milestones. On until the
+  /// player turns it off.
+  bool get isHapticsEnabled => _prefs?.getBool(_keyHaptics) ?? true;
+
+  /// Saves the vibration preference.
+  Future<void> setHapticsEnabled(bool enabled) async {
+    await _prefs?.setBool(_keyHaptics, enabled);
   }
 
   /// List of skin identifiers unlocked by the player.
@@ -92,8 +113,10 @@ class LocalStorageService {
 
     await prefs.setString(_keyLastCompletedDaily, dateString);
     await prefs.setInt(_keyDailyStars, dailyStars + 1);
-    final newCareerTips = careerTips + math.max<int>(0, bonusTips);
-    await prefs.setInt(_keyCareerTips, newCareerTips);
+    final bonus = math.max<int>(0, bonusTips);
+    final newLifetimeTips = lifetimeTips + bonus;
+    await prefs.setInt(_keyCareerTips, careerTips + bonus);
+    await prefs.setInt(_keyLifetimeTips, newLifetimeTips);
     return true;
   }
 
@@ -111,8 +134,10 @@ class LocalStorageService {
       await prefs.setInt(_keyHighDistance, distance);
     }
 
-    final newCareerTips = careerTips + math.max<int>(0, tips);
-    await prefs.setInt(_keyCareerTips, newCareerTips);
+    final earned = math.max<int>(0, tips);
+    final newLifetimeTips = lifetimeTips + earned;
+    await prefs.setInt(_keyCareerTips, careerTips + earned);
+    await prefs.setInt(_keyLifetimeTips, newLifetimeTips);
 
     return isNewRecord;
   }
