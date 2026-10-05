@@ -50,8 +50,11 @@ build below.
 - Behind a hazard that only a full leap clears (van, subway train) the street
   stays clear to where that leap can land plus a quarter second
   (`clearanceAfter`, `clearanceBetween`). A new hazard that cannot be hopped
-  goes in `needsFullLeap`. Every hazard keeps a floor of room for error:
-  200 ms of tap timings, 300 ms for a leap (`hazard_fairness_floor_test.dart`).
+  goes in `needsFullLeap`. A van also gets a run-up in front of it, and a
+  station's third rail the usual clearance from the hazard before it (the
+  rail moves within 220-300 px or the chunk stays a street). Every hazard
+  keeps a floor of room for error: 200 ms of tap timings, 300 ms for a leap
+  (`hazard_fairness_floor_test.dart`).
 - A test that needs an empty street uses `test/support/bare_street.dart`.
   Removing the hazards from a generated street leaves its energy drinks, and
   one run in twelve picked one up and ran a fifth faster.

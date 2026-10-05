@@ -769,22 +769,25 @@ class WorldChunkManager {
   }
 
   /// How far ahead of a hazard that needs a leap the leap has to start, in
-  /// seconds: the run-up a second van needs behind a first.
+  /// seconds: the run-up a van needs in front of it.
   static const double leapRunUp = 0.15;
 
   /// The street between the far edge of [ahead] and the near edge of [next]
   /// at the moment the courier reaches [ahead].
   ///
-  /// [clearanceAfter], and behind a hazard that takes a full leap two things
-  /// more. A hazard that rolls toward the courier keeps coming while the
-  /// courier is in the air, so it is set back by what it covers in that
-  /// time. And one that needs a leap of its own gets that leap's run-up.
+  /// [clearanceAfter], and two things more. A hazard that needs a leap gets
+  /// that leap's run-up in front of it: a hop can be pressed up to the last
+  /// moment, a leap over a van cannot, and a courier who landed from the
+  /// hazard ahead with the usual room had a tenth of a second to start one.
+  /// And behind a hazard that takes a full leap, one that rolls toward the
+  /// courier keeps coming while the courier is in the air, so it is set
+  /// back by what it covers in that time.
   double clearanceBetween(ObstacleType ahead, ObstacleType next, double speed) {
     var clearance = clearanceAfter(ahead, speed);
+    if (needsFullLeap(next)) clearance += leapRunUp * math.max(speed, baseSpeed);
     if (needsFullLeap(ahead)) {
       clearance += ObstacleComponent.defaultRelativeVelocityForType(next) *
           (fullLeapAirtime + landingReaction);
-      if (needsFullLeap(next)) clearance += leapRunUp * math.max(speed, baseSpeed);
     }
     return clearance;
   }
@@ -849,8 +852,10 @@ class WorldChunkManager {
     return seconds > 0 ? (approach - aheadApproach) * seconds : 0.0;
   }
 
-  /// The nearest a station's third rail stands to the start of its chunk.
+  /// The nearest and the furthest a station's third rail stands from the
+  /// start of its chunk.
   static const double stationRailEarliest = 220.0;
+  static const double stationRailLatest = 300.0;
 
   /// How far behind the start of the third rail the subway train is built,
   /// for a rail [railOffset] px into its chunk on a street moving at [speed].
@@ -1423,12 +1428,12 @@ class WorldChunkManager {
         steamVents.isEmpty &&
         dropZones.isEmpty &&
         // At speed a station needs its whole chunk to fit the train behind
-        // the third rail, so the rail cannot be moved back to make room.
-        // After a van or a train whose leap would come down on the rail,
-        // the chunk stays a street.
+        // the third rail, so the rail cannot be moved back past its usual
+        // place to make room. When the hazard ahead still needs the street
+        // there (a van's leap, or a hop late in the last chunk, would come
+        // down on the rail), the chunk stays a street.
         (hazardAheadOfChunk == null ||
-            !needsFullLeap(hazardAheadOfChunk) ||
-            streetFreeFrom + minClearance <= startX + stationRailEarliest)) {
+            streetFreeFrom + minClearance + 1.0 <= startX + stationRailLatest)) {
       final stationNames = [
         '8th Ave Express',
         'Broadway Metro',
@@ -1455,7 +1460,13 @@ class WorldChunkManager {
       // In a subway station, spawn authentic subterranean hazards:
       // An electrified third rail on track
       obstacles.clear();
-      final thirdRailX = startX + stationRailEarliest + (_random.nextDouble() * 80.0);
+      // The rail stands 220 to 300 px into the station, and no nearer the
+      // hazard ahead than any two hazards stand.
+      final railFrom = hazardAheadOfChunk == null
+          ? stationRailEarliest
+          : math.max(stationRailEarliest, streetFreeFrom + minClearance + 1.0 - startX);
+      final thirdRailX =
+          startX + railFrom + (_random.nextDouble() * (stationRailLatest - railFrom));
       obstacles.add(
         ObstacleData(
           type: ObstacleType.thirdRail,

@@ -99,13 +99,14 @@ Future<int> _roomForError(ObstacleType type, double hold, double meters, {bool b
   return longest;
 }
 
-/// The same for a hazard [gap] px behind a van that has just been leapt with
-/// [overTheVan], trying a tap and a held press at each timing. Stops
-/// counting at [enough].
-Future<int> _roomBehindVan(
+/// The same for a hazard [gap] px behind [first], which has just been
+/// cleared with [overFirst], trying a tap and a held press at each timing.
+/// Stops counting at [enough].
+Future<int> _roomBehind(
+  ObstacleType first,
   ObstacleType second,
   double gap,
-  _Press overTheVan,
+  _Press overFirst,
   double meters, {
   required bool boosted,
   int enough = 4,
@@ -115,8 +116,8 @@ Future<int> _roomBehindVan(
   for (var step = 0; step <= _steps && longest < enough; step++) {
     var hit = true;
     for (final hold in const [_tap, _held]) {
-      final hazards = [ObstacleType.van, second];
-      final presses = [overTheVan, _Press(step * _step, hold)];
+      final hazards = [first, second];
+      final presses = [overFirst, _Press(step * _step, hold)];
       if (!await _isHit(hazards, presses, meters, gaps: [gap], boosted: boosted)) {
         hit = false;
         break;
@@ -207,7 +208,7 @@ void main() {
         for (final speed in speeds) {
           final usual = manager.calculateMinClearance(speed);
           expect(manager.clearanceAfter(type, speed), equals(usual));
-          for (final next in ObstacleType.values) {
+          for (final next in ObstacleType.values.where((t) => !WorldChunkManager.needsFullLeap(t))) {
             expect(manager.clearanceBetween(type, next, speed), equals(usual));
           }
         }
@@ -244,38 +245,54 @@ void main() {
       }
     });
 
-    test('a second van gets the run-up its own leap needs', () {
-      for (final speed in speeds) {
-        final extra = manager.clearanceBetween(ObstacleType.van, ObstacleType.van, speed) -
-            manager.clearanceAfter(ObstacleType.van, speed);
-        expect(extra, closeTo(WorldChunkManager.leapRunUp * speed, 0.001));
+    test('a van gets the run-up its leap needs, whatever is ahead of it', () {
+      for (final ahead in ObstacleType.values) {
+        for (final speed in speeds) {
+          final extra = manager.clearanceBetween(ahead, ObstacleType.van, speed) -
+              manager.clearanceAfter(ahead, speed);
+          expect(extra, closeTo(WorldChunkManager.leapRunUp * speed, 0.001), reason: ahead.name);
+        }
       }
     });
 
-    // The street: a van, and [second] behind it. Returns the least room for
-    // error [second] is left with over every way of leaping the van. The gap
-    // when the courier reaches the van is the generator's rule, or
-    // [gapOnArrival] if given.
-    Future<int> worstRoomBehindVan(
+    // The street: [first], and [second] behind it. Returns the least room
+    // for error [second] is left with over every way of clearing [first]
+    // with a press kept down for [hold]. The gap when the courier reaches
+    // [first] is the generator's rule, or [gapOnArrival] if given.
+    Future<int> worstRoomBehind(
+      ObstacleType first,
+      double hold,
       ObstacleType second,
       double meters,
       bool boosted, {
       double? gapOnArrival,
     }) async {
       final speed = (await bareStreetGame(meters, boosted: boosted)).currentSpeed;
-      final onArrival = gapOnArrival ?? manager.clearanceBetween(ObstacleType.van, second, speed);
-      final gap = onArrival + _rolls(second) * (900.0 / speed);
+      final onArrival = gapOnArrival ?? manager.clearanceBetween(first, second, speed);
+      final arrival = 900.0 / (speed + _rolls(first));
+      final gap = math.max(
+        WorldChunkManager.minBuiltGap,
+        onArrival + (_rolls(second) - _rolls(first)) * arrival,
+      );
       var worst = 99;
       var ways = 0;
       for (var step = 0; step <= _steps; step++) {
-        final leap = _Press(step * _step, _held);
-        if (await _isHit([ObstacleType.van], [leap], meters, boosted: boosted)) continue;
+        final over = _Press(step * _step, hold);
+        if (await _isHit([first], [over], meters, boosted: boosted)) continue;
         ways++;
-        worst = math.min(worst, await _roomBehindVan(second, gap, leap, meters, boosted: boosted));
+        worst = math.min(worst, await _roomBehind(first, second, gap, over, meters, boosted: boosted));
       }
-      expect(ways, greaterThanOrEqualTo(6), reason: 'ways of leaping the van');
+      expect(ways, greaterThanOrEqualTo(6), reason: 'ways of clearing the ${first.name}');
       return worst;
     }
+
+    Future<int> worstRoomBehindVan(
+      ObstacleType second,
+      double meters,
+      bool boosted, {
+      double? gapOnArrival,
+    }) =>
+        worstRoomBehind(ObstacleType.van, _held, second, meters, boosted, gapOnArrival: gapOnArrival);
 
     for (final second in WorldChunkManager.streetHazards) {
       test('then a ${second.name}: every way of leaping the van leaves 200 ms or more for it', () async {
@@ -285,6 +302,40 @@ void main() {
         }
       });
     }
+
+    // A hop can be pressed up to the last moment. A leap over a van cannot:
+    // it has to start a tenth of a second and more ahead. With only the
+    // usual clearance, a courier who hopped the hazard ahead late landed
+    // with 100 to 150 ms to start that leap, and with both speed buffs
+    // running, with none.
+    for (final first in const [ObstacleType.dog, ObstacleType.hydrant, ObstacleType.skateMessenger]) {
+      test('a van behind a ${first.name}: every way of hopping it leaves 200 ms or more for the van', () async {
+        for (final (label, meters, boosted) in stages.skip(2)) {
+          final worst = await worstRoomBehind(first, _tap, ObstacleType.van, meters, boosted);
+          expect(worst, greaterThanOrEqualTo(4), reason: label);
+        }
+      });
+    }
+
+    test('without its run-up, a van behind a late hop had under 200 ms, or nothing', () async {
+      final atSpeed = manager.calculateMinClearance(manager.calculateSpeed(2000.0));
+      expect(
+        await worstRoomBehind(ObstacleType.dog, _tap, ObstacleType.van, 2000.0, false, gapOnArrival: atSpeed),
+        lessThan(4),
+      );
+      final boostedSpeed = (await bareStreetGame(2000.0, boosted: true)).currentSpeed;
+      expect(
+        await worstRoomBehind(
+          ObstacleType.dog,
+          _tap,
+          ObstacleType.van,
+          2000.0,
+          true,
+          gapOnArrival: manager.calculateMinClearance(boostedSpeed),
+        ),
+        equals(0),
+      );
+    });
 
     test('at the old spacing a late leap over a van left no way past what was behind it', () async {
       for (final second in const [ObstacleType.dog, ObstacleType.van]) {
@@ -351,6 +402,58 @@ void main() {
       }
       expect(vans, greaterThan(500));
       expect(trains, greaterThan(60));
+    });
+
+    test('every van has its run-up, and every station rail the usual clearance', () {
+      var vans = 0;
+      var rails = 0;
+      for (var seed = 0; seed < 80; seed++) {
+        final street = WorldChunkManager(random: math.Random(seed));
+        ObstacleData? ahead;
+        var aheadShift = 0.0;
+        for (var meters = 0.0; meters < 3000.0; meters += 48.0) {
+          final speed = street.calculateSpeed(meters);
+          final chunk = street.generateChunk(startX: startX, speed: speed, distanceMeters: meters);
+          final hazards = [...chunk.obstacles]..sort((a, b) => a.x.compareTo(b.x));
+          aheadShift -= chunkWidth;
+
+          // Hazards under a scaffold, a rail or a solar array are passed
+          // overhead and keep their own spacing: streets without those.
+          final plainStreet =
+              chunk.scaffoldings.isEmpty && chunk.grindRails.isEmpty && chunk.solarPanels.isEmpty;
+          if (plainStreet) {
+            for (var i = 1; i < hazards.length; i++) {
+              final a = hazards[i - 1];
+              final b = hazards[i];
+              if (b.type != ObstacleType.van || _rolls(a.type) != 0) continue;
+              expect(
+                b.x - (a.x + a.width),
+                greaterThanOrEqualTo(street.clearanceBetween(a.type, b.type, speed) - 0.5),
+                reason: 'seed $seed at ${meters.round()} m: a van behind a ${a.type.name}',
+              );
+              vans++;
+            }
+          }
+
+          if (chunk.subwayStations.isNotEmpty && ahead != null && _rolls(ahead.type) == 0) {
+            final rail = hazards.firstWhere((h) => h.type == ObstacleType.thirdRail);
+            expect(
+              rail.x - (ahead.x + ahead.width + aheadShift),
+              greaterThanOrEqualTo(street.calculateMinClearance(speed) - 0.5),
+              reason: 'seed $seed at ${meters.round()} m: the rail behind a ${ahead.type.name}',
+            );
+            expect(rail.x - startX, inInclusiveRange(220.0, 300.0));
+            rails++;
+          }
+
+          if (hazards.isNotEmpty) {
+            ahead = hazards.last;
+            aheadShift = 0.0;
+          }
+        }
+      }
+      expect(vans, greaterThan(100));
+      expect(rails, greaterThan(200));
     });
 
     test('no standing hazard is built past the end of its own chunk', () {
