@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jump_runner/game/components/obstacle_component.dart';
 import 'package:jump_runner/game/logic/world_chunk_manager.dart';
 
 void main() {
@@ -65,6 +68,54 @@ void main() {
         expect(pickup.y, greaterThanOrEqualTo(260.0));
         expect(pickup.y, lessThanOrEqualTo(460.0));
       }
+    });
+
+    test('Warm-up stretch spawns at most one small hop-hazard per chunk', () {
+      final manager = WorldChunkManager();
+      const warmupTypes = {ObstacleType.scooter, ObstacleType.dog};
+
+      double currentX = 960.0;
+      for (var i = 0; i < 40; i++) {
+        final chunk = manager.generateChunk(
+          startX: currentX,
+          chunkWidth: 960.0,
+          speed: manager.calculateSpeed(0.0),
+          distanceMeters: 0.0,
+        );
+        expect(
+          chunk.obstacles.length,
+          lessThanOrEqualTo(1),
+          reason: 'Warm-up chunk $i must not crowd the opening stretch',
+        );
+        for (final obstacle in chunk.obstacles) {
+          expect(
+            warmupTypes.contains(obstacle.type),
+            isTrue,
+            reason: 'Warm-up hazards must be tap-hop clearable, got ${obstacle.type}',
+          );
+        }
+        currentX += 960.0;
+      }
+    });
+
+    test('Obstacle density ramps up after the warm-up stretch', () {
+      final manager = WorldChunkManager();
+
+      // Well past the ramp: with a 960px chunk at base speed, space allows
+      // multiple hazards; the cap must allow at least 2.
+      int maxObserved = 0;
+      double currentX = 960.0;
+      for (var i = 0; i < 40; i++) {
+        final chunk = manager.generateChunk(
+          startX: currentX,
+          chunkWidth: 960.0,
+          speed: manager.calculateSpeed(1000.0),
+          distanceMeters: 1000.0,
+        );
+        maxObserved = math.max(maxObserved, chunk.obstacles.length);
+        currentX += 960.0;
+      }
+      expect(maxObserved, inInclusiveRange(2, 3));
     });
   });
 }

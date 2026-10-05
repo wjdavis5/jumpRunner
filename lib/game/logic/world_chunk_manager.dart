@@ -685,6 +685,12 @@ class WorldChunkManager {
   static const double maxSpeed = 550.0;
   static const double speedRampDistance = 2000.0;
 
+  /// Opening stretch that teaches jump timing: one small hazard per chunk.
+  static const double warmupEndMeters = 100.0;
+
+  /// Shift ramp-up tail: obstacle density reaches full roster past this point.
+  static const double rampEndMeters = 250.0;
+
   /// Calculates current horizontal scroll velocity based on total distance ran in meters.
   ///
   /// Increases linearly from 200 px/s at 0m to exactly 550 px/s at 2,000m.
@@ -1008,19 +1014,30 @@ class WorldChunkManager {
       cursorX = _lastObstacleEndX + minClearance + 1.0;
     }
 
-    // Introduce dynamic hazards (skate messenger, pigeon flock) at distance/speed milestones
-    final availableTypes = (distanceMeters >= 800.0 || speed >= 340.0)
-        ? ObstacleType.values
-        : const [
-            ObstacleType.scooter,
-            ObstacleType.dog,
-            ObstacleType.hydrant,
-            ObstacleType.mailbox,
-            ObstacleType.van,
-          ];
+    // Introduce dynamic hazards (skate messenger, pigeon flock) at distance/speed milestones.
+    // The warm-up stretch only serves small tap-hop hazards so new couriers
+    // learn jump timing before vans and dense patterns appear.
+    final bool isWarmup = distanceMeters < warmupEndMeters;
+    final int maxObstaclesPerChunk = isWarmup
+        ? 1
+        : distanceMeters < rampEndMeters
+            ? 2
+            : 3;
+    final availableTypes = isWarmup
+        ? const [ObstacleType.scooter, ObstacleType.dog]
+        : (distanceMeters >= 800.0 || speed >= 340.0)
+            ? ObstacleType.values
+            : const [
+                ObstacleType.scooter,
+                ObstacleType.dog,
+                ObstacleType.hydrant,
+                ObstacleType.mailbox,
+                ObstacleType.van,
+              ];
 
     // Pick 1 to 2 obstacle placements per chunk to avoid cluttered bottlenecks
-    while (cursorX < endX) {
+    int obstaclesPlaced = 0;
+    while (cursorX < endX && obstaclesPlaced < maxObstaclesPerChunk) {
       final typeIndex = _random.nextInt(availableTypes.length);
       final type = availableTypes[typeIndex];
       final size = ObstacleComponent.defaultSizeForType(type);
@@ -1034,6 +1051,7 @@ class WorldChunkManager {
         height: size.y,
       );
       obstacles.add(obstacle);
+      obstaclesPlaced++;
       _lastObstacleEndX = obstacle.x + obstacle.width;
 
       // Reward jump: Place a coin or pickup above the hazard in jump arc
@@ -1519,8 +1537,8 @@ class WorldChunkManager {
 
     final List<BarricadeSawhorseData> barricades = [];
 
-    // Street Construction Sawhorse Barricade (after 70m, outside subway stations, food trucks, and scaffolding)
-    if (distanceMeters >= 70.0 &&
+    // Street Construction Sawhorse Barricade (after the warm-up stretch, outside subway stations, food trucks, and scaffolding)
+    if (distanceMeters >= warmupEndMeters &&
         _random.nextDouble() < 0.35 &&
         subwayStations.isEmpty &&
         scaffoldings.isEmpty) {
