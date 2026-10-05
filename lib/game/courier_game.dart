@@ -55,6 +55,7 @@ import 'components/subway_station_component.dart';
 import 'components/subway_turnstile_component.dart';
 import 'logic/achievement_manager.dart';
 import 'logic/camera_juice_controller.dart';
+import 'logic/death_slowmo_controller.dart';
 import 'logic/game_state.dart';
 import 'logic/weather_controller.dart';
 import 'logic/world_chunk_manager.dart';
@@ -75,6 +76,7 @@ class CourierGame extends FlameGame
     WorldChunkManager? chunkManager,
     WeatherController? weatherController,
     CameraJuiceController? cameraJuiceController,
+    DeathSlowmoController? deathSlowmoController,
     AchievementManager? achievementManager,
     LocalStorageService? storageService,
     int? personalRecordDistance,
@@ -86,6 +88,7 @@ class CourierGame extends FlameGame
         chunkManager = chunkManager ?? WorldChunkManager(),
         weatherController = weatherController ?? WeatherController(),
         cameraJuice = cameraJuiceController ?? CameraJuiceController(),
+        deathSlowmo = deathSlowmoController ?? DeathSlowmoController(),
         achievementManager = achievementManager ?? AchievementManager(),
         storage = storageService,
         personalRecordDistance = personalRecordDistance ?? storageService?.highDistance ?? 0,
@@ -121,6 +124,7 @@ class CourierGame extends FlameGame
   final WorldChunkManager chunkManager;
   final WeatherController weatherController;
   final CameraJuiceController cameraJuice;
+  final DeathSlowmoController deathSlowmo;
   final AchievementManager achievementManager;
   final LocalStorageService? storage;
   DailyShift? dailyShift;
@@ -369,11 +373,10 @@ class CourierGame extends FlameGame
 
     gameState.onGameOver = () {
       isRunning = false;
-      cameraJuice.reset();
-      camera.viewfinder.position = Vector2(virtualResolution.x / 2, virtualResolution.y / 2);
-      camera.viewfinder.zoom = 1.0;
-      camera.viewfinder.angle = 0.0;
-      onRunConcluded?.call();
+      // Kick off the slow-motion death beat; the game-over modal appears
+      // when _updateDeathSlowmo finishes easing the camera onto the courier.
+      deathSlowmo.begin();
+      triggerScreenShake(0.35);
     };
 
     gameState.onVipMissionExpired = () {
@@ -1208,6 +1211,7 @@ class CourierGame extends FlameGame
     lightningComponent.reduceFlash = storage?.isReduceFlash ?? false;
     audio.updateWeather(0.0);
     cameraJuice.reset();
+    deathSlowmo.reset();
     final baseCenter = Vector2(virtualResolution.x / 2, virtualResolution.y / 2);
     camera.viewfinder.position = baseCenter;
     camera.viewfinder.zoom = 1.0;
@@ -1236,16 +1240,45 @@ class CourierGame extends FlameGame
     audio.startMusic();
   }
 
+  /// Plays the slow-motion death beat: eases the camera onto the fallen
+  /// courier, then hands off to the run-concluded flow (game-over modal).
+  void _updateDeathSlowmo(double dt) {
+    if (!deathSlowmo.isActive) return;
+
+    final focusX = (player.position.x + player.size.x / 2)
+        .clamp(200.0, virtualResolution.x - 200.0)
+        .toDouble();
+    final focus = Vector2(focusX, player.position.y - 30.0);
+    final t = deathSlowmo.progress;
+    camera.viewfinder.position = Vector2(
+      virtualResolution.x / 2 + (focus.x - virtualResolution.x / 2) * t,
+      virtualResolution.y / 2 + (focus.y - virtualResolution.y / 2) * t,
+    );
+    camera.viewfinder.zoom = deathSlowmo.currentZoom(1.0);
+
+    if (deathSlowmo.update(dt)) {
+      cameraJuice.reset();
+      camera.viewfinder.position = Vector2(virtualResolution.x / 2, virtualResolution.y / 2);
+      camera.viewfinder.zoom = 1.0;
+      camera.viewfinder.angle = 0.0;
+      onRunConcluded?.call();
+    }
+  }
+
   @override
   void update(double dt) {
+    final effectiveDt = deathSlowmo.isActive ? dt * deathSlowmo.timeScale : dt;
     _isUpdatingTree = true;
     try {
-      super.update(dt);
+      super.update(effectiveDt);
     } finally {
       _isUpdatingTree = false;
     }
     _flushPendingEffects();
-    if (!isRunning || gameState.status != GameStatus.running) return;
+    if (!isRunning || gameState.status != GameStatus.running) {
+      _updateDeathSlowmo(dt);
+      return;
+    }
 
     // 0. Update active energy drink buff, drone assist, celebration, and stunt combo timers
     gameState.updateEnergyTimer(dt);
