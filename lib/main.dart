@@ -90,6 +90,34 @@ class _CourierDashAppState extends State<CourierDashApp>
   bool _isHapticsOn = true;
   bool _isStartingRun = false;
 
+  /// What the shift under way has already put on the career record.
+  ///
+  /// A shift is banked when it ends. It is also banked when the app is put
+  /// away in the middle of one ([_checkpointShift]): a phone may close an
+  /// app it has put away and a browser tab can simply be closed, and the
+  /// shift's tips and a record run used to go with it. Whatever banks next
+  /// adds only what has been earned since.
+  int _bankedTips = 0;
+  int _bankedContracts = 0;
+  int _bankedDistance = 0;
+  bool _bankedARecord = false;
+
+  /// The run the tally above belongs to.
+  int _bankedRun = -1;
+
+  /// Starts the tally from nothing if the run is not the one it was kept
+  /// for. Asked of the run itself, not left to each place a shift can
+  /// start: a tally carried into the next shift would hold back that
+  /// shift's tips.
+  void _tallyThisRun() {
+    if (_bankedRun == _gameState.runNumber) return;
+    _bankedRun = _gameState.runNumber;
+    _bankedTips = 0;
+    _bankedContracts = 0;
+    _bankedDistance = 0;
+    _bankedARecord = false;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -163,8 +191,27 @@ class _CourierDashAppState extends State<CourierDashApp>
       // shift does not restart while nobody is looking.
       _cancelResumeCountdown();
       widget.audioController.suspendForBackground();
+      _checkpointShift();
     }
   }
+
+  /// Banks what the shift under way has earned so far, without ending it.
+  /// The app may not come back from where it is going.
+  void _checkpointShift() {
+    final live = _gameState.status == GameStatus.running || _gameState.status == GameStatus.paused;
+    if (!live) return;
+    _tallyThisRun();
+    // Leaving the app arrives as several events in a row. Only the first
+    // has anything new to save.
+    final nothingNew = _shiftTips == _bankedTips &&
+        _gameState.contractManager.completedCount == _bankedContracts &&
+        _gameState.distanceMeters.floor() <= _bankedDistance;
+    if (nothingNew) return;
+    _bankShift(shiftIsOver: false);
+  }
+
+  /// The tips the shift under way has earned, contract bonuses included.
+  int get _shiftTips => _gameState.tips + _gameState.contractManager.totalBonusTips;
 
   void _handleToggleReduceFlash(bool reduce) async {
     setState(() {
@@ -185,25 +232,37 @@ class _CourierDashAppState extends State<CourierDashApp>
   }
 
   /// Writes the current shift's distance, tips and contracts to the courier's
-  /// career record. Returns whether the distance is a new personal best.
+  /// career record. Returns whether the shift has set a new personal best.
   ///
-  /// Everything is read from the run state before the first await, so the
-  /// caller is free to reset that state straight afterwards.
-  Future<bool> _bankShift() async {
+  /// It adds what the shift has earned since it was last banked, so it can
+  /// be called while the shift is still going ([_checkpointShift]) and
+  /// again when it ends. Trophies are judged when the shift is over.
+  ///
+  /// Everything is read from the run state, and the tally of what has been
+  /// banked is brought up to date, before the first await: the caller is
+  /// free to reset that state straight afterwards, and a second call made
+  /// before this one has finished saving counts nothing twice.
+  Future<bool> _bankShift({bool shiftIsOver = true}) async {
+    _tallyThisRun();
     final distance = _gameState.distanceMeters.floor();
-    final tips = _gameState.tips + _gameState.contractManager.totalBonusTips;
-    final contracts = _gameState.contractManager.completedCount;
+    final tips = _shiftTips - _bankedTips;
+    final contracts = _gameState.contractManager.completedCount - _bankedContracts;
     final stuntCombo = _gameState.stuntStreak;
     final stations = _gameState.subwayStationsInRun;
+    _bankedTips += tips;
+    _bankedContracts += contracts;
+    if (distance > _bankedDistance) _bankedDistance = distance;
 
     final isNewRecord = await widget.storageService.recordRun(
       distance: distance,
       tips: tips,
     );
+    if (isNewRecord) _bankedARecord = true;
 
     if (contracts > 0) {
       await widget.storageService.recordCompletedContracts(contracts);
     }
+    if (!shiftIsOver) return _bankedARecord;
 
     // Evaluate lifetime achievements (contract specialist, big tipper)
     await _game.achievementManager.evaluateProgress(
@@ -217,7 +276,7 @@ class _CourierDashAppState extends State<CourierDashApp>
       lifetimeDeliveries: widget.storageService.lifetimeDeliveries,
       dailyStars: widget.storageService.dailyStars,
     );
-    return isNewRecord;
+    return _bankedARecord;
   }
 
   Future<void> _handleRunConcluded() async {

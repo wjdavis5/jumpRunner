@@ -1323,8 +1323,13 @@ class GameState extends ChangeNotifier {
   VoidCallback? onDamageTaken;
   VoidCallback? onVipMissionExpired;
 
+  /// Goes up each time a run begins or is reset, so that anything keeping a
+  /// tally for "this run" can tell when it has become another one.
+  int runNumber = 0;
+
   /// Begins or resets an active courier run.
   void startRun({DailyShift? dailyShift, Set<RunBooster>? equippedBoosters}) {
+    runNumber++;
     activeDailyShift = dailyShift;
     activeBoosters = equippedBoosters != null
         ? Set<RunBooster>.unmodifiable(equippedBoosters)

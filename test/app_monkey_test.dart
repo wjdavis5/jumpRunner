@@ -60,8 +60,13 @@ class _Books {
     }
     if (did.startsWith('shop ')) {
       if (now > tips) return 'a shop button raised the balance from $tips to $now';
-    } else if (status == GameStatus.idle && state.status == GameStatus.idle && now != tips) {
-      return 'the balance went from $tips to $now at the depot with nothing bought';
+    } else if (status == GameStatus.idle && state.status == GameStatus.idle) {
+      if (now > tips) return 'the balance rose from $tips to $now at the depot';
+      // A finger that lifts presses whatever is under it, and that can be
+      // a BUY button it came down on earlier: the balance may fall then.
+      if (now < tips && !did.startsWith('finger ')) {
+        return 'the balance went from $tips to $now at the depot with nothing bought';
+      }
     }
     if (status == GameStatus.paused && state.status == GameStatus.paused && state.distanceMeters != distance) {
       return 'a paused shift moved from $distance m to ${state.distanceMeters} m';
@@ -96,7 +101,7 @@ Future<String> _act(WidgetTester tester, math.Random rng, List<TestGesture> fing
   final shopOpen = game.overlays.isActive('LockerModal') || game.overlays.isActive('BodegaModal');
   if (shopOpen && rng.nextInt(3) != 0) return _shop(tester, rng);
 
-  switch (rng.nextInt(36)) {
+  switch (rng.nextInt(38)) {
     case 0:
     case 1:
       return await _tapIfPresent(tester, find.text('START SHIFT')) ? 'tap START SHIFT' : 'no START';
@@ -203,6 +208,14 @@ Future<String> _act(WidgetTester tester, math.Random rng, List<TestGesture> fing
       await fingers[rng.nextInt(fingers.length)]
           .moveBy(Offset(rng.nextDouble() * 160 - 80, rng.nextDouble() * 120 - 60));
       return 'finger slides';
+    case 36:
+    case 37:
+      // A good shift: the walk's own jumping collects next to nothing, and
+      // tips are what gets banked when a shift ends or the app is put away.
+      if (state.status != GameStatus.running) return 'no tips (not running)';
+      final amount = 1 + rng.nextInt(400);
+      state.addTip(amount);
+      return 'tips +$amount';
     case 22:
       // The window is resized, or the phone turned: any screen, mid-shift
       // or not, has to lay out at any of these.
@@ -259,20 +272,34 @@ void main() {
   // After every step the screen has to make sense: no two blocking layers at
   // once, nothing stranded behind a missing menu, no exception. It exists to
   // catch the orderings nobody thought to write a test for. Kept short here:
-  // three seeds chosen because between them they play shifts, leave the app,
-  // change the screen, hold and cancel touches and buy out both shops. For a
-  // soak, raise the seed list and the step count by hand: sixty seeds of 160
-  // steps and twenty-four of 320 passed when held touches were added. Run
-  // that way it has found a resume count unpausing the shift behind the
-  // pause menu, the HUD's pause button off the edge of a narrow screen, and
-  // (seed 32) a shift starting under an open menu card when a finger held
-  // on START SHIFT was lifted.
-  for (final seed in const [16, 18, 32]) {
+  // three seeds chosen because between them they play shifts, earn tips,
+  // leave the app, change the screen, hold and cancel touches and buy from
+  // the shops. For a soak, raise the seed list and the step count by hand:
+  // forty-eight seeds of 200 steps passed when the tips tally was added.
+  // Run that way it has found a resume count unpausing the shift behind
+  // the pause menu, the HUD's pause button off the edge of a narrow screen,
+  // and a shift starting under an open menu card when a finger held on
+  // START SHIFT was lifted. All three seeds here fail if a shift put away
+  // and then finished is banked twice. A seed's walk changes whenever an
+  // action is added, so a seed that found something is not kept: its test
+  // is.
+  for (final seed in const [404, 405, 420]) {
     testWidgets('random walk through the app holds together (seed $seed)', (tester) async {
       // Enough in the bank for the walk to buy things.
-      final harness = await bootApp(tester, prefs: {'courier_career_tips': 30000});
+      final harness = await bootApp(
+        tester,
+        prefs: {'courier_career_tips': 30000, 'courier_lifetime_tips': 30000},
+      );
       final rng = math.Random(seed);
       final trail = <String>[];
+
+      // What each shift has earned, kept apart from what the app has banked.
+      // A shift is banked when it ends and whenever the app is put away in
+      // the middle of it, and the two must never add up to more than the
+      // shift earned.
+      final earned = <int, int>{};
+      final lifetimeAtStart = harness.storage.lifetimeTips;
+      final starsAtStart = harness.storage.dailyStars;
 
       final fingers = <TestGesture>[];
 
@@ -304,6 +331,24 @@ void main() {
           if (i == 19) problem = 'game over, but the results card never appeared';
         }
         expect(problem, isNull, reason: where);
+
+        final state = game.gameState;
+        final thisShift = state.tips + state.contractManager.totalBonusTips;
+        earned[state.runNumber] = math.max(earned[state.runNumber] ?? 0, thisShift);
+        // A daily goal pays a bonus of its own, outside this tally.
+        if (harness.storage.dailyStars == starsAtStart) {
+          final banked = harness.storage.lifetimeTips - lifetimeAtStart;
+          final total = earned.values.fold<int>(0, (a, b) => a + b);
+          expect(banked, lessThanOrEqualTo(total), reason: 'more tips banked than the shifts earned, $where');
+          if (state.status == GameStatus.idle) {
+            expect(banked, equals(total), reason: 'back at the depot with tips earned and not banked, $where');
+          }
+          // Putting the app away banks the shift so far, and it comes back
+          // paused, where nothing more is earned.
+          if (did.startsWith('app away') && state.status == GameStatus.paused) {
+            expect(banked, equals(total), reason: 'the app was put away with tips not banked, $where');
+          }
+        }
       }
 
       for (final finger in fingers) {

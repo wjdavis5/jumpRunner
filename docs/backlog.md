@@ -125,6 +125,16 @@ build below.
   one shared priority the courier, built first, was hidden behind every
   piece they overlapped, and a crane built after a hint stood in front of
   it (`draw_order_test.dart`, `hazard_coaching_test.dart`).
+- A shift is banked when it ends and also when the app is put away in the
+  middle of it (`_checkpointShift` in `main.dart`): a phone may close an
+  app it has put away, and a tab can be closed. Each banking adds only what
+  the shift has earned since the last, and the tally belongs to the run
+  (`GameState.runNumber`), so nothing is counted twice and nothing carries
+  into the next shift (`app_put_away_mid_shift_test.dart`; the random walk
+  keeps its own tally of tips earned against tips banked).
+- A saved value that is missing or of the wrong kind reads as never saved
+  (`LocalStorageService._read`). The plugin's typed getters throw, and every
+  value is read while the app starts (`damaged_save_test.dart`).
 - `soak_test.dart` also plays the street with random presses and holds. A
   street piece that moves the courier (a rail, a hook, a launch) has to
   give them back: running again within 6 s, at their own spot, never
