@@ -11,11 +11,25 @@ Verified shipped work lands as conventional commits; move done items to Shipped.
    cart, #116 rooftop solarium, #87 debris chute, #84 manhole geyser, #83 window-washer
    cradle, #73 wrecking ball) — follow the established component pattern:
    data class in `world_chunk_manager.dart`, component file, spawn gate, game-over badge.
-3. **Cosmetic captures pending a quiet device** (contended input from concurrent
-   automation sessions): slow-mo death zoom review; coin-magnet glow/trail review
-   (equip an espresso booster via Bodega for a deterministic 8s magnet window);
-   night-phase review (billboard halo + night music both live from 2500m; reaching
-   it needs a ~2min survived run — consider a dev-only phase skip flag for QA).
+   **A new street piece also needs**, or a test will fail:
+   - its `active*` list in the scroll section of `CourierGame._step`, in the
+     recycle pass and in the restart cleanup (`world_housekeeping_test.dart`
+     watches every component in the world for one that stands still or is
+     never removed);
+   - `subwayStations.isEmpty` in its spawn condition (`subway_station_chunk_test.dart`);
+   - a place in `declutterStreet` so it is not built on top of something else;
+   - if it moves relative to the street, its gap built through
+     `closingDistance` (`oncoming_hazard_spacing_test.dart`).
+3. **Waiting on the owner** — open decisions are GitHub issues labelled
+   `needs-human` (#127 difficulty past 2,000 m, #128 prices and rewards, #129
+   vault window, #130 the synthesized sounds, #131 the app icon, #132 sprite
+   sheets for older phones, #133 a phone playtest, #134 the deploy that never
+   publishes). File new decisions there rather than in this file.
+
+The cosmetic captures that used to be item 3 are done: the death zoom showed a
+black void beside the street and was fixed; the coin magnet and the billboards
+render correctly. Late content no longer needs a long survived run: see QA
+build below.
 
 ## Regression guards (never break these)
 
@@ -23,7 +37,43 @@ Verified shipped work lands as conventional commits; move done items to Shipped.
   resurrects the TitleScreen overlay over live gameplay. Verify: title → Start Shift →
   HUD + gameplay visible on the emulator.
 - Warm-up: first 100m ≤ 1 small hazard/chunk (`world_chunk_manager_test.dart`).
-- Celebration banners clear the distance pill (`hud_overlay_test.dart`).
+- Celebration banners clear the distance pill (`hud_overlay_test.dart`) and
+  the status badges under it (`hud_banner_badges_test.dart`).
+- Hazards on the open street come from `WorldChunkManager.streetHazards`, never
+  `ObstacleType.values`: third rails and subway trains belong to stations.
+- A subway station chunk holds the third rail, the train and pickups, nothing
+  else (`subway_station_chunk_test.dart`).
+- Clearance between hazards is judged where the courier meets them, not where
+  they are built. Anything that rolls toward the courier (train, skater) is
+  set back by the ground it will make up (`closingDistance`,
+  `subwayTrainSetback`).
+- Hazard behaviour that depends on the courier's approach is timed in seconds,
+  not pixels: the pigeon flock takes off 1.2 s ahead at any speed
+  (`pigeon_flock_fairness_test.dart`).
+- Every `tips +=` in `GameState` reports the same amount to
+  `contractManager.onTipCollected`: the tips contract must match the HUD
+  (`contract_ladder_test.dart` checks it every frame of a shift).
+- One frame simulates at most 0.1 s, in steps of at most 1/60 s
+  (`frame_step_test.dart`). A test that asserts an exact per-frame value should
+  step at 1/60.
+- The HUD overlay is rebuilt at most every 80 ms (`ThrottledListenableBuilder`
+  in `main.dart`). Do not put it back inside an `AnimatedBuilder` on the game
+  state: that was a sixth of each frame on the web
+  (`hud_refresh_rate_test.dart`).
+- The skyline and facades are recorded once and replayed
+  (`parallax_cache_test.dart`); a window's light is a property of the window,
+  not of its position on screen.
+- Every overlay fits 667x375 and up (`overlay_fit_test.dart`,
+  `results_screen_fit_test.dart`, `menu_scrollbar_test.dart`).
+- Prices, rewards and trophy thresholds are sized against measured income
+  (`economy_test.dart`, `contract_ladder_test.dart`); change them together.
+- Icons and three sounds are generated: edit `tool/generate_icons.py` or
+  `tool/generate_audio.py` and re-run, never the files.
+- Android: back is handled by `_handleSystemBack` (pause, close a card, leave
+  results; exit only from the title) and the app runs in sticky immersive
+  mode (`app_back_button_test.dart`, `immersive_mode_test.dart`).
+- `app_monkey_test.dart` walks the whole app at random; a new overlay or
+  button belongs in its action list.
 
 ## Shipped
 
@@ -47,9 +97,35 @@ Verified shipped work lands as conventional commits; move done items to Shipped.
   crossfades in at the night phase (2500-4300m of each 5000m cycle) and back at
   dawn; fade-at-silence swaps, duck-aware multiplier, restart snap. Five
   mock-backend tests; asset bundled and day path verified error-free on device.
+- 2026-10-05: game-feel series (5c361e5 app icon, 363cb00 everything else,
+  836a957 Android full screen). The commit messages carry the list. In short:
+  the street generator was building almost no hazards and is fixed; subway
+  stations never scrolled and now work; trains, skaters and pigeons were
+  unfair at speed and are not; the economy, contracts and trophies were
+  retuned; every screen fits a phone; Android back, vibration and full screen;
+  the web build's frame rate under a slow CPU went from about 20 to about
+  27-30 fps mid-shift. Checked in tests, a phone-sized browser and an Android
+  15 emulator. Not checked on a physical phone.
+
+## QA build
+
+Late content can be reached without playing to it:
+
+```sh
+flutter build web --release --dart-define=QA_IMMORTAL=true --output build/web_qa
+```
+
+and open it with `?qa_start=2600` (start distance), `&qa_subway=1` (every
+chunk that can be a subway station is one) and `&qa_seed=7` (the same street
+on every load). The flags are compiled out of a normal build. Details are in
+the README.
 
 ## Coordination note
 
 Multiple automation sessions share this workspace and emulator. Before editing,
 re-check `git status` + `git log`; expect unrelated uncommitted edits to appear and
 vanish mid-read while another cycle is mid-flight. Commit early, keep changes atomic.
+
+The 2026-10-05 series was made in a separate worktree and pushed straight to
+`origin/main`. A checkout that was on `main` before it is behind the remote:
+`git pull --ff-only` before committing there.
