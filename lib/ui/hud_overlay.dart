@@ -18,6 +18,13 @@ class HUDOverlay extends StatelessWidget {
   final VoidCallback? onToggleMute;
   final VoidCallback? onPause;
 
+  /// Vertical offset clearing the two-line distance counter pill.
+  static const double bannerTopOffset = 94.0;
+
+  /// Vertical offset for the contract banner when stacked below the
+  /// milestone banner (bannerTopOffset + milestone banner height + gap).
+  static const double stackedBannerTopOffset = 160.0;
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -45,7 +52,7 @@ class HUDOverlay extends StatelessWidget {
           ),
           if (gameState.isMilestoneBannerVisible && gameState.activeMilestone != null)
             Positioned(
-              top: 72.0,
+              top: HUDOverlay.bannerTopOffset,
               left: 0,
               right: 0,
               child: Center(
@@ -54,7 +61,9 @@ class HUDOverlay extends StatelessWidget {
             ),
           if (gameState.isContractCelebrationVisible && gameState.activeContractCelebration != null)
             Positioned(
-              top: gameState.isMilestoneBannerVisible ? 142.0 : 72.0,
+              top: gameState.isMilestoneBannerVisible
+                  ? HUDOverlay.stackedBannerTopOffset
+                  : HUDOverlay.bannerTopOffset,
               left: 0,
               right: 0,
               child: Center(

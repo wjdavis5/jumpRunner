@@ -154,5 +154,29 @@ void main() {
       await tester.tap(find.text('START SHIFT'));
       expect(started, isTrue);
     });
+
+    testWidgets('celebration banners clear the two-line distance counter pill', (tester) async {
+      final state = GameState()..startRun();
+      state.updateDistance(500.0);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: HUDOverlay(gameState: state),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final milestoneBanner = tester.getTopLeft(
+        find.byKey(const Key('milestone_celebration_banner')),
+      );
+      // The distance pill extends to ~82px; banners must start below it.
+      expect(
+        milestoneBanner.dy,
+        greaterThanOrEqualTo(HUDOverlay.bannerTopOffset),
+        reason: 'milestone banner must not render underneath the distance pill',
+      );
+    });
   });
 }
