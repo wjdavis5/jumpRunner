@@ -55,6 +55,11 @@ build below.
   rail moves within 220-300 px or the chunk stays a street). Every hazard
   keeps a floor of room for error: 200 ms of tap timings, 300 ms for a leap
   (`hazard_fairness_floor_test.dart`).
+- A launch or an updraft never costs height: `JumpPhysicsSimulator.launch`
+  and `applyUpdraft` leave alone a jump that will climb higher by itself
+  (`launch_never_costs_height_test.dart`). A street piece that launches the
+  courier calls those, never sets `verticalVelocity` itself. The slingshot
+  out of a draft is an ordinary jump, so a hold is still a leap.
 - A test that needs an empty street uses `test/support/bare_street.dart`.
   Removing the hazards from a generated street leaves its energy drinks, and
   one run in twelve picked one up and ran a fifth faster.

@@ -118,8 +118,39 @@ class JumpPhysicsSimulator {
     setSurfaceY(groundY);
   }
 
+  /// How much higher the courier will climb from here with no further help:
+  /// what is left of a held jump's boost, then whatever speed carries.
+  double get riseRemaining {
+    if (isGrounded || verticalVelocity <= 0) return 0.0;
+    var speed = verticalVelocity;
+    var rise = 0.0;
+    if (isHolding) {
+      final until = _releasePending ? minHoldTime : maxHoldTime;
+      final boost = math.max(0.0, until - holdTimer);
+      final acceleration = holdAcceleration - gravity;
+      rise += speed * boost + 0.5 * acceleration * boost * boost;
+      speed += acceleration * boost;
+    }
+    return rise + speed * speed / (2 * gravity);
+  }
+
+  /// Whether a jump already under way will climb higher on its own than
+  /// being sent upward at [speed] would take it.
+  ///
+  /// Help from the street never costs height. Fourteen street pieces launch
+  /// the courier (an awning, a storm drain, a satellite dish, a thermal),
+  /// most at 200 to 240 px/s, and a held leap climbs at up to 435. Setting
+  /// the speed to the launch's and ending the hold, as a launch used to,
+  /// cut a leap that brushed one of them down to a hop: the courier leapt
+  /// a van, touched a newsstand on the way up and came down on the van.
+  bool _outclimbs(double speed) =>
+      speed > 0 && riseRemaining > speed * speed / (2 * gravity);
+
   /// Launches the avatar upward with an external velocity impulse (e.g. construction ramp).
+  ///
+  /// Does nothing to a courier whose own jump is already taking them higher.
   void launch(double impulse) {
+    if (_outclimbs(impulse)) return;
     isGrounded = false;
     isHolding = false;
     _releasePending = false;
@@ -129,7 +160,11 @@ class JumpPhysicsSimulator {
   }
 
   /// Applies a continuous or impulse vertical updraft lift (e.g. steam vent).
+  ///
+  /// Like [launch], it leaves a jump that is already climbing higher alone:
+  /// it used to end the hold of a leap passing through it.
   void applyUpdraft(double upwardVelocity, {double maxUpwardSpeed = 420.0}) {
+    if (_outclimbs(upwardVelocity.clamp(-maxUpwardSpeed, maxUpwardSpeed).toDouble())) return;
     isGrounded = false;
     isHolding = false;
     _releasePending = false;

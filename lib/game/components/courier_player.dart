@@ -375,10 +375,15 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
       return true;
     }
 
-    if (isDrafting && simulator.isGrounded) {
+    // The slingshot out of a cyclist's draft is an ordinary jump with the
+    // slingshot's reward. It used to be a launch at a fixed 360 px/s, which
+    // sounds like a catapult and is exactly the height of a tap: 66 px,
+    // whatever the press. A van that came up while the courier was drafting
+    // could not be cleared, because the held jump that clears a van had
+    // been replaced by that hop.
+    if (isDrafting && simulator.isGrounded && simulator.startJump(impulseMultiplier: impulseMultiplier)) {
       isDrafting = false;
       state = CourierState.jumping;
-      simulator.launch(360.0 * impulseMultiplier);
       onJump?.call();
       onDraftSlingshot?.call();
       return true;

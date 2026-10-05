@@ -188,7 +188,28 @@ void main() {
       expect(jumpResult, isTrue);
       expect(didTriggerSlingshot, isTrue);
       expect(player.isDrafting, isFalse);
-      expect(player.simulator.verticalVelocity, equals(360.0)); // High-velocity catapult!
+      // An ordinary jump, so that holding it is still the leap that clears
+      // a van. The fixed 360 px/s it used to be peaked at a tap's height.
+      expect(player.simulator.verticalVelocity, equals(player.simulator.initialImpulse));
+      expect(player.simulator.isHolding, isTrue);
+    });
+
+    test('a held slingshot is a full leap, and a tapped one the usual hop', () {
+      double peakOf({required bool held}) {
+        final player = CourierPlayer(groundY: 460.0)..isDrafting = true;
+        player.pressJump();
+        if (!held) player.releaseJump();
+        var peak = 0.0;
+        for (var i = 0; i < 240 && !(i > 3 && player.simulator.isGrounded); i++) {
+          player.simulator.update(1 / 60);
+          if (player.simulator.heightAboveGround > peak) peak = player.simulator.heightAboveGround;
+        }
+        return peak;
+      }
+
+      // A van is 68 px tall.
+      expect(peakOf(held: true), greaterThan(160.0));
+      expect(peakOf(held: false), inInclusiveRange(60.0, 75.0));
     });
 
     test('normal jump without drafting does not trigger slingshot callback', () {
