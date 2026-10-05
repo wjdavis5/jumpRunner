@@ -450,6 +450,16 @@ class _CourierDashAppState extends State<CourierDashApp>
       title: 'Courier Dash',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark(),
+      // The game draws its text at the sizes its screens were laid out for,
+      // whatever the phone's text-size setting says. The cards are fixed
+      // compositions that are already scaled to fit the screen as a whole;
+      // with system text at 130% the title, pause, Locker, Trophies and
+      // daily cards all overflowed, and at 115% three of them did.
+      builder: (context, child) => MediaQuery.withClampedTextScaling(
+        minScaleFactor: 1.0,
+        maxScaleFactor: 1.0,
+        child: child!,
+      ),
       // Android's back button or back swipe is never left to close the app
       // by itself: see [_handleSystemBack].
       home: PopScope(

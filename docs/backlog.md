@@ -72,6 +72,9 @@ build below.
 - Android: back is handled by `_handleSystemBack` (pause, close a card, leave
   results; exit only from the title) and the app runs in sticky immersive
   mode (`app_back_button_test.dart`, `immersive_mode_test.dart`).
+- The app draws its text at its designed sizes whatever the phone's
+  text-size setting is (the clamp in `MaterialApp.builder`,
+  `system_text_size_test.dart`). Without it the cards overflow from 115%.
 - `app_monkey_test.dart` walks the whole app at random; a new overlay or
   button belongs in its action list.
 
