@@ -172,9 +172,13 @@ flutter test tool/screens.dart
 
 writes a PNG of the title card, the four depot cards, the HUD, the pause menu
 and the results card at eight screen sizes to `build/screens/`, in about half
-a minute and with no phone or browser. The cards and the HUD are drawn in the
-real fonts. Text the game paints on its own canvas (signs, floating scores,
-hints) comes out as solid bars: those need the web build to be seen.
+a minute and with no phone or browser. It also takes the street itself
+(`street-*.png`): each coaching hint over its hazard, and a minute of a
+seeded street, one picture every five seconds. All of it is drawn in the
+real fonts. Look at these before reaching for a browser or an emulator.
+
+Text the game paints on its canvas must name its font (`gameFontFamily` in
+`lib/game/game_font.dart`), or it comes out of these pictures as solid bars.
 
 ## Coordination note
 

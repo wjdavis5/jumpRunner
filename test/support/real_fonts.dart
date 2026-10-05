@@ -17,9 +17,11 @@ Directory _sdkFonts() {
 ///
 /// A test draws every letter as a square one em wide (the Ahem font), so a
 /// label is far wider than on a phone and nothing about whether text fits
-/// can be learned from it. With Roboto loaded the app's Material text
-/// measures and draws as it does on Android. Text the game paints on its
-/// own canvas names no font family and stays as squares.
+/// can be learned from it. With Roboto loaded the app's text measures and
+/// draws as it does on Android: the cards and the HUD, and what the game
+/// paints on its own canvas, which names the font for this reason
+/// (`gameFontFamily`). A test cannot change the font used for text that
+/// names none.
 ///
 /// Call from `setUpAll`: loading a font needs real time, which the body of
 /// a `testWidgets` does not have.

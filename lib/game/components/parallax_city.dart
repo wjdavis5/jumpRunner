@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
+import '../game_font.dart';
 
 /// One procedural neon billboard advertisement mounted on a midground facade.
 class _BillboardAd {
@@ -11,6 +12,7 @@ class _BillboardAd {
           text: TextSpan(
             text: headline,
             style: TextStyle(
+              fontFamily: gameFontFamily,
               color: Colors.white,
               fontSize: 9,
               fontWeight: FontWeight.w900,

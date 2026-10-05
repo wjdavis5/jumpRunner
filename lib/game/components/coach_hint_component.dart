@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
+import '../game_font.dart';
 
 /// Persistent first-run coaching hint floating above the opening hazard.
 ///
@@ -107,6 +108,7 @@ class CoachHintComponent extends PositionComponent {
       text: TextSpan(
         text: value,
         style: const TextStyle(
+          fontFamily: gameFontFamily,
           color: Colors.white,
           fontSize: 15,
           fontWeight: FontWeight.w900,

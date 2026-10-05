@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
+import '../game_font.dart';
 
 /// Floating comic-style speech bubble indicator that displays courier voice barks
 /// and customer doorstep reactions above characters.
@@ -78,6 +79,7 @@ class SpeechBubbleComponent extends PositionComponent {
     final textSpan = TextSpan(
       text: text,
       style: TextStyle(
+        fontFamily: gameFontFamily,
         color: textColor.withValues(alpha: alpha),
         fontSize: 13.0,
         fontWeight: FontWeight.w900,

@@ -3,6 +3,7 @@ import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
 import 'courier_player.dart';
+import '../game_font.dart';
 
 /// Interactive residential porch stoop and parcel drop-off zone.
 ///
@@ -187,6 +188,7 @@ class DropZoneComponent extends PositionComponent {
         text: TextSpan(
           text: label,
           style: TextStyle(
+            fontFamily: gameFontFamily,
             color: (isVip ? const Color(0xFFFFD700) : const Color(0xFF00E5FF))
                 .withValues(alpha: 0.85 + (0.15 * pulse)),
             fontSize: isVip ? 9.5 : 10.0,

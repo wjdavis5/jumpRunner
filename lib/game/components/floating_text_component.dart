@@ -1,5 +1,6 @@
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
+import '../game_font.dart';
 
 /// Floating animated text indicator that drifts upward and fades out.
 ///
@@ -80,6 +81,7 @@ class FloatingTextComponent extends PositionComponent {
     final textSpan = TextSpan(
       text: text,
       style: TextStyle(
+        fontFamily: gameFontFamily,
         color: color.withValues(alpha: alpha),
         fontSize: 15.0,
         fontWeight: FontWeight.w900,

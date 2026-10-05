@@ -5,6 +5,7 @@ import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
 import 'courier_player.dart';
+import '../game_font.dart';
 
 /// Types of collectible pickups encountered during a courier sprint.
 enum PickupType {
@@ -237,6 +238,7 @@ class PickupComponent extends PositionComponent with CollisionCallbacks {
       text: TextSpan(
         text: label,
         style: const TextStyle(
+          fontFamily: gameFontFamily,
           color: Colors.white,
           fontSize: 10,
           fontWeight: FontWeight.bold,
@@ -379,6 +381,7 @@ class PickupComponent extends PositionComponent with CollisionCallbacks {
       text: const TextSpan(
         text: 'VIP',
         style: TextStyle(
+          fontFamily: gameFontFamily,
           color: Color(0xFF5A381E),
           fontSize: 8,
           fontWeight: FontWeight.w900,

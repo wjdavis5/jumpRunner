@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
+import '../game_font.dart';
 
 /// Animated neon holographic sidewalk totem marking the player's Personal Record (PR).
 ///
@@ -117,6 +118,7 @@ class PersonalRecordMarkerComponent extends PositionComponent {
       text: TextSpan(
         text: 'PR',
         style: TextStyle(
+          fontFamily: gameFontFamily,
           color: primaryColor,
           fontSize: 10,
           fontWeight: FontWeight.w900,
@@ -136,6 +138,7 @@ class PersonalRecordMarkerComponent extends PositionComponent {
       text: TextSpan(
         text: '${prDistance}m',
         style: TextStyle(
+          fontFamily: gameFontFamily,
           color: Colors.white,
           fontSize: 9,
           fontWeight: FontWeight.bold,

@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
+import '../game_font.dart';
 
 /// Subterranean subway transit station corridor component.
 ///
@@ -163,6 +164,7 @@ class SubwayStationComponent extends PositionComponent {
       final textSpan = TextSpan(
         text: '★ $stationName ★',
         style: const TextStyle(
+          fontFamily: gameFontFamily,
           color: Colors.white,
           fontSize: 10.0,
           fontWeight: FontWeight.bold,
@@ -254,6 +256,7 @@ class SubwayStationComponent extends PositionComponent {
       text: const TextSpan(
         text: 'SUBWAY',
         style: TextStyle(
+          fontFamily: gameFontFamily,
           color: Colors.white,
           fontSize: 7.0,
           fontWeight: FontWeight.w900,

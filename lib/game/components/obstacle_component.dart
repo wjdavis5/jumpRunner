@@ -5,6 +5,7 @@ import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
 import 'courier_player.dart';
+import '../game_font.dart';
 
 /// Types of urban street hazards the courier must leap over.
 enum ObstacleType {
@@ -676,6 +677,7 @@ class ObstacleComponent extends PositionComponent with CollisionCallbacks {
       text: const TextSpan(
         text: 'EXP 1',
         style: TextStyle(
+          fontFamily: gameFontFamily,
           color: Colors.white,
           fontSize: 4.5,
           fontWeight: FontWeight.bold,
