@@ -33,9 +33,20 @@ Future<void> lockOrientation() {
   return SystemChrome.setPreferredOrientations(supportedOrientations);
 }
 
+/// Hides the phone's status and navigation bars while the game is up.
+///
+/// On Android they were drawn over the game: the clock and signal icons
+/// across the top of the street, and the navigation bar down the right-hand
+/// edge. "Sticky" means a swipe from an edge shows them for a moment and
+/// they go away again by themselves.
+Future<void> hideSystemBars() {
+  return SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await lockOrientation();
+  await hideSystemBars();
 
   final storageService = LocalStorageService();
   await storageService.init();
