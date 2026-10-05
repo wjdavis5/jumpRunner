@@ -538,11 +538,15 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
     simulator.stopJump();
   }
 
-  /// Applies damage from a hazard.
+  /// What caused the damage registered last, if whatever caused it said.
+  Object? lastDamageSource;
+
+  /// Applies damage from a hazard, which can say what it is with [source].
   ///
   /// Returns `true` if damage was registered; `false` if ignored due to invulnerability.
-  bool takeDamage() {
+  bool takeDamage({Object? source}) {
     if (isInvulnerable || isSwinging || isZiplining) return false;
+    lastDamageSource = source;
 
     if (isGliding) {
       stopGlide();

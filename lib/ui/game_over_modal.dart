@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import '../game/components/obstacle_component.dart';
 import '../game/models/courier_skin.dart';
+import 'hazard_lesson.dart';
 import 'key_hint.dart';
 import 'money.dart';
 
@@ -11,6 +13,7 @@ class GameOverModal extends StatelessWidget {
     required this.tips,
     required this.isNewRecord,
     this.personalBest = 0,
+    this.endedBy,
     required this.careerTips,
     required this.onRestart,
     this.onReturnToDepot,
@@ -61,6 +64,9 @@ class GameOverModal extends StatelessWidget {
   /// The courier's best distance, this shift included. Shown beside the
   /// distance when this shift fell short of it.
   final int personalBest;
+
+  /// The hazard that took the last package, if the shift ended on one.
+  final ObstacleType? endedBy;
 
   /// What the distance figure is labelled: a shift that fell short of the
   /// record says what the record is, because "how close was that?" is the
@@ -165,7 +171,23 @@ class GameOverModal extends StatelessWidget {
                 letterSpacing: 1.2,
               ),
             ),
-            if (!compact) ...[
+            // What ended the shift and how to get past it next time. Shown
+            // on a phone held sideways too, where the old "Shift Concluded"
+            // was dropped for room: this line earns its 20 px.
+            if (endedBy != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                HazardLesson.forType(endedBy!).line,
+                key: const Key('game_over_lesson'),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ] else if (!compact) ...[
               const SizedBox(height: 4),
               const Text(
                 'Shift Concluded',

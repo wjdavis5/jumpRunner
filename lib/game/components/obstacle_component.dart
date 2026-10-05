@@ -207,7 +207,7 @@ class ObstacleComponent extends PositionComponent with CollisionCallbacks {
     if (other is CourierPlayer) {
       if (hasBeenVaulted || other.isVaulting) return;
       hasCollidedWithPlayer = true;
-      other.takeDamage();
+      other.takeDamage(source: type);
     }
   }
 

@@ -448,6 +448,8 @@ class CourierGame extends FlameGame
         spawnImpact(player.position + (player.size / 2));
         triggerScreenShake(0.65);
         final wasRunning = gameState.status == GameStatus.running;
+        final source = player.lastDamageSource;
+        if (wasRunning && source is ObstacleType) gameState.lastHitBy = source;
         final stillRunning = gameState.applyHazardDamage();
         if (stillRunning) {
           haptics.hit();

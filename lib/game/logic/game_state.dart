@@ -1004,6 +1004,10 @@ class GameState extends ChangeNotifier {
   final ContractManager contractManager;
   int damageTakenCount = 0;
 
+  /// The hazard that cost the courier a package most recently in this
+  /// shift: once the shift is over, the one that ended it.
+  ObstacleType? lastHitBy;
+
   /// Active Daily Gig Shift challenge for this run, if started in Daily Shift mode.
   DailyShift? activeDailyShift;
   bool get isDailyShiftActive => activeDailyShift != null;
@@ -1331,6 +1335,7 @@ class GameState extends ChangeNotifier {
     distanceMeters = 0.0;
     _lastMilestoneIndex = 0;
     damageTakenCount = 0;
+    lastHitBy = null;
     energyDrinkTimer = 0.0;
     droneTimer = 0.0;
     activeMilestone = null;

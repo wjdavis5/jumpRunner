@@ -561,6 +561,7 @@ class _CourierDashAppState extends State<CourierDashApp>
             tips: _lastTips,
             isNewRecord: _isNewRecord,
             personalBest: widget.storageService.highDistance,
+            endedBy: _gameState.lastHitBy,
             careerTips: widget.storageService.careerTips,
             nextOutfit: CourierSkin.nextToUnlock(widget.storageService.unlockedSkins),
             completedContracts: _gameState.contractManager.completedCount,
