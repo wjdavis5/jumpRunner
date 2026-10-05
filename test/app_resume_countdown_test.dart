@@ -121,6 +121,55 @@ void main() {
       expect(state.status, equals(GameStatus.paused));
     });
 
+    // A phone draws no frames while the app is away. The first frame after
+    // coming back arrives long after the count would have ended, and the
+    // count, cancelled but not yet rebuilt away, reports that it finished.
+    // That used to resume the shift behind the pause menu: the menu on
+    // screen, the courier running into things underneath it.
+    testWidgets('coming back after the count would have ended leaves the shift on hold', (tester) async {
+      await _pausedShift(tester);
+      final game = gameOf(tester);
+      final state = game.gameState;
+      final distance = state.distanceMeters;
+
+      await tester.tap(find.byKey(const Key('resume_shift_button')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byType(ResumeCountdown), findsOneWidget);
+
+      // Away and back with no frame drawn in between.
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump(ResumeCountdown.total + const Duration(seconds: 5));
+      await settle(tester, frames: 3);
+
+      expect(state.status, equals(GameStatus.paused));
+      expect(find.text('SHIFT ON HOLD'), findsOneWidget);
+      expect(game.overlays.isActive('ResumeCountdown'), isFalse);
+      expect(state.distanceMeters, equals(distance));
+    });
+
+    testWidgets('P on the very last frame of the count still means "not yet"', (tester) async {
+      await _pausedShift(tester);
+      final state = gameOf(tester).gameState;
+
+      await tester.tap(find.byKey(const Key('resume_shift_button')));
+      await tester.pump();
+      await tester.pump(ResumeCountdown.total - const Duration(milliseconds: 10));
+      expect(find.byType(ResumeCountdown), findsOneWidget);
+      expect(state.status, equals(GameStatus.paused));
+
+      // The key arrives between two frames; the next frame is the one on
+      // which the count ends.
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyP);
+      await tester.pump(const Duration(milliseconds: 32));
+      await settle(tester, frames: 3);
+
+      expect(state.status, equals(GameStatus.paused));
+      expect(find.text('SHIFT ON HOLD'), findsOneWidget);
+    });
+
     testWidgets('tapping Resume twice does not start two counts', (tester) async {
       await _pausedShift(tester);
       final state = gameOf(tester).gameState;

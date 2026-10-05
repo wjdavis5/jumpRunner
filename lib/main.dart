@@ -307,6 +307,13 @@ class _CourierDashAppState extends State<CourierDashApp>
   }
 
   void _finishResume() {
+    // A count that has been called off can still report that it finished:
+    // taking its overlay down only takes effect on the next frame, and its
+    // animation ticks before that frame is built. After the app has been
+    // in the background that next frame comes seconds late, the animation
+    // jumps straight to its end, and the shift used to start running
+    // behind the pause menu that had replaced the count.
+    if (!_isCountingDown) return;
     _game.overlays.remove('ResumeCountdown');
     if (_gameState.status == GameStatus.paused) {
       _gameState.resumeRun();
