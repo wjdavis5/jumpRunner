@@ -5,8 +5,8 @@ Verified shipped work lands as conventional commits; move done items to Shipped.
 
 ## In play (highest impact first)
 
-1. **Adaptive soundtrack stems** (issue #63) — layer intensity by speed bracket; big
-   scope, needs the Kenney audio pack unzipped from `C:\Users\will\Downloads`.
+1. **Adaptive soundtrack, next slices** (issue #63) — night-phase crossfade shipped;
+   remaining slices: rain-weighted lowpass/mood, streak-driven intensity layer.
 2. **Environment components** (issues #126 cement mixer, #124 dumpster, #118 pretzel
    cart, #116 rooftop solarium, #87 debris chute, #84 manhole geyser, #83 window-washer
    cradle, #73 wrecking ball) — follow the established component pattern:
@@ -14,8 +14,8 @@ Verified shipped work lands as conventional commits; move done items to Shipped.
 3. **Cosmetic captures pending a quiet device** (contended input from concurrent
    automation sessions): slow-mo death zoom review; coin-magnet glow/trail review
    (equip an espresso booster via Bodega for a deterministic 8s magnet window);
-   night-phase billboard halo review (billboards shipped 2026-10-04, night lamp-glow
-   boost untested visually).
+   night-phase review (billboard halo + night music both live from 2500m; reaching
+   it needs a ~2min survived run — consider a dev-only phase skip flag for QA).
 
 ## Regression guards (never break these)
 
@@ -43,6 +43,10 @@ Verified shipped work lands as conventional commits; move done items to Shipped.
 - 2026-10-04: neon billboards (bf77462) — seven courier-themed glowing headlines
   on every third midground facade with shimmer/dropout flicker, glitch shear,
   and night lamp-glow scaling. Unit-tested glow math; emulator-verified live.
+- 2026-10-04: adaptive night music (fecb3aa) — Kenney "Night at the Beach" loop
+  crossfades in at the night phase (2500-4300m of each 5000m cycle) and back at
+  dawn; fade-at-silence swaps, duck-aware multiplier, restart snap. Five
+  mock-backend tests; asset bundled and day path verified error-free on device.
 
 ## Coordination note
 
