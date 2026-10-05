@@ -43,7 +43,9 @@ jobs:
         run: flutter pub get
 
       - name: Build Web Client
-        run: flutter build web --release
+        # The page carries its own drawing engine instead of loading it from
+        # a CDN: it then needs no server but the one it is served from.
+        run: flutter build web --release --no-web-resources-cdn
 
       - name: Publish to Cloudflare Pages
         if: env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''

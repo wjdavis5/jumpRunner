@@ -13,9 +13,9 @@
 //   hazard, and a minute of a seeded street played with random presses, one
 //   picture every five seconds.
 //
-// Text is drawn in Roboto, as on Android. A character Roboto does not have
-// (the stars on the station signs and the Daily card) comes out as an empty
-// box here; a phone fills those in from another font.
+// Text is drawn in the app's own font, as on a device. A character that
+// font does not have comes out as an empty box, here and in the web build:
+// see `withStars`.
 //
 // It is not part of the test suite: `flutter test` only runs files named
 // *_test.dart under test/.

@@ -161,15 +161,16 @@ class SubwayStationComponent extends PositionComponent {
           ..strokeWidth = 1.5,
       );
 
-      final textSpan = TextSpan(
-        text: '★ $stationName ★',
-        style: const TextStyle(
+      final textSpan = withStars(
+        '★ $stationName ★',
+        const TextStyle(
           fontFamily: gameFontFamily,
           color: Colors.white,
           fontSize: 10.0,
           fontWeight: FontWeight.bold,
           letterSpacing: 1.1,
         ),
+        starColor: const Color(0xFFF1C40F),
       );
       final tp = TextPainter(text: textSpan, textDirection: TextDirection.ltr)..layout();
       tp.paint(canvas, Offset(sx + (180 - tp.width) / 2, bandY + 8));

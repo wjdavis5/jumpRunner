@@ -19,7 +19,7 @@ class SpeechBubbleComponent extends PositionComponent {
     this.driftVelocity = -22.0,
     this.tailOffsetX = 16.0,
     this.speaker,
-  }) {
+  }) : super(priority: wordsPriority) {
     this.position = position;
     final who = speaker;
     if (who != null) _offsetFromSpeaker = position - who.position;
@@ -76,9 +76,9 @@ class SpeechBubbleComponent extends PositionComponent {
       alpha = ((duration - _elapsed) / 0.3).clamp(0.0, 1.0);
     }
 
-    final textSpan = TextSpan(
-      text: text,
-      style: TextStyle(
+    final textSpan = withStars(
+      text,
+      TextStyle(
         fontFamily: gameFontFamily,
         color: textColor.withValues(alpha: alpha),
         fontSize: 13.0,

@@ -90,7 +90,7 @@ void main() {
   });
 
   testWidgets('The goal label follows the shift', (tester) async {
-    String label() => tester.widget<Text>(find.byKey(const Key('hud_goal_label'))).data!;
+    String label() => tester.widget<Text>(find.byKey(const Key('hud_goal_label'))).textSpan!.toPlainText();
 
     // A regular shift aims at the next 500 m milestone.
     final regular = GameState()..startRun();

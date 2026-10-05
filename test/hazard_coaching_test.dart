@@ -88,6 +88,26 @@ void main() {
       expect((hint.follow! as ObstacleComponent).type, equals(ObstacleType.subwayTrain));
     });
 
+    // Seen in a browser: a crane built after the hint was drawn over it,
+    // its mast through the middle of the words.
+    test('a street piece built after the hint does not stand in front of it', () async {
+      final shift = await _shift();
+      await shift.meet([ObstacleType.thirdRail, ObstacleType.subwayTrain]);
+      final hint = shift.game.trainCoach!;
+      final late = hazardAt(ObstacleType.van, 700);
+      shift.game.world.add(late);
+      for (var f = 0; f < 30 && !late.isMounted; f++) {
+        shift.game.gameState.packages = shift.game.gameState.maxPackages;
+        shift.game.update(_frame);
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      // Children are kept in the order they are drawn.
+      final drawn = shift.game.world.children.toList();
+      expect(drawn.indexOf(late), greaterThanOrEqualTo(0));
+      expect(drawn.indexOf(hint), greaterThan(drawn.indexOf(late)));
+    });
+
     test('a van earlier in the shift does not use it up', () async {
       final shift = await _shift();
       await shift.meet([ObstacleType.van, ObstacleType.subwayTrain]);

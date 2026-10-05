@@ -62,12 +62,12 @@ void main() {
       await _pumpResults(tester, distance: 365, isNewRecord: false, personalBest: 412);
       expect(find.text('365 m'), findsOneWidget);
       expect(_distanceLabel(tester), equals('Distance · best 412 m'));
-      expect(find.text('★ NEW DISTANCE RECORD! ★'), findsNothing);
+      expect(find.textContaining('NEW DISTANCE RECORD!'), findsNothing);
     });
 
     testWidgets('a record shift keeps its banner and a plain label', (tester) async {
       await _pumpResults(tester, distance: 520, isNewRecord: true, personalBest: 520);
-      expect(find.text('★ NEW DISTANCE RECORD! ★'), findsOneWidget);
+      expect(find.textContaining('NEW DISTANCE RECORD!'), findsOneWidget);
       expect(_distanceLabel(tester), equals('Distance'));
     });
 
@@ -125,7 +125,7 @@ void main() {
     testWidgets('a first shift is a record and says so instead', (tester) async {
       await bootApp(tester);
       await crash(tester);
-      expect(find.text('★ NEW DISTANCE RECORD! ★'), findsOneWidget);
+      expect(find.textContaining('NEW DISTANCE RECORD!'), findsOneWidget);
       expect(_distanceLabel(tester), equals('Distance'));
       await tester.pump(const Duration(seconds: 2));
     });

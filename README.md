@@ -43,8 +43,14 @@ flutter pub get
 flutter run -d chrome          # or any connected device
 flutter analyze --fatal-infos  # CI treats infos as failures
 flutter test
-flutter build web --release
+flutter build web --release --no-web-resources-cdn
 ```
+
+The web build asks no server but its own for anything. The flag keeps the
+drawing engine (CanvasKit) in the build instead of loading it from a CDN,
+the font is in `assets/fonts/`, and the stars in the game's text are drawn
+from the icon font the app already carries (`withStars`), because a
+character the font lacks is otherwise fetched from a font server.
 
 To look at late-game scenes without playing to them, a QA build can start
 every shift part-way in and keep the courier alive. Both switches are
@@ -110,6 +116,9 @@ No secret values belong in this repository.
 
 Sprites and audio are curated from Kenney's CC0 packs and bundled under
 `assets/`; see `assets/LICENSE_KENNEY.txt`.
+
+The font is Roboto in four weights (Regular, Medium, Bold, Black), under the
+Apache License 2.0: `assets/fonts/LICENSE_ROBOTO.txt`.
 
 Three sounds are not samples: the rain loop, the thunderclap and the near-miss
 whoosh are synthesized by `tool/generate_audio.py` (Python with numpy, plus

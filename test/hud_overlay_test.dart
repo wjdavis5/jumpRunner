@@ -123,7 +123,7 @@ void main() {
       );
 
       expect(find.text('PACKAGES DROPPED!'), findsOneWidget);
-      expect(find.text('★ NEW DISTANCE RECORD! ★'), findsOneWidget);
+      expect(find.textContaining('NEW DISTANCE RECORD!'), findsOneWidget);
       expect(find.text('820 m'), findsOneWidget);
       expect(find.text(r'$45'), findsOneWidget);
       expect(find.text(r'$120'), findsOneWidget);

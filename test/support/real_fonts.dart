@@ -1,39 +1,28 @@
-import 'dart:io';
-
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// The Flutter SDK's own copies of Roboto and the Material icons.
-Directory _sdkFonts() {
-  final root = Platform.environment['FLUTTER_ROOT'];
-  if (root != null) return Directory('$root/bin/cache/artifacts/material_fonts');
-  // flutter_tester lives in bin/cache/artifacts/engine/<platform>/.
-  return Directory('${File(Platform.resolvedExecutable).parent.parent.parent.path}/material_fonts');
-}
-
-/// Gives a test the fonts a phone draws the app with.
+/// Gives a test the fonts the app is drawn with.
 ///
 /// A test draws every letter as a square one em wide (the Ahem font), so a
 /// label is far wider than on a phone and nothing about whether text fits
-/// can be learned from it. With Roboto loaded the app's text measures and
-/// draws as it does on Android: the cards and the HUD, and what the game
-/// paints on its own canvas, which names the font for this reason
-/// (`gameFontFamily`). A test cannot change the font used for text that
-/// names none.
+/// can be learned from it. This loads the app's own Roboto and the Material
+/// icons, after which text measures and draws as it does on a device: the
+/// cards and the HUD, and what the game paints on its own canvas, which
+/// names the font for this reason (`gameFontFamily`). A test cannot change
+/// the font used for text that names none.
 ///
 /// Call from `setUpAll`: loading a font needs real time, which the body of
 /// a `testWidgets` does not have.
 Future<void> loadRealFonts() async {
-  final dir = _sdkFonts();
-  ByteData bytes(String name) => ByteData.view(Uint8List.fromList(File('${dir.path}/$name').readAsBytesSync()).buffer);
+  TestWidgetsFlutterBinding.ensureInitialized();
   final roboto = FontLoader('Roboto');
-  for (final weight in const ['regular', 'medium', 'bold', 'black', 'light', 'italic', 'bolditalic']) {
-    roboto.addFont(Future.value(bytes('roboto-$weight.ttf')));
+  for (final weight in const ['Regular', 'Medium', 'Bold', 'Black']) {
+    roboto.addFont(rootBundle.load('assets/fonts/Roboto-$weight.ttf'));
   }
   await roboto.load();
-  final icons = FontLoader('MaterialIcons')..addFont(Future.value(bytes('materialicons-regular.otf')));
+  final icons = FontLoader('MaterialIcons')..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
   await icons.load();
 }
 

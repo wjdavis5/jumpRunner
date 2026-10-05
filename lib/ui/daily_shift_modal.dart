@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../game/game_font.dart';
 import '../game/models/daily_shift.dart';
 import '../services/storage_service.dart';
 import 'fit_to_screen.dart';
@@ -210,12 +211,15 @@ class DailyShiftModal extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 4),
-                          Text(
-                            '${storageService.dailyStars} ⭐',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                          Text.rich(
+                            withStars(
+                              '${storageService.dailyStars} ★',
+                              const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              starColor: const Color(0xFFF1C40F),
                             ),
                           ),
                         ],

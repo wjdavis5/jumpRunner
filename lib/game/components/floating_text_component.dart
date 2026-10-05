@@ -13,7 +13,7 @@ class FloatingTextComponent extends PositionComponent {
     this.color = const Color(0xFF00E5FF),
     this.duration = 0.85,
     this.driftVelocity = -55.0,
-  }) {
+  }) : super(priority: wordsPriority) {
     this.position = position;
   }
 
@@ -78,9 +78,9 @@ class FloatingTextComponent extends PositionComponent {
     final progress = (_elapsed / duration).clamp(0.0, 1.0);
     final alpha = (1.0 - progress).clamp(0.0, 1.0);
 
-    final textSpan = TextSpan(
-      text: text,
-      style: TextStyle(
+    final textSpan = withStars(
+      text,
+      TextStyle(
         fontFamily: gameFontFamily,
         color: color.withValues(alpha: alpha),
         fontSize: 15.0,

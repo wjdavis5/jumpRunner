@@ -30,3 +30,18 @@ flutter:
     - assets/audio/sfx/
     - assets/audio/music/
     - assets/LICENSE_KENNEY.txt
+    - assets/fonts/LICENSE_ROBOTO.txt
+
+  # The font is carried in the app so that every platform draws the same
+  # letters at the same weights. Without it the web build fetched one weight
+  # from a font server and faked the bold ones, and iOS used its own font.
+  fonts:
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/Roboto-Regular.ttf
+        - asset: assets/fonts/Roboto-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Roboto-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Roboto-Black.ttf
+          weight: 900

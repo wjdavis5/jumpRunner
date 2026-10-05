@@ -25,7 +25,7 @@ class CoachHintComponent extends PositionComponent {
     this.hoverAbove,
     this.minY = 70.0,
     this.dismissWhen,
-  }) {
+  }) : super(priority: wordsPriority) {
     this.position = position;
     _textPainter = _layoutText(text);
   }

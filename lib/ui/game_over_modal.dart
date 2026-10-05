@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../game/components/obstacle_component.dart';
+import '../game/game_font.dart';
 import '../game/models/courier_skin.dart';
 import 'fit_to_screen.dart';
 import 'hazard_lesson.dart';
@@ -218,12 +219,14 @@ class GameOverModal extends StatelessWidget {
                   color: const Color(0xFFF1C40F),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Text(
-                  '★ NEW DISTANCE RECORD! ★',
-                  style: TextStyle(
-                    color: Color(0xFF1C2833),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
+                child: Text.rich(
+                  withStars(
+                    '★ NEW DISTANCE RECORD! ★',
+                    const TextStyle(
+                      color: Color(0xFF1C2833),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
               ),

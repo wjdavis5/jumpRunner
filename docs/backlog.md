@@ -114,6 +114,14 @@ build below.
   for text that ends in an ellipsis, stops at a line limit, or is a button
   label that has wrapped. A button label is one line, scaled down
   (`KeyHintLabel`); the Trophies list is one column under 500 px.
+- The web build asks no server but its own for anything: build with
+  `--no-web-resources-cdn`, keep Roboto in `assets/fonts/`, and write a star
+  with `withStars` (a character Roboto lacks is fetched from a font server
+  on the web, and is an empty box until it arrives). Check in a browser
+  that the page makes no request to another host.
+- The game's words (hints, floating scores, speech bubbles) are drawn at
+  `wordsPriority`, in front of every street piece. At the default priority
+  a crane built after a hint stood in front of it.
 - `soak_test.dart` also plays the street with random presses and holds. A
   street piece that moves the courier (a rail, a hook, a launch) has to
   give them back: running again within 6 s, at their own spot, never
@@ -156,7 +164,7 @@ build below.
 Late content can be reached without playing to it:
 
 ```sh
-flutter build web --release --dart-define=QA_IMMORTAL=true --output build/web_qa
+flutter build web --release --no-web-resources-cdn --dart-define=QA_IMMORTAL=true --output build/web_qa
 ```
 
 and open it with `?qa_start=2600` (start distance), `&qa_subway=1` (every

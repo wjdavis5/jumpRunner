@@ -238,7 +238,7 @@ void main() {
       );
 
       expect(find.byKey(const Key('open_daily_shift_button')), findsOneWidget);
-      expect(find.text('DAILY (3 ⭐)'), findsOneWidget);
+      expect(find.textContaining('DAILY (3 '), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('open_daily_shift_button')));
       await tester.pump();

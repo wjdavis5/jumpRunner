@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../game/game_font.dart';
 import '../game/logic/game_state.dart';
 import '../game/models/shift_contract.dart';
 import 'fit_to_screen.dart';
@@ -348,24 +349,26 @@ class HUDOverlay extends StatelessWidget {
                   letterSpacing: 0.5,
                 ),
               ),
-              Text(
-                gameState.isDailyShiftActive
-                    // Once the goal is passed the label says so, instead of
-                    // still pointing at a line the courier has crossed.
-                    ? (gameState.hasCompletedDailyShiftInRun
-                        ? 'DAILY GOAL COMPLETE ★ (${gameState.activeDailyShift!.modifier.title})'
-                        : 'DAILY GOAL: ${gameState.activeDailyShift!.targetDistanceMeters}m (${gameState.activeDailyShift!.modifier.title})')
-                    : 'Shift Goal: ${nextMilestone}m',
-                key: const Key('hud_goal_label'),
-                style: TextStyle(
-                  color: gameState.isDailyShiftActive
+              Text.rich(
+                withStars(
+                  gameState.isDailyShiftActive
+                      // Once the goal is passed the label says so, instead of
+                      // still pointing at a line the courier has crossed.
                       ? (gameState.hasCompletedDailyShiftInRun
-                          ? const Color(0xFFF1C40F)
-                          : gameState.activeDailyShift!.modifier.color)
-                      : const Color(0xFF85C1E9),
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
+                          ? 'DAILY GOAL COMPLETE ★ (${gameState.activeDailyShift!.modifier.title})'
+                          : 'DAILY GOAL: ${gameState.activeDailyShift!.targetDistanceMeters}m (${gameState.activeDailyShift!.modifier.title})')
+                      : 'Shift Goal: ${nextMilestone}m',
+                  TextStyle(
+                    color: gameState.isDailyShiftActive
+                        ? (gameState.hasCompletedDailyShiftInRun
+                            ? const Color(0xFFF1C40F)
+                            : gameState.activeDailyShift!.modifier.color)
+                        : const Color(0xFF85C1E9),
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
+                key: const Key('hud_goal_label'),
               ),
             ],
           ),

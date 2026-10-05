@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../game/game_font.dart';
 import '../game/logic/input_hints.dart';
 import '../game/models/courier_skin.dart';
 import '../game/models/run_booster.dart';
@@ -393,16 +394,19 @@ class TitleScreen extends StatelessWidget {
                         key: const Key('open_daily_shift_button'),
                         onPressed: onOpenDailyShift,
                         icon: const Icon(Icons.event_available, size: 18, color: Color(0xFF3498DB)),
-                        label: Text(
-                          dailyStars > 0 ? 'DAILY ($dailyStars ⭐)' : 'DAILY',
+                        label: Text.rich(
+                          withStars(
+                            dailyStars > 0 ? 'DAILY ($dailyStars ★)' : 'DAILY',
+                            const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                            starColor: const Color(0xFFF1C40F),
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
-                          ),
                         ),
                         style: OutlinedButton.styleFrom(
                           side: const BorderSide(color: Color(0xFF3498DB), width: 1.5),

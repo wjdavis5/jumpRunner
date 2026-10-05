@@ -38,7 +38,9 @@ jobs:
         run: flutter test
 
       - name: Build Web Release
-        run: flutter build web --release
+        # The page carries its own drawing engine instead of loading it from
+        # a CDN: it then needs no server but the one it is served from.
+        run: flutter build web --release --no-web-resources-cdn
 
   build-ios:
     name: Build iOS (Unsigned)
