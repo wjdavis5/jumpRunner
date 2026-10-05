@@ -23,6 +23,7 @@ class LocalStorageService {
   static const String _keyLifetimeDeliveries = 'courier_lifetime_deliveries';
   static const String _keyReduceFlash = 'courier_reduce_flash';
   static const String _keyHaptics = 'courier_haptics';
+  static const String _keyPigeonCoachRuns = 'courier_coach_pigeons';
 
   SharedPreferences? _prefs;
 
@@ -68,6 +69,14 @@ class LocalStorageService {
   /// Whether the phone may vibrate on hits and milestones. On until the
   /// player turns it off.
   bool get isHapticsEnabled => _prefs?.getBool(_keyHaptics) ?? true;
+
+  /// In how many shifts the "run under the birds" hint has been shown over a flock
+  /// of pigeons. It stops after a few.
+  int get pigeonCoachRuns => _prefs?.getInt(_keyPigeonCoachRuns) ?? 0;
+
+  Future<void> addPigeonCoachRun() async {
+    await _prefs?.setInt(_keyPigeonCoachRuns, pigeonCoachRuns + 1);
+  }
 
   /// Saves the vibration preference.
   Future<void> setHapticsEnabled(bool enabled) async {

@@ -229,6 +229,24 @@ class CourierGame extends FlameGame
 
   bool _leapCoachShownThisRun = false;
 
+  /// The same hint over the first subway train of a novice's shift. A train
+  /// needs the held leap as much as a van does, and a shift that has
+  /// already met a van still gets it: nothing says a train is like a van.
+  CoachHintComponent? trainCoach;
+  bool _trainCoachShownThisRun = false;
+
+  /// "Run under the birds" over the first flock of pigeons in a shift, for a
+  /// courier's first [pigeonCoachShifts] shifts that meet one. Pigeons turn
+  /// up from 800 m, long after a courier stops being a novice, and they
+  /// are the one hazard where the habit that works everywhere else (when
+  /// in doubt, hold the jump) is the only way to be hit.
+  CoachHintComponent? pigeonCoach;
+  bool _pigeonCoachShownThisRun = false;
+  int _pigeonCoachShiftsUnsaved = 0;
+
+  /// In how many shifts the pigeon hint is shown before it stops.
+  static const int pigeonCoachShifts = 3;
+
   int _wetHazardsCleared = 0;
 
   late final ParallaxCityComponent parallaxCity;
@@ -591,6 +609,8 @@ class CourierGame extends FlameGame
       activeObstacles.add(obsComp);
       world.add(obsComp);
       if (o.type == ObstacleType.van) _coachLeapOver(obsComp);
+      if (o.type == ObstacleType.subwayTrain) _coachLeapOverTrain(obsComp);
+      if (o.type == ObstacleType.pigeonFlock) _coachPigeons(obsComp);
     }
 
     for (final p in chunk.pickups) {
@@ -1439,6 +1459,12 @@ class CourierGame extends FlameGame
     leapCoach?.removeFromParent();
     leapCoach = null;
     _leapCoachShownThisRun = false;
+    trainCoach?.removeFromParent();
+    trainCoach = null;
+    _trainCoachShownThisRun = false;
+    pigeonCoach?.removeFromParent();
+    pigeonCoach = null;
+    _pigeonCoachShownThisRun = false;
     glideCoach?.removeFromParent();
     glideCoach = null;
     _glideCoachShownThisRun = false;
@@ -1479,6 +1505,38 @@ class CourierGame extends FlameGame
     );
     leapCoach = hint;
     world.add(hint);
+  }
+
+  /// A hint that waits at the right edge of the screen and then rides
+  /// above [hazard] until it is behind the courier.
+  CoachHintComponent _hintOver(ObstacleComponent hazard, String text) {
+    final hint = CoachHintComponent(
+      text: text,
+      position: Vector2(visibleWidth, groundY - 175.0),
+      follow: hazard,
+      dismissBehindX: player.position.x,
+      showWithinX: visibleWidth + leapCoachLeadPixels,
+      maxX: visibleWidth - 16.0,
+    );
+    world.add(hint);
+    return hint;
+  }
+
+  void _coachLeapOverTrain(ObstacleComponent train) {
+    if (_trainCoachShownThisRun) return;
+    if (personalRecordDistance >= leapCoachUntilRecordMeters) return;
+    _trainCoachShownThisRun = true;
+    trainCoach = _hintOver(train, CoachText.leap(keyboard: expectsKeyboard));
+  }
+
+  void _coachPigeons(ObstacleComponent flock) {
+    if (_pigeonCoachShownThisRun) return;
+    final shiftsSoFar = storage?.pigeonCoachRuns ?? _pigeonCoachShiftsUnsaved;
+    if (shiftsSoFar >= pigeonCoachShifts) return;
+    _pigeonCoachShownThisRun = true;
+    _pigeonCoachShiftsUnsaved++;
+    storage?.addPigeonCoachRun();
+    pigeonCoach = _hintOver(flock, CoachText.underTheBirds());
   }
 
   /// Shows the tap-to-hop coaching hint for brand-new couriers whose
