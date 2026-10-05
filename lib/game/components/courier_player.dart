@@ -11,6 +11,7 @@ import '../components/catenary_zipline_component.dart';
 import '../logic/jump_physics.dart';
 import '../logic/outfit_tailor.dart';
 import '../models/courier_skin.dart';
+import '../draw_order.dart';
 
 /// Courier avatar state machine enum.
 enum CourierState {
@@ -48,7 +49,8 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
     this.onDraftSlingshot,
   })  : defaultPlayerX = initialX,
         skin = skin ?? CourierSkin.standard,
-        simulator = JumpPhysicsSimulator(groundY: groundY) {
+        simulator = JumpPhysicsSimulator(groundY: groundY),
+        super(priority: courierPriority) {
     size = playerSize ?? Vector2(64, 64);
     position = Vector2(initialX, groundY - size.y);
   }

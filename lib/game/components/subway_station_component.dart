@@ -23,8 +23,8 @@ class SubwayStationComponent extends PositionComponent {
         );
 
   /// The station is a wall a whole chunk wide and it is solid. It has to be
-  /// drawn behind the courier and everything else on the street, which all
-  /// sit at the default priority of 0, or it paints over them.
+  /// drawn behind everything else on the street, which sits at the default
+  /// priority of 0 or above (`draw_order.dart`), or it paints over it.
   static const int wallPriority = -1;
 
   final double groundY;

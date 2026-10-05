@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
+import '../draw_order.dart';
 
 /// Individual procedural particle state within an effect emitter.
 class GameParticle {
@@ -35,7 +36,7 @@ class GameParticle {
 class ParticleEffectComponent extends PositionComponent {
   ParticleEffectComponent({
     required this.particles,
-  });
+  }) : super(priority: particlePriority);
 
   /// Factory for footstep and landing sidewalk dust puffs.
   factory ParticleEffectComponent.dust({

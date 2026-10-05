@@ -12,14 +12,6 @@ import 'package:flutter/material.dart';
 /// (`assets/fonts/`), so every platform draws the same letters.
 const String gameFontFamily = 'Roboto';
 
-/// Where the game's words are drawn: in front of everything on the street,
-/// behind the weather.
-///
-/// Street pieces all sit at the default priority of 0, where whichever was
-/// built later is drawn on top. A hint is built when its hazard is, so a
-/// crane built after it stood in front of it: HOLD [mast] LEAP!
-const int wordsPriority = 4;
-
 /// The character a string uses for a star.
 const String starCharacter = '\u2605';
 

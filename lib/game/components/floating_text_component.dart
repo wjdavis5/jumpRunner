@@ -1,6 +1,7 @@
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import '../game_font.dart';
+import '../draw_order.dart';
 
 /// Floating animated text indicator that drifts upward and fades out.
 ///

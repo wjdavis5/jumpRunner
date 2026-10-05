@@ -119,9 +119,12 @@ build below.
   with `withStars` (a character Roboto lacks is fetched from a font server
   on the web, and is an empty box until it arrives). Check in a browser
   that the page makes no request to another host.
-- The game's words (hints, floating scores, speech bubbles) are drawn at
-  `wordsPriority`, in front of every street piece. At the default priority
-  a crane built after a hint stood in front of it.
+- The street is drawn in a fixed order (`lib/game/draw_order.dart`): street
+  pieces, then the courier, then sparks and dust, then the game's words,
+  then the weather. A new street piece stays at the default priority. At
+  one shared priority the courier, built first, was hidden behind every
+  piece they overlapped, and a crane built after a hint stood in front of
+  it (`draw_order_test.dart`, `hazard_coaching_test.dart`).
 - `soak_test.dart` also plays the street with random presses and holds. A
   street piece that moves the courier (a rail, a hook, a launch) has to
   give them back: running again within 6 s, at their own spot, never

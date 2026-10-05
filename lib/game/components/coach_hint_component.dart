@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import '../game_font.dart';
+import '../draw_order.dart';
 
 /// Persistent first-run coaching hint floating above the opening hazard.
 ///

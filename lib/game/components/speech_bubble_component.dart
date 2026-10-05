@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import '../game_font.dart';
+import '../draw_order.dart';
 
 /// Floating comic-style speech bubble indicator that displays courier voice barks
 /// and customer doorstep reactions above characters.
