@@ -1,0 +1,15 @@
+{
+  // The web build of Courier Dash, served as static files from a Cloudflare Worker.
+  // There is no Worker code: the game asks no server but its own for anything.
+  //
+  // Build first, then deploy:
+  //   flutter build web --release --no-web-resources-cdn
+  //   npx wrangler deploy
+  "name": "jump-runner-web",
+  "compatibility_date": "2026-10-01",
+  "assets": { "directory": "./build/web" },
+  // The one address the game is served at. workers.dev is off so there is no second one.
+  "routes": [{ "pattern": "imagine.wjd.io", "custom_domain": true }],
+  "workers_dev": false,
+  "observability": { "enabled": true }
+}

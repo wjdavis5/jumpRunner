@@ -45,3 +45,6 @@ app.*.map.json
 
 # Windows artifact
 nul
+
+# Wrangler's local state
+.wrangler/
