@@ -166,7 +166,7 @@ build below.
   crossfades in at the night phase (2500-4300m of each 5000m cycle) and back at
   dawn; fade-at-silence swaps, duck-aware multiplier, restart snap. Five
   mock-backend tests; asset bundled and day path verified error-free on device.
-- 2026-10-06: streak-driven intensity layer (issue #63 slice) — a synthesized
+- 2026-10-06: streak-driven intensity layer (issue #63 slice, 4d1805c) — a synthesized
   high-tempo arp (tool/generate_audio.py, one loop per music track,
   sample-matched to its BGM so the two stay beat-locked) fades in over half a
   second at a 3x stunt streak and back out when it ends; a restarted streak
@@ -175,7 +175,10 @@ build below.
   ducking and mute/backgrounding scale or hold it exactly like the BGM.
   Mock-backend tests (streak_music_test.dart, duck tests in
   audio_controller_test.dart) and a sample-match guard in
-  audio_assets_test.dart.
+  audio_assets_test.dart. Shipped through the dynamic-workflow iteration
+  pipeline (implement → integrate → analyze/test gates → cold read → commit
+  → emulator verify); implemented in worktree feat/streak-intensity-layer
+  (7945eea) and landed on main as 4d1805c.
 - 2026-10-05: game-feel series (5c361e5 app icon, 363cb00 everything else,
   836a957 Android full screen). The commit messages carry the list. In short:
   the street generator was building almost no hazards and is fixed; subway
