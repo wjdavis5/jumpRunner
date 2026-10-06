@@ -6,6 +6,8 @@ licence and can be re-tuned by editing the numbers here:
   assets/audio/sfx/rain_ambience.ogg   seamless rain loop
   assets/audio/sfx/thunder.ogg         one thunderclap with a rolling tail
   assets/audio/sfx/bark_near_miss.ogg  short whoosh for a near-miss stunt
+  assets/audio/music/courier_groove_layer.ogg   streak arp over the day track
+  assets/audio/music/courier_night_layer.ogg    streak arp over the night track
 
 Requires Python 3 with numpy, and ffmpeg (with libvorbis) on PATH.
 
@@ -24,6 +26,13 @@ import numpy as np
 
 RATE = 44100
 OUT_DIR = os.path.join("assets", "audio", "sfx")
+MUSIC_DIR = os.path.join("assets", "audio", "music")
+
+# The streak layers ride on top of the two music tracks, so they hold exactly
+# as many samples as those tracks (read from their Ogg headers). Started
+# together with the BGM they re-align on every repeat and never drift.
+GROOVE_SAMPLES = 354564  # courier_groove.ogg: 8.04 s
+NIGHT_SAMPLES = 474075  # courier_night.ogg: 10.75 s
 
 
 def db(level):
@@ -186,8 +195,98 @@ def whoosh():
     return normalize_peak(np.stack(channels, axis=1), -5.0)
 
 
-def write_ogg(name, samples, quality):
-    path = os.path.join(OUT_DIR, name)
+def streak_layer(total, steps, seed, pattern, root_hz, decay, harmonics, hat_level):
+    """A high-tempo arpeggio that loops seamlessly over exactly `total` samples.
+
+    `steps` must divide `total`: every note lands on a fixed grid, every tone
+    is built from whole cycles across the loop, and every envelope wraps round
+    the seam like the rain patter's drops do — so the layer has no click and
+    stays sample-locked to the track it rides. Plays while a stunt streak of
+    three or more is live (issue #63).
+    """
+    assert total % steps == 0, "the note grid must divide the loop exactly"
+    n = total
+    rng = np.random.default_rng(seed)
+    step_len = n // steps
+    left = np.zeros(n)
+    right = np.zeros(n)
+
+    for s in range(steps):
+        semitones = pattern[s % len(pattern)]
+        start = int(s * step_len)
+        # Alternating placement throws the arp across the stereo field.
+        pan = 0.75 if s % 2 == 0 else 0.25
+
+        f = root_hz * 2.0 ** (semitones / 12.0)
+        # Whole cycles across the loop: the nearest pitch that wraps silently.
+        cycles = max(1, int(round(f * n / RATE)))
+        phase = rng.random() * 2.0 * np.pi
+
+        window = min(n, int(decay * 7.0 * RATE))
+        i = np.arange(window)
+        tone = np.zeros(window)
+        for h, gain in enumerate(harmonics, start=1):
+            tone += gain * np.sin(2 * np.pi * cycles * h * i / n + phase)
+        env = (1.0 - np.exp(-i / (0.004 * RATE))) * np.exp(-i / (decay * RATE))
+
+        index = (start + i) % n
+        amp = 0.55 + 0.45 * rng.random()
+        left[index] += amp * (1.0 - pan) * tone * env
+        right[index] += amp * pan * tone * env
+
+    if hat_level > 0.0:
+        # One sizzle every four notes, off the beat, cut from one full-loop
+        # periodic noise bed so it too wraps without a seam.
+        def sizzle(freqs):
+            return band(freqs, 5000.0, 11000.0)
+
+        hats = shaped_noise(n, sizzle, rng)
+        hats = hats / np.sqrt(np.mean(hats ** 2))
+        burst = int(0.03 * RATE)
+        bi = np.arange(burst)
+        hat_env = np.exp(-bi / (0.006 * RATE))
+        for s in range(steps):
+            if s % 4 != 2:
+                continue
+            index = (int(s * step_len) + bi) % n
+            gain = (0.7 + 0.3 * rng.random()) * hat_level
+            left[index] += gain * 0.6 * hats[index] * hat_env
+            right[index] += gain * 0.4 * hats[index] * hat_env
+
+    stereo = np.stack([left, right], axis=1)
+    return normalize_peak(stereo, -9.0)
+
+
+def groove_streak_layer():
+    """A fast A-minor-pentatonic arp for the day track: the streak sound."""
+    return streak_layer(
+        GROOVE_SAMPLES,
+        steps=108,
+        seed=73,
+        pattern=[0, 3, 7, 10, 12, 10, 7, 3],
+        root_hz=440.0,
+        decay=0.09,
+        harmonics=[1.0, 0.45, 0.25, 0.12],
+        hat_level=0.35,
+    )
+
+
+def night_streak_layer():
+    """The same arp, tuned softer to sit under the mellow night track."""
+    return streak_layer(
+        NIGHT_SAMPLES,
+        steps=75,
+        seed=91,
+        pattern=[0, 3, 7, 10, 12, 10, 7, 3],
+        root_hz=293.66,
+        decay=0.14,
+        harmonics=[1.0, 0.30, 0.15],
+        hat_level=0.15,
+    )
+
+
+def write_ogg(name, samples, quality, out_dir=None):
+    path = os.path.join(out_dir or OUT_DIR, name)
     pcm = np.int16(np.clip(samples, -1.0, 1.0) * 32767.0)
     with tempfile.TemporaryDirectory() as scratch:
         wav_path = os.path.join(scratch, "sound.wav")
@@ -218,9 +317,13 @@ def write_ogg(name, samples, quality):
 def main():
     if not os.path.isdir(OUT_DIR):
         sys.exit(f"Run from the repository root: {OUT_DIR} not found")
+    if not os.path.isdir(MUSIC_DIR):
+        sys.exit(f"Run from the repository root: {MUSIC_DIR} not found")
     write_ogg("rain_ambience.ogg", rain(), quality=3)
     write_ogg("thunder.ogg", thunder(), quality=4)
     write_ogg("bark_near_miss.ogg", whoosh(), quality=4)
+    write_ogg("courier_groove_layer.ogg", groove_streak_layer(), quality=3, out_dir=MUSIC_DIR)
+    write_ogg("courier_night_layer.ogg", night_streak_layer(), quality=3, out_dir=MUSIC_DIR)
 
 
 if __name__ == "__main__":

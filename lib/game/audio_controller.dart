@@ -31,6 +31,9 @@ enum CustomerReactionType {
 /// Crossfade lifecycle between the day and night background tracks.
 enum _MusicSwapState { idle, fadingOut, fadingIn }
 
+/// Fade lifecycle of the stunt-streak intensity layer.
+enum _LayerFadeState { silent, fadingIn, audible, fadingOut }
+
 /// Abstract interface for audio playback to decouple flame_audio platform calls
 /// and allow deterministic headless testing without hardware audio plugins.
 abstract class AudioPlayerInterface {
@@ -43,6 +46,12 @@ abstract class AudioPlayerInterface {
   Future<void> startAmbience(String file, {double volume = 0.0}) async {}
   Future<void> stopAmbience() async {}
   Future<void> setAmbienceVolume(double volume) async {}
+
+  /// The streak layer is an extra loop riding on top of the music; a backend
+  /// without layer support simply ignores it.
+  Future<void> startLayer(String file, {double volume = 0.0}) async {}
+  Future<void> stopLayer() async {}
+  Future<void> setLayerVolume(double volume) async {}
 }
 
 /// Production audio backend delegating to FlameAudio.
@@ -50,6 +59,7 @@ abstract class AudioPlayerInterface {
 /// Swallows platform errors quietly to ensure missing hardware channels never crash the app.
 class FlameAudioBackend implements AudioPlayerInterface {
   AudioPlayer? _ambiencePlayer;
+  AudioPlayer? _layerPlayer;
 
   @override
   Future<void> playSfx(String file, {double volume = 1.0}) async {
@@ -130,6 +140,43 @@ class FlameAudioBackend implements AudioPlayerInterface {
       debugPrint('[Audio] Ambience volume error: $e');
     }
   }
+
+  @override
+  Future<void> startLayer(String file, {double volume = 0.0}) async {
+    try {
+      // One layer at a time: swapping tracks replaces the player instead of
+      // stacking a second loop over the first.
+      if (_layerPlayer != null) {
+        await _layerPlayer!.stop();
+      }
+      _layerPlayer = await FlameAudio.loopLongAudio(file, volume: volume);
+    } catch (e) {
+      debugPrint('[Audio] Layer error ($file): $e');
+    }
+  }
+
+  @override
+  Future<void> stopLayer() async {
+    try {
+      if (_layerPlayer != null) {
+        await _layerPlayer!.stop();
+        _layerPlayer = null;
+      }
+    } catch (e) {
+      debugPrint('[Audio] Layer stop error: $e');
+    }
+  }
+
+  @override
+  Future<void> setLayerVolume(double volume) async {
+    try {
+      if (_layerPlayer != null) {
+        await _layerPlayer!.setVolume(volume);
+      }
+    } catch (e) {
+      debugPrint('[Audio] Layer volume error: $e');
+    }
+  }
 }
 
 /// Central audio manager for Courier Dash.
@@ -174,6 +221,14 @@ class GameAudioController {
   double _fadeTimer = 0.0;
   String _activeTrack = musicBgm;
 
+  // Streak layer state. [_streakRequested] remembers the last flag the game
+  // fed so mute/backgrounding can bring the layer back with the music;
+  // [_layerAudible] says the backend actually holds a layer player.
+  _LayerFadeState _layerState = _LayerFadeState.silent;
+  bool _streakRequested = false;
+  bool _layerAudible = false;
+  double _layerFade = 0.0;
+
   final List<String> attemptedPlays = [];
 
   // Asset paths relative to assets/audio/
@@ -193,6 +248,24 @@ class GameAudioController {
 
   /// Mellow midnight-city loop that crossfades in during the night phase.
   static const String musicBgmNight = 'music/courier_night.ogg';
+
+  /// High-tempo arpeggio layer riding on the day track while a stunt streak
+  /// of [streakLayerThreshold] or more is live (issue #63). Sample-matched to
+  /// [musicBgm] so the two stay locked when started together.
+  static const String musicBgmLayer = 'music/courier_groove_layer.ogg';
+
+  /// Night counterpart of the streak layer, sample-matched to [musicBgmNight].
+  static const String musicBgmNightLayer = 'music/courier_night_layer.ogg';
+
+  /// Streak length at which the intensity layer enters (issue #63: >= 3).
+  static const int streakLayerThreshold = 3;
+
+  /// How long the streak layer takes to fade in or out, in seconds.
+  static const double streakLayerFadeDuration = 0.5;
+
+  /// The streak layer rides at this fraction of the music's audible volume,
+  /// so pause/milestone ducking and track fades scale it exactly like the BGM.
+  static const double streakLayerVolumeRatio = 0.5;
 
   /// Crossfade duration in seconds for day <-> night track swaps.
   static const double trackFadeDuration = 0.8;
@@ -226,12 +299,20 @@ class GameAudioController {
         final t = (_fadeTimer / trackFadeDuration).clamp(0.0, 1.0);
         _trackFadeMultiplier = 1.0 - t;
         await _backend.setBgmVolume(_effectiveBgmVolume * _trackFadeMultiplier);
+        await _pushLayerVolume();
         if (t >= 1.0) {
           isNightTrack = _swapTargetIsNight;
           _activeTrack = isNightTrack ? musicBgmNight : musicBgm;
           await _backend.startBgm(_activeTrack, volume: 0.0);
           if (currentPlaybackRate != 1.0) {
             await _backend.setPlaybackRate(currentPlaybackRate);
+          }
+          // The layer swaps with the track at silence so the two restart in
+          // step; with no streak live nothing may survive the swap.
+          if (_layerAudible) {
+            await _backend.startLayer(_activeLayerTrack, volume: 0.0);
+          } else {
+            await _backend.stopLayer();
           }
           _swapState = _MusicSwapState.fadingIn;
           _fadeTimer = 0.0;
@@ -243,6 +324,7 @@ class GameAudioController {
         final t = (_fadeTimer / trackFadeDuration).clamp(0.0, 1.0);
         _trackFadeMultiplier = t;
         await _backend.setBgmVolume(_effectiveBgmVolume * t);
+        await _pushLayerVolume();
         if (t >= 1.0) {
           _trackFadeMultiplier = 1.0;
           _swapState = _MusicSwapState.idle;
@@ -250,6 +332,91 @@ class GameAudioController {
         }
         return;
     }
+  }
+
+  /// Advances the stunt-streak intensity layer; call once per frame, right
+  /// after [updateMusicPhase].
+  ///
+  /// While the streak flag is live ([streakLayerThreshold] or more stunts,
+  /// issue #63) the layer fades in over [streakLayerFadeDuration]; when the
+  /// streak dies it fades back out and stops at silence. A streak restarting
+  /// while the layer is still up never restarts the loop: only its volume
+  /// moves, so the arp stays in step with the music it rides.
+  Future<void> updateStreakIntensity({
+    required bool streakActive,
+    required double dt,
+  }) async {
+    if (!isMusicActive || isMuted) return;
+    _streakRequested = streakActive;
+
+    switch (_layerState) {
+      case _LayerFadeState.silent:
+        if (!streakActive) return;
+        _layerFade = 0.0;
+        _layerState = _LayerFadeState.fadingIn;
+        _layerAudible = true;
+        await _backend.startLayer(_activeLayerTrack, volume: 0.0);
+        return;
+
+      case _LayerFadeState.fadingIn:
+        if (!streakActive) {
+          _layerState = _LayerFadeState.fadingOut;
+          return;
+        }
+        _layerFade = (_layerFade + dt / streakLayerFadeDuration).clamp(0.0, 1.0);
+        await _pushLayerVolume();
+        if (_layerFade >= 1.0) {
+          _layerState = _LayerFadeState.audible;
+        }
+        return;
+
+      case _LayerFadeState.audible:
+        if (!streakActive) {
+          _layerState = _LayerFadeState.fadingOut;
+        }
+        return;
+
+      case _LayerFadeState.fadingOut:
+        if (streakActive) {
+          // The streak came back before the fade-out finished: ride the
+          // existing loop back up instead of starting it from the top.
+          _layerState = _LayerFadeState.fadingIn;
+          return;
+        }
+        _layerFade = (_layerFade - dt / streakLayerFadeDuration).clamp(0.0, 1.0);
+        if (_layerFade <= 0.0) {
+          _layerState = _LayerFadeState.silent;
+          _layerAudible = false;
+          await _backend.stopLayer();
+          return;
+        }
+        await _pushLayerVolume();
+        return;
+    }
+  }
+
+  /// The streak layer file matching the track that is playing right now.
+  String get _activeLayerTrack => isNightTrack ? musicBgmNightLayer : musicBgmLayer;
+
+  /// Volume the streak layer should hold right now: the music's own audible
+  /// volume scaled by the layer ratio and the layer's fade progress. Ducking
+  /// and track fades therefore multiply the layer exactly as they multiply
+  /// the BGM.
+  double get _effectiveLayerVolume =>
+      _effectiveBgmVolume * streakLayerVolumeRatio * _layerFade * _trackFadeMultiplier;
+
+  Future<void> _pushLayerVolume() async {
+    if (_layerAudible && isMusicActive && !isMuted) {
+      await _backend.setLayerVolume(_effectiveLayerVolume);
+    }
+  }
+
+  /// Brings the streak layer back with the music after both were held
+  /// (mute, backgrounding): both restart from the top of the loop.
+  Future<void> _restartLayerWithMusic() async {
+    if (_layerState == _LayerFadeState.silent || !_streakRequested) return;
+    _layerAudible = true;
+    await _backend.startLayer(_activeLayerTrack, volume: _effectiveLayerVolume);
   }
 
   /// Voice bark text line variations by courier bark category.
@@ -354,6 +521,8 @@ class GameAudioController {
         sfxCustomerFiveStars,
         musicBgm,
         musicBgmNight,
+        musicBgmLayer,
+        musicBgmNightLayer,
       ]);
     } catch (_) {}
   }
@@ -363,6 +532,9 @@ class GameAudioController {
     currentBgmVolume = volume.clamp(0.0, 1.0);
     if (!isMuted && isMusicActive) {
       await _backend.setBgmVolume(currentBgmVolume);
+      // Ducking goes through here, so the layer rides along: it scales by
+      // the same factor the BGM just received.
+      await _pushLayerVolume();
     }
   }
 
@@ -421,6 +593,8 @@ class GameAudioController {
 
     if (isMuted) {
       await _backend.stopBgm();
+      await _backend.stopLayer();
+      _layerAudible = false;
       if (isRainAudioActive) {
         await _backend.stopAmbience();
         isRainAudioActive = false;
@@ -435,6 +609,7 @@ class GameAudioController {
         if (currentPlaybackRate != 1.0) {
           await _backend.setPlaybackRate(currentPlaybackRate);
         }
+        await _restartLayerWithMusic();
       }
       if (currentRainIntensity > 0.01) {
         final targetVolume = currentRainIntensity * maxRainAmbienceVolume;
@@ -457,6 +632,8 @@ class GameAudioController {
     isBackgrounded = true;
     if (isMuted) return;
     await _backend.stopBgm();
+    await _backend.stopLayer();
+    _layerAudible = false;
     if (isRainAudioActive) {
       await _backend.stopAmbience();
     }
@@ -473,6 +650,7 @@ class GameAudioController {
       if (currentPlaybackRate != 1.0) {
         await _backend.setPlaybackRate(currentPlaybackRate);
       }
+      await _restartLayerWithMusic();
     }
     if (isRainAudioActive) {
       await _backend.startAmbience(sfxRainAmbience, volume: currentRainVolume);
@@ -570,6 +748,14 @@ class GameAudioController {
     _swapState = _MusicSwapState.idle;
     _trackFadeMultiplier = 1.0;
     _activeTrack = musicBgm;
+    // A new shift starts silent until the next streak earns the layer back.
+    _layerState = _LayerFadeState.silent;
+    _streakRequested = false;
+    _layerFade = 0.0;
+    if (_layerAudible) {
+      await _backend.stopLayer();
+      _layerAudible = false;
+    }
     currentBgmVolume = volume ?? (isPaused ? duckedBgmVolume : defaultBgmVolume);
     if (isMuted) return;
     await _backend.startBgm(_activeTrack, volume: currentBgmVolume);
@@ -582,6 +768,11 @@ class GameAudioController {
   Future<void> stopMusic() async {
     isMusicActive = false;
     await _backend.stopBgm();
+    await _backend.stopLayer();
+    _layerAudible = false;
+    _layerState = _LayerFadeState.silent;
+    _streakRequested = false;
+    _layerFade = 0.0;
     await stopAmbience();
   }
 

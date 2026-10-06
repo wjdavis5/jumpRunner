@@ -35,6 +35,15 @@ class _MockAudioBackend implements AudioPlayerInterface {
 
   @override
   Future<void> setAmbienceVolume(double volume) async {}
+
+  @override
+  Future<void> startLayer(String file, {double volume = 0.0}) async {}
+
+  @override
+  Future<void> stopLayer() async {}
+
+  @override
+  Future<void> setLayerVolume(double volume) async {}
 }
 
 void main() {

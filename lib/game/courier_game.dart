@@ -1773,6 +1773,10 @@ class CourierGame extends FlameGame
       isNight: parallaxCity.currentPhase == TimeOfDayPhase.night,
       dt: dt,
     );
+    audio.updateStreakIntensity(
+      streakActive: gameState.stuntStreak >= GameAudioController.streakLayerThreshold,
+      dt: dt,
+    );
 
     // 3. Update parallax city velocity & dynamic environment lighting
     parallaxCity.speedMultiplier = currentSpeed / 200.0;

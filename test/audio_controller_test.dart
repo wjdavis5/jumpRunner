@@ -58,6 +58,30 @@ class MockAudioBackend implements AudioPlayerInterface {
   Future<void> setAmbienceVolume(double volume) async {
     ambienceVolume = volume;
   }
+
+  String? activeLayer;
+  bool isLayerPlaying = false;
+  double layerVolume = 0.0;
+  int layerStarts = 0;
+
+  @override
+  Future<void> startLayer(String file, {double volume = 0.0}) async {
+    activeLayer = file;
+    isLayerPlaying = true;
+    layerVolume = volume;
+    layerStarts++;
+  }
+
+  @override
+  Future<void> stopLayer() async {
+    isLayerPlaying = false;
+    layerVolume = 0.0;
+  }
+
+  @override
+  Future<void> setLayerVolume(double volume) async {
+    layerVolume = volume;
+  }
 }
 
 void main() {
@@ -186,6 +210,56 @@ void main() {
       // After fanfare duration completes, volume restores to normal
       await Future<void>.delayed(const Duration(milliseconds: 60));
       expect(mockBackend.bgmVolume, closeTo(GameAudioController.defaultBgmVolume, 0.01));
+    });
+
+    test('Pause ducking scales the streak layer by the same factor as the BGM', () async {
+      final audio = GameAudioController(
+        backend: mockBackend,
+        storageService: storage,
+      );
+
+      await audio.startMusic();
+      for (var i = 0; i < 12; i++) {
+        await audio.updateStreakIntensity(streakActive: true, dt: 0.05);
+      }
+      const fullLayer = GameAudioController.defaultBgmVolume *
+          GameAudioController.streakLayerVolumeRatio;
+      expect(mockBackend.layerVolume, closeTo(fullLayer, 0.01));
+
+      await audio.pauseDucking();
+      expect(
+        mockBackend.layerVolume,
+        closeTo(GameAudioController.duckedBgmVolume * GameAudioController.streakLayerVolumeRatio, 0.01),
+        reason: 'the layer must duck exactly like the BGM',
+      );
+
+      await audio.resumeDucking();
+      expect(mockBackend.layerVolume, closeTo(fullLayer, 0.01));
+    });
+
+    test('Milestone ducking scales the streak layer by the same factor as the BGM', () async {
+      final audio = GameAudioController(
+        backend: mockBackend,
+        storageService: storage,
+      );
+
+      await audio.startMusic();
+      for (var i = 0; i < 12; i++) {
+        await audio.updateStreakIntensity(streakActive: true, dt: 0.05);
+      }
+
+      await audio.playMilestone(duckDuration: const Duration(milliseconds: 30));
+      expect(
+        mockBackend.layerVolume,
+        closeTo(GameAudioController.milestoneDuckedBgmVolume * GameAudioController.streakLayerVolumeRatio, 0.01),
+        reason: 'the layer must duck under the milestone fanfare too',
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(
+        mockBackend.layerVolume,
+        closeTo(GameAudioController.defaultBgmVolume * GameAudioController.streakLayerVolumeRatio, 0.01),
+      );
     });
 
     test('Adaptive tempo scales playback rate dynamically with speed progression', () async {

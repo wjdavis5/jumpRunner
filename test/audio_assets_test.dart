@@ -66,6 +66,8 @@ void main() {
     GameAudioController.sfxCustomerFiveStars,
     GameAudioController.musicBgm,
     GameAudioController.musicBgmNight,
+    GameAudioController.musicBgmLayer,
+    GameAudioController.musicBgmNightLayer,
   ];
 
   group('Every sound the game asks for exists', () {
@@ -91,6 +93,18 @@ void main() {
     test('both music tracks are long enough to loop', () {
       expect(_seconds(GameAudioController.musicBgm), greaterThanOrEqualTo(5.0));
       expect(_seconds(GameAudioController.musicBgmNight), greaterThanOrEqualTo(5.0));
+    });
+
+    test('each streak layer holds exactly as many samples as its track', () {
+      // Started together, layer and BGM repeat in lockstep and never drift.
+      expect(
+        _seconds(GameAudioController.musicBgmLayer),
+        equals(_seconds(GameAudioController.musicBgm)),
+      );
+      expect(
+        _seconds(GameAudioController.musicBgmNightLayer),
+        equals(_seconds(GameAudioController.musicBgmNight)),
+      );
     });
   });
 

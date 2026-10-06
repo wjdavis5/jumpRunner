@@ -5,8 +5,12 @@ Verified shipped work lands as conventional commits; move done items to Shipped.
 
 ## In play (highest impact first)
 
-1. **Adaptive soundtrack, next slices** (issue #63) — night-phase crossfade shipped;
-   remaining slices: rain-weighted lowpass/mood, streak-driven intensity layer.
+1. **Adaptive soundtrack, last slice** (issue #63) — night-phase crossfade and the
+   streak-driven intensity layer shipped; what is left is the rain-weighted
+   lowpass/mood, and it is blocked at the lowpass half: audioplayers 6.x exposes
+   no filter/equalizer API (grepped the pub cache), so a true lowpass needs a
+   new audio dependency (an epic), and the mood half would add a third target
+   to the day/night swap machine.
 2. **Environment components** (issues #126 cement mixer, #124 dumpster, #118 pretzel
    cart, #116 rooftop solarium, #87 debris chute, #84 manhole geyser, #83 window-washer
    cradle, #73 wrecking ball) — follow the established component pattern:
@@ -162,6 +166,16 @@ build below.
   crossfades in at the night phase (2500-4300m of each 5000m cycle) and back at
   dawn; fade-at-silence swaps, duck-aware multiplier, restart snap. Five
   mock-backend tests; asset bundled and day path verified error-free on device.
+- 2026-10-06: streak-driven intensity layer (issue #63 slice) — a synthesized
+  high-tempo arp (tool/generate_audio.py, one loop per music track,
+  sample-matched to its BGM so the two stay beat-locked) fades in over half a
+  second at a 3x stunt streak and back out when it ends; a restarted streak
+  rides the same loop, the layer swaps with the day/night crossfade at
+  silence and comes back while the streak is live, and pause/milestone
+  ducking and mute/backgrounding scale or hold it exactly like the BGM.
+  Mock-backend tests (streak_music_test.dart, duck tests in
+  audio_controller_test.dart) and a sample-match guard in
+  audio_assets_test.dart.
 - 2026-10-05: game-feel series (5c361e5 app icon, 363cb00 everything else,
   836a957 Android full screen). The commit messages carry the list. In short:
   the street generator was building almost no hazards and is fixed; subway
