@@ -594,6 +594,23 @@ class SecurityShutterData {
   final double groundY;
 }
 
+/// Data model for a street construction portable rotary cement mixer fixture.
+class CementMixerData {
+  const CementMixerData({
+    required this.x,
+    required this.y,
+    this.width = 64.0,
+    this.height = 56.0,
+    this.groundY = 460.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+  final double groundY;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -633,6 +650,7 @@ class ChunkData {
     this.catenaryZiplines = const [],
     this.busShelters = const [],
     this.securityShutters = const [],
+    this.cementMixers = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -672,6 +690,7 @@ class ChunkData {
   final List<CatenaryZiplineData> catenaryZiplines;
   final List<BusShelterData> busShelters;
   final List<SecurityShutterData> securityShutters;
+  final List<CementMixerData> cementMixers;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -2611,6 +2630,48 @@ class WorldChunkManager {
       }
     }
 
+    final List<CementMixerData> cementMixers = [];
+    if (distanceMeters >= 85.0 && _random.nextDouble() < 0.25 && subwayStations.isEmpty) {
+      const mixerWidth = 64.0;
+      const mixerHeight = 56.0;
+
+      for (var attempt = 0; attempt < 8; attempt++) {
+        final mX = startX + 75.0 + _random.nextDouble() * (chunkWidth - 210.0);
+        final isClear = obstacles.every(
+          (o) => (mX + mixerWidth < o.x - 30.0) || (mX > o.x + o.width + 30.0),
+        ) && flowerKiosks.every(
+          (fk) => (mX + mixerWidth < fk.x - 30.0) || (mX > fk.x + fk.width + 30.0),
+        ) && newsstands.every(
+          (ns) => (mX + mixerWidth < ns.x - 30.0) || (mX > ns.x + ns.width + 30.0),
+        ) && cafeBistros.every(
+          (cb) => (mX + mixerWidth < cb.x - 30.0) || (mX > cb.x + cb.width + 30.0),
+        ) && streetBuskers.every(
+          (sb) => (mX + mixerWidth < sb.x - 30.0) || (mX > sb.x + sb.width + 30.0),
+        ) && fireHydrants.every(
+          (fh) => (mX + mixerWidth < fh.x - 30.0) || (mX > fh.x + fh.width + 30.0),
+        ) && subwayExhaustGrates.every(
+          (seg) => (mX + mixerWidth < seg.x - 30.0) || (mX > seg.x + seg.width + 30.0),
+        ) && busShelters.every(
+          (bs) => (mX + mixerWidth < bs.x - 30.0) || (mX > bs.x + bs.width + 30.0),
+        ) && securityShutters.every(
+          (ss) => (mX + mixerWidth < ss.x - 30.0) || (mX > ss.x + ss.width + 30.0),
+        );
+
+        if (isClear) {
+          cementMixers.add(
+            CementMixerData(
+              x: mX,
+              y: groundY - mixerHeight,
+              width: mixerWidth,
+              height: mixerHeight,
+              groundY: groundY,
+            ),
+          );
+          break;
+        }
+      }
+    }
+
     // Thin out optional street set pieces that would be drawn on top of each
     // other or on a hazard. Puddles (a ground decal), cyclists (they ride
     // through) and crane masts (background structure) may share space.
@@ -2647,6 +2708,7 @@ class WorldChunkManager {
         for (final p in postalMailboxes.toList()) street(p.x, p.y, p.width, p.height, () => postalMailboxes.remove(p)),
         for (final p in droneCargos.toList()) street(p.x, p.y, p.width, p.height, () => droneCargos.remove(p)),
         for (final p in securityShutters.toList()) street(p.x, p.y, p.width, p.height, () => securityShutters.remove(p)),
+        for (final p in cementMixers.toList()) street(p.x, p.y, p.width, p.height, () => cementMixers.remove(p)),
         for (final p in busShelters.toList()) street(p.x, p.y, p.width, p.height, () => busShelters.remove(p)),
         for (final p in subwayExhaustGrates.toList()) street(p.x, p.y, p.width, p.height, () => subwayExhaustGrates.remove(p)),
         for (final p in satelliteDishes.toList()) street(p.x, p.y, p.width, p.height, () => satelliteDishes.remove(p)),
@@ -2692,6 +2754,7 @@ class WorldChunkManager {
       catenaryZiplines: catenaryZiplines,
       busShelters: busShelters,
       securityShutters: securityShutters,
+      cementMixers: cementMixers,
     );
   }
 }

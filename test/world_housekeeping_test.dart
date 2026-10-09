@@ -38,7 +38,7 @@ void main() {
 
   // Everything the street generator builds has to be moved along by the game
   // loop and taken away once it is behind the courier. That is one hand-
-  // written loop per kind of piece, and there are thirty-seven kinds. Subway
+  // written loop per kind of piece, and there are thirty-eight kinds. Subway
   // stations were missing from the scroll loops for as long as they existed:
   // each one sat off-screen for the rest of the shift. Nothing failed, so
   // nothing noticed. This plays three long shifts and watches every
@@ -88,6 +88,10 @@ void main() {
         peak = math.max(peak, children.length);
         for (final c in children) {
           if (_isPermanent(c)) continue;
+          // The assist drone is kept alive by every drone cargo the courier
+          // collects, so a shift can legitimately carry one for minutes; it
+          // swoops away and removes itself when the booster expires.
+          if (c is DeliveryDroneComponent) continue;
           final x = c is PositionComponent ? c.position.x : double.nan;
           final record = seen.putIfAbsent(c, () {
             kinds.add(c.runtimeType);

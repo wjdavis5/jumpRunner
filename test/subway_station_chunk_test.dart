@@ -58,6 +58,7 @@ Map<String, int> _streetPieces(ChunkData chunk) {
     'ziplines': chunk.catenaryZiplines,
     'bus shelters': chunk.busShelters,
     'security shutters': chunk.securityShutters,
+    'cement mixers': chunk.cementMixers,
   };
   return {
     for (final entry in lists.entries)
@@ -75,7 +76,8 @@ void main() {
   // never came on screen. Once they did, each of those seven kinds turned up
   // in a fifth to a third of stations: rooftop laundry, a bus shelter or a
   // storefront shutter on the platform, or a solar array straddling the
-  // train with its deck ten pixels below the train's roof.
+  // train with its deck ten pixels below the train's roof. Cement mixers, and
+  // every piece since, test `subwayStations.isEmpty` before they spawn.
   group('A subway station has the chunk to itself', () {
     late final List<ChunkData> stations;
     late final int chunksPast200m;
@@ -260,7 +262,7 @@ void main() {
   });
 
   group('Ordinary chunks keep their street pieces', () {
-    test('the seven kinds kept out of stations still appear elsewhere', () {
+    test('the eight kinds kept out of stations still appear elsewhere', () {
       final seen = <String, int>{};
       for (final chunk in _streets(seeds: 40)) {
         if (chunk.subwayStations.isNotEmpty) continue;
@@ -274,6 +276,7 @@ void main() {
         'ziplines',
         'bus shelters',
         'security shutters',
+        'cement mixers',
       ]) {
         expect(seen[kind] ?? 0, greaterThan(100), reason: '$kind have become rare');
       }
