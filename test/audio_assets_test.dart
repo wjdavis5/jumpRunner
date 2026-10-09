@@ -106,6 +106,18 @@ void main() {
         equals(_seconds(GameAudioController.musicBgmNight)),
       );
     });
+
+    test('each streak layer is its own sound, not a copy of its track', () {
+      // A copied track would double the music it rides instead of layering it.
+      expect(
+        _sameFile(GameAudioController.musicBgmLayer, GameAudioController.musicBgm),
+        isFalse,
+      );
+      expect(
+        _sameFile(GameAudioController.musicBgmNightLayer, GameAudioController.musicBgmNight),
+        isFalse,
+      );
+    });
   });
 
   group('Sounds with opposite meanings are different sounds', () {
