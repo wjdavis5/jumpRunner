@@ -53,6 +53,18 @@ class _RecordingBackend implements AudioPlayerInterface {
   Future<void> setAmbienceVolume(double volume) async {
     ambienceVolume = volume;
   }
+
+  @override
+  Future<bool> startLayer(String file, {double volume = 0.0}) async => true;
+
+  @override
+  Future<void> stopLayer() async {}
+
+  @override
+  Future<void> setLayerVolume(double volume) async {}
+
+  @override
+  Future<void> setLayerPlaybackRate(double rate) async {}
 }
 
 void main() {

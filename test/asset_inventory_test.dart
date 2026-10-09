@@ -81,6 +81,8 @@ void main() {
         'assets/audio/sfx/customer_five_stars.ogg',
         'assets/audio/music/courier_groove.ogg',
         'assets/audio/music/courier_night.ogg',
+        'assets/audio/music/courier_groove_layer.ogg',
+        'assets/audio/music/courier_night_layer.ogg',
       ];
 
       for (final path in requiredAudio) {
