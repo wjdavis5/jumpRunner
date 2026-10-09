@@ -8,7 +8,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'audio_controller_test.dart';
 
 /// A backend that can hold the first music start of a crossfade open, so a
-/// later frame can land while the swap is still in flight.
+/// later frame can land while the swap is still in flight. The track starts
+/// when the call is made (as the platform does) and only the awaited
+/// completion is held.
 class _BlockingBgmBackend extends MockAudioBackend {
   Completer<void>? blockNextBgmStart;
   int bgmStartCalls = 0;
@@ -17,11 +19,11 @@ class _BlockingBgmBackend extends MockAudioBackend {
   Future<void> startBgm(String file, {double volume = 0.7}) async {
     bgmStartCalls++;
     final blocker = blockNextBgmStart;
+    blockNextBgmStart = null;
+    await super.startBgm(file, volume: volume);
     if (blocker != null) {
-      blockNextBgmStart = null;
       await blocker.future;
     }
-    await super.startBgm(file, volume: volume);
   }
 }
 
@@ -33,14 +35,27 @@ class _SlowStartBackend extends MockAudioBackend {
   int layerStartCalls = 0;
 
   @override
-  Future<void> startLayer(String file, {double volume = 0.0}) async {
+  Future<bool> startLayer(String file, {double volume = 0.0}) async {
     layerStartCalls++;
     final blocker = blockNextLayerStart;
     if (blocker != null) {
       blockNextLayerStart = null;
       await blocker.future;
     }
-    await super.startLayer(file, volume: volume);
+    return super.startLayer(file, volume: volume);
+  }
+}
+
+/// A backend whose first layer start fails the way a platform error does:
+/// no player, and the call reports it.
+class _FlakyStartBackend extends MockAudioBackend {
+  int layerStartCalls = 0;
+
+  @override
+  Future<bool> startLayer(String file, {double volume = 0.0}) async {
+    layerStartCalls++;
+    if (layerStartCalls == 1) return false;
+    return super.startLayer(file, volume: volume);
   }
 }
 
@@ -491,6 +506,60 @@ void main() {
           reason: 'a new run begins silent until a streak earns the layer');
       await holdStreak();
       expect(mockBackend.isLayerPlaying, isTrue);
+    });
+
+    test('a failed start is retried until the layer is up', () async {
+      final backend = _FlakyStartBackend();
+      final controller = GameAudioController(backend: backend);
+      await controller.startMusic();
+
+      // The first start fails the way a platform error does: no player. The
+      // layer must not stay silently dead for the rest of the shift.
+      for (var i = 0; i < 4; i++) {
+        await controller.updateStreakIntensity(streakActive: true, dt: 0.05);
+      }
+      expect(backend.layerStartCalls, equals(1),
+          reason: 'no retry before the cooldown');
+      expect(backend.isLayerPlaying, isFalse);
+
+      // Once the cooldown passes, the streak frames bring it up.
+      for (var i = 0; i < 40; i++) {
+        await controller.updateStreakIntensity(streakActive: true, dt: 0.05);
+      }
+      expect(backend.layerStartCalls, equals(2));
+      expect(backend.isLayerPlaying, isTrue);
+      expect(
+        backend.layerVolume,
+        closeTo(
+          GameAudioController.defaultBgmVolume * GameAudioController.streakLayerVolumeRatio,
+          0.01,
+        ),
+      );
+    });
+
+    test('a restart landing mid-swap keeps the hard cut, not a fade', () async {
+      final backend = _BlockingBgmBackend();
+      final controller = GameAudioController(backend: backend);
+      await controller.startMusic();
+      for (var i = 0; i < 12; i++) {
+        await controller.updateStreakIntensity(streakActive: true, dt: 0.05);
+      }
+
+      final blocker = Completer<void>();
+      backend.blockNextBgmStart = blocker;
+      final swap = controller.updateMusicPhase(isNight: true, dt: 1.0);
+      await Future<void>.delayed(Duration.zero);
+      // The run restarts while the swap's platform calls are still in flight.
+      await controller.startMusic();
+      blocker.complete();
+      await swap;
+
+      for (var i = 0; i < 5; i++) {
+        await controller.updateMusicPhase(isNight: false, dt: 0.1);
+      }
+      expect(backend.bgmVolume, closeTo(GameAudioController.defaultBgmVolume, 0.01),
+          reason: 'a restart is a hard cut at full volume, not a fade from silence');
+      expect(controller.isNightTrack, isFalse);
     });
   });
 }

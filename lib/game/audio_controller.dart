@@ -60,8 +60,10 @@ abstract class AudioPlayerInterface {
   Future<void> setAmbienceVolume(double volume) async {}
 
   /// The streak layer is an extra loop riding on top of the music; a backend
-  /// without layer support simply ignores it.
-  Future<void> startLayer(String file, {double volume = 0.0}) async {}
+  /// without layer support simply ignores it. Returns whether a layer player
+  /// is now playing: a start that could not produce one (missing asset,
+  /// platform error) reports false so the controller can retry.
+  Future<bool> startLayer(String file, {double volume = 0.0}) async => true;
   Future<void> stopLayer() async {}
   Future<void> setLayerVolume(double volume) async {}
 
@@ -164,7 +166,7 @@ class FlameAudioBackend implements AudioPlayerInterface {
   }
 
   @override
-  Future<void> startLayer(String file, {double volume = 0.0}) async {
+  Future<bool> startLayer(String file, {double volume = 0.0}) async {
     final request = ++_layerRequest;
     try {
       // One layer at a time: swapping tracks replaces the player instead of
@@ -173,32 +175,38 @@ class FlameAudioBackend implements AudioPlayerInterface {
       final previous = _layerPlayer;
       _layerPlayer = null;
       if (previous != null) {
-        await previous.stop();
-        await previous.dispose();
+        await _disposePlayer(previous);
       }
       final player = await FlameAudio.loopLongAudio(file, volume: volume);
       if (request != _layerRequest) {
         // Stopped, or superseded by a newer start, while this one loaded.
-        await player.stop();
-        await player.dispose();
-        return;
+        await _disposePlayer(player);
+        return false;
       }
       _layerPlayer = player;
+      return true;
     } catch (e) {
       debugPrint('[Audio] Layer error ($file): $e');
+      return false;
     }
   }
 
   @override
   Future<void> stopLayer() async {
     _layerRequest++;
+    final player = _layerPlayer;
+    _layerPlayer = null;
+    if (player != null) {
+      await _disposePlayer(player);
+    }
+  }
+
+  /// Stops and releases a layer player, never throwing: a player whose stop
+  /// fails is still dropped so it cannot block the next start.
+  Future<void> _disposePlayer(AudioPlayer player) async {
     try {
-      final player = _layerPlayer;
-      _layerPlayer = null;
-      if (player != null) {
-        await player.stop();
-        await player.dispose();
-      }
+      await player.stop();
+      await player.dispose();
     } catch (e) {
       debugPrint('[Audio] Layer stop error: $e');
     }
@@ -277,6 +285,9 @@ class GameAudioController {
   bool _layerAudible = false;
   double _layerFade = 0.0;
 
+  /// Seconds until a failed layer start may be tried again.
+  double _layerRetryCooldown = 0.0;
+
   final List<String> attemptedPlays = [];
 
   // Asset paths relative to assets/audio/
@@ -314,6 +325,10 @@ class GameAudioController {
   /// The streak layer rides at this fraction of the music's audible volume,
   /// so pause/milestone ducking and track fades scale it exactly like the BGM.
   static const double streakLayerVolumeRatio = 0.5;
+
+  /// How long to wait before retrying a layer start the backend could not
+  /// make (missing asset, platform error).
+  static const double layerRetryCooldownSeconds = 1.0;
 
   /// Crossfade duration in seconds for day <-> night track swaps.
   static const double trackFadeDuration = 0.8;
@@ -366,10 +381,13 @@ class GameAudioController {
           } else {
             await _backend.stopLayer();
           }
-          // Only now, with the new track actually playing at silence, does
-          // the fade in begin.
-          _swapState = _MusicSwapState.fadingIn;
-          _fadeTimer = 0.0;
+          // The swap may have been superseded while its platform calls were
+          // in flight (a run restart is a hard cut, not a fade); only the
+          // swap that still owns the state may arm the fade in.
+          if (_swapState == _MusicSwapState.swapping) {
+            _swapState = _MusicSwapState.fadingIn;
+            _fadeTimer = 0.0;
+          }
         }
         return;
 
@@ -411,6 +429,10 @@ class GameAudioController {
   }) async {
     _streakRequested = streakActive;
     if (!isMusicActive || isMuted) return;
+    if (_layerRetryCooldown > 0) {
+      _layerRetryCooldown =
+          (_layerRetryCooldown - dt).clamp(0.0, layerRetryCooldownSeconds);
+    }
 
     switch (_layerState) {
       case _LayerFadeState.silent:
@@ -480,13 +502,25 @@ class GameAudioController {
   /// Starts the layer loop at its current fade volume (or at [volume]) and
   /// takes the music's tempo with it.
   ///
-  /// The player only exists once the backend call returns. If the layer was
-  /// stopped (mute, backgrounding, run restart) while it loaded, the player
-  /// that just landed is stopped again; otherwise it is raised to the volume
-  /// the fade holds *now*, which may have moved on while the start was slow.
+  /// The player only exists once the backend call returns. A start the
+  /// backend could not make (missing asset, platform error) reports false:
+  /// the flag is cleared and the next streak frames retry after
+  /// [layerRetryCooldownSeconds] instead of leaving the layer silently dead
+  /// for the rest of the shift. If the layer was stopped (mute,
+  /// backgrounding, run restart) while the player loaded, the player that
+  /// just landed is stopped again; otherwise it is raised to the volume the
+  /// fade holds *now*, which may have moved on while the start was slow.
   Future<void> _startLayer({double? volume}) async {
     _layerAudible = true;
-    await _backend.startLayer(_activeLayerTrack, volume: volume ?? _effectiveLayerVolume);
+    final started = await _backend.startLayer(
+      _activeLayerTrack,
+      volume: volume ?? _effectiveLayerVolume,
+    );
+    if (!started) {
+      _layerAudible = false;
+      _layerRetryCooldown = layerRetryCooldownSeconds;
+      return;
+    }
     if (isMuted || !isMusicActive || isBackgrounded || _layerState == _LayerFadeState.silent) {
       // The layer was stopped while the player was loading; a player that
       // lands after its stop must not keep playing.
@@ -502,7 +536,7 @@ class GameAudioController {
   /// the player without touching the fade state, so a streak that outlives
   /// them has to bring its layer back, not leave it silent.
   Future<void> _startLayerIfMissing() async {
-    if (_layerAudible) return;
+    if (_layerAudible || _layerRetryCooldown > 0) return;
     await _startLayer();
   }
 

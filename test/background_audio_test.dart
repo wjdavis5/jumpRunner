@@ -55,7 +55,7 @@ class _RecordingBackend implements AudioPlayerInterface {
   }
 
   @override
-  Future<void> startLayer(String file, {double volume = 0.0}) async {}
+  Future<bool> startLayer(String file, {double volume = 0.0}) async => true;
 
   @override
   Future<void> stopLayer() async {}

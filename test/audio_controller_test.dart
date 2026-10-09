@@ -66,7 +66,7 @@ class MockAudioBackend implements AudioPlayerInterface {
   int layerStarts = 0;
 
   @override
-  Future<void> startLayer(String file, {double volume = 0.0}) async {
+  Future<bool> startLayer(String file, {double volume = 0.0}) async {
     activeLayer = file;
     isLayerPlaying = true;
     layerVolume = volume;
@@ -74,6 +74,7 @@ class MockAudioBackend implements AudioPlayerInterface {
     // otherwise; this is what makes the tempo-on-start test bite.
     layerPlaybackRate = 1.0;
     layerStarts++;
+    return true;
   }
 
   @override
