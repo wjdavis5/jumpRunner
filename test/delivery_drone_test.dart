@@ -1,3 +1,6 @@
+// The drone-removal test mounts the game by hand (no flame_test dependency),
+// which needs Flame's internal load/mount entry points.
+// ignore_for_file: invalid_use_of_internal_member
 import 'dart:ui';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
@@ -209,6 +212,42 @@ void main() {
       expect(drone.isDeparting, isTrue);
       expect(drone.position.y, lessThan(initialY));
       expect(drone.position.x, greaterThan(initialX));
+    });
+
+    test('leaves the world once the buff has lapsed and the swoop is done', () async {
+      final game = CourierGame();
+      game.onGameResize(Vector2(960, 540));
+      await game.load();
+      game.mount();
+      game.update(0);
+      await game.ready();
+      game.gameState.startRun();
+      // An empty street, so no drone cargo can refresh the buff mid-swoop.
+      game.nextChunkX = 1e12;
+      for (final p in game.activePickups.toList()) {
+        p.removeFromParent();
+      }
+      game.activePickups.clear();
+
+      final drone = DeliveryDroneComponent(
+        game: game,
+        position: Vector2(200, 200),
+      );
+      game.world.add(drone);
+      game.update(0); // Mount the drone into the tree.
+      expect(game.world.children.contains(drone), isTrue);
+
+      // Buff inactive: the drone swoops off the top of the screen and must
+      // take itself out of the world (world_housekeeping exempts its
+      // lifetime, so this is the guard for the removal path). Frames go
+      // through the game so Flame processes the removal.
+      for (var i = 0; i < 120 && game.world.children.contains(drone); i++) {
+        game.update(0.1);
+      }
+
+      expect(game.world.children.contains(drone), isFalse,
+          reason: 'a departed drone must not linger in the world');
+      expect(drone.isMounted, isFalse);
     });
   });
 

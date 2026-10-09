@@ -968,6 +968,33 @@ class SecurityShutterEvent {
   final int shuttersInRun;
 }
 
+/// Event dispatched when bounding off a construction cement mixer drum for a
+/// rotational mortar hop.
+class CementMixerEvent {
+  const CementMixerEvent({
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.stuntStreak,
+    required this.mixersInRun,
+  });
+
+  /// Base tip value before stunt combo scaling ($34).
+  final int baseTips;
+
+  /// Total tip amount awarded after active combo multipliers.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this event.
+  final double multiplier;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+
+  /// Total cement mixer hops in this run.
+  final int mixersInRun;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -1255,6 +1282,9 @@ class GameState extends ChangeNotifier {
   /// Total industrial roll-up security shutters rebounded in current run.
   int shuttersReboundedInRun = 0;
 
+  /// Total construction cement mixer mortar hops in the current run.
+  int cementMixerHopsInRun = 0;
+
   /// Remaining duration of the Thermal Updraft Glide buff in seconds.
   double thermalUpdraftTimer = 0.0;
 
@@ -1317,6 +1347,9 @@ class GameState extends ChangeNotifier {
   ValueChanged<CatenaryZiplineEvent>? onCatenaryZipline;
   ValueChanged<BusShelterEvent>? onBusShelterVault;
   ValueChanged<SecurityShutterEvent>? onSecurityShutterRebound;
+
+  /// Fired when a cement mixer mortar hop is recorded.
+  ValueChanged<CementMixerEvent>? onCementMixerHop;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -1388,6 +1421,7 @@ class GameState extends ChangeNotifier {
     ziplinesCompletedInRun = 0;
     busSheltersVaultedInRun = 0;
     shuttersReboundedInRun = 0;
+    cementMixerHopsInRun = 0;
     floralAromaTimer = 0.0;
     notorietyTimer = 0.0;
     caffeineSurgeTimer = 0.0;
@@ -2934,6 +2968,43 @@ class GameState extends ChangeNotifier {
     );
 
     onSecurityShutterRebound?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records a rotational mortar hop off a construction cement mixer drum,
+  /// awarding tips scaled by active multipliers, incrementing
+  /// [cementMixerHopsInRun], advancing the stunt streak, and resetting the
+  /// stunt streak timer.
+  CementMixerEvent? recordCementMixerHop({int baseTips = 34}) {
+    if (status != GameStatus.running) return null;
+
+    cementMixerHopsInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    final baseAward = (baseTips * stuntMultiplier).round();
+    final withFloral = isFloralAromaActive ? (baseAward * 1.5).round() : baseAward;
+    final withNotoriety = isNotorietyActive ? (withFloral * 1.5).round() : withFloral;
+    final withGroove = isUrbanGrooveActive ? (withNotoriety * 1.5).round() : withNotoriety;
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? withGroove * 2
+        : withGroove;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = CementMixerEvent(
+      baseTips: baseTips,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+      stuntStreak: stuntStreak,
+      mixersInRun: cementMixerHopsInRun,
+    );
+
+    onCementMixerHop?.call(event);
     notifyListeners();
     return event;
   }

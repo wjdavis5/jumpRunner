@@ -56,6 +56,7 @@ Widget _results({
         ziplinesCompleted: n(32),
         busSheltersCompleted: n(33),
         securityShuttersCompleted: n(34),
+        cementMixersCompleted: n(35),
       ),
     ),
   );
@@ -70,7 +71,7 @@ void main() {
   };
 
   for (final entry in screens.entries) {
-    for (final stunts in const [0, 6, 12, 35]) {
+    for (final stunts in const [0, 6, 12, 36]) {
       testWidgets(
         'Results screen fits and can be restarted with $stunts stunt badges (${entry.key})',
         (tester) async {
@@ -122,16 +123,16 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(_results(stunts: 35, onRestart: () {}));
+    await tester.pumpWidget(_results(stunts: 36, onRestart: () {}));
 
-    final lastBadge = find.byKey(const Key('game_over_security_shutter_badge'));
+    final lastBadge = find.byKey(const Key('game_over_cement_mixer_badge'));
     final list = find.byKey(const Key('game_over_badges_scroll'));
     expect(lastBadge, findsOneWidget);
     final listRect = tester.getRect(list);
     expect(
       tester.getRect(lastBadge).top,
       greaterThan(listRect.bottom),
-      reason: 'with 35 badges the last one starts below the visible list',
+      reason: 'with 36 badges the last one starts below the visible list',
     );
 
     await tester.ensureVisible(lastBadge);

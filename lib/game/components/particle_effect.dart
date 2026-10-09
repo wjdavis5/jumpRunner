@@ -1247,6 +1247,50 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Wet concrete aggregate spatter, water droplets and gravel dust kicked
+  /// up by a cement mixer mortar hop.
+  factory ParticleEffectComponent.cementMixerSplashes({
+    required Vector2 position,
+    int count = 26,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFF9E9E9E), // Wet grey mortar
+      Color(0xFFBDBDBD), // Lighter cement slake
+      Color(0xFF757575), // Dark aggregate
+      Color(0xFFCFD8DC), // Water droplets
+      Color(0xFF8D6E63), // Gravel grit
+      Color(0xFF90A4AE), // Chassis splash
+    ];
+
+    for (var i = 0; i < count; i++) {
+      final angle = -math.pi * 0.5 + (rng.nextDouble() - 0.5) * 2.0;
+      final speed = 70.0 + rng.nextDouble() * 140.0;
+      final velocity = Vector2(
+        math.cos(angle) * speed,
+        math.sin(angle) * speed - 30.0,
+      );
+
+      particles.add(
+        GameParticle(
+          position: position.clone() +
+              Vector2((rng.nextDouble() - 0.5) * 18.0, (rng.nextDouble() - 0.5) * 10.0),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 1.6 + rng.nextDouble() * 2.4,
+          maxLife: 0.40 + rng.nextDouble() * 0.35,
+          gravity: 260.0,
+          drag: 0.92,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.

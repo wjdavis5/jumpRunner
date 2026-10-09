@@ -11,7 +11,7 @@ Verified shipped work lands as conventional commits; move done items to Shipped.
    no filter/equalizer API (grepped the pub cache), so a true lowpass needs a
    new audio dependency (an epic), and the mood half would add a third target
    to the day/night swap machine.
-2. **Environment components** (issues #126 cement mixer, #124 dumpster, #118 pretzel
+2. **Environment components** (issues #124 dumpster, #118 pretzel
    cart, #116 rooftop solarium, #87 debris chute, #84 manhole geyser, #83 window-washer
    cradle, #73 wrecking ball) — follow the established component pattern:
    data class in `world_chunk_manager.dart`, component file, spawn gate, game-over badge.
@@ -146,6 +146,18 @@ build below.
 
 ## Shipped
 
+- 2026-10-08: street construction cement mixers (issue #126, a43cc48) — a
+  portable rotary mixer on a safety-yellow tripod chassis churns its
+  corrugated drum every frame; an airborne courier bounding onto it gets a
+  +230 px/s rotational mortar hop (through `JumpPhysicsSimulator.launch`, so a
+  held leap is never cut short) and 26 wet-cement splatter particles, with a
+  "Still setting!" bark and a CEMENT MIXER HOP! tip float ($34 base,
+  streak-scaled). Spawns past 85 m, never in a station chunk, clear of
+  hazards and other fixtures, and thinned by `declutterStreet`; the results
+  card counts hops with `game_over_cement_mixer_badge`. 23 tests in
+  `test/cement_mixer_test.dart` plus the housekeeping, station-chunk,
+  declutter and results-fit guards. Implemented in worktree
+  `feat/cement-mixer`.
 - 2026-10-04: P0 overlay fix (6dba661), banner clearance (25f91d7).
 - 2026-10-04: first-run warm-up spawn ramp (677e04b).
 - 2026-10-04: slow-motion death beat (0b8922b) — 0.55s @ 30% tree speed, ease-out

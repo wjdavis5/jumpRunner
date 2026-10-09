@@ -34,6 +34,7 @@ import 'components/subway_exhaust_grate_component.dart';
 import 'components/catenary_zipline_component.dart';
 import 'components/bus_shelter_component.dart';
 import 'components/security_shutter_component.dart';
+import 'components/cement_mixer_component.dart';
 import 'components/lightning_flash_component.dart';
 import 'components/grind_rail_component.dart';
 import 'components/hvac_wind_tunnel_component.dart';
@@ -300,6 +301,9 @@ class CourierGame extends FlameGame
   final List<CatenaryZiplineComponent> activeCatenaryZiplines = [];
   final List<BusShelterComponent> activeBusShelters = [];
   final List<SecurityShutterComponent> activeSecurityShutters = [];
+
+  /// Construction cement mixers currently riding the street.
+  final List<CementMixerComponent> activeCementMixers = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
@@ -1015,6 +1019,17 @@ class CourierGame extends FlameGame
       world.add(ssComp);
     }
 
+    for (final cm in chunk.cementMixers) {
+      final cmComp = CementMixerComponent(
+        position: Vector2(cm.x, cm.y),
+        width: cm.width,
+        height: cm.height,
+        groundY: groundY,
+      );
+      activeCementMixers.add(cmComp);
+      world.add(cmComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -1339,6 +1354,12 @@ class CourierGame extends FlameGame
     for (final ss in world.children.whereType<SecurityShutterComponent>().toList()) {
       ss.removeFromParent();
     }
+    for (final cm in activeCementMixers.toList()) {
+      cm.removeFromParent();
+    }
+    for (final cm in world.children.whereType<CementMixerComponent>().toList()) {
+      cm.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -1374,6 +1395,7 @@ class CourierGame extends FlameGame
     activeCatenaryZiplines.clear();
     activeBusShelters.clear();
     activeSecurityShutters.clear();
+    activeCementMixers.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
@@ -1925,6 +1947,9 @@ class CourierGame extends FlameGame
     }
     for (final ss in activeSecurityShutters) {
       ss.position.x -= scrollDelta;
+    }
+    for (final cm in activeCementMixers) {
+      cm.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -2601,6 +2626,15 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4al. Evaluate Construction Cement Mixer Mortar Hops
+    for (final cm in activeCementMixers) {
+      if (!cm.hasHopped) {
+        if (cm.checkMixerHop(player.position, player.size, player.simulator)) {
+          _handleCementMixerHop(cm);
+        }
+      }
+    }
+
 
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
@@ -2904,6 +2938,13 @@ class CourierGame extends FlameGame
     activeSecurityShutters.removeWhere((ss) {
       if (ss.shouldRecycle || ss.isRemoved) {
         if (ss.isMounted) ss.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeCementMixers.removeWhere((cm) {
+      if (cm.shouldRecycle || cm.isRemoved) {
+        if (cm.isMounted) cm.removeFromParent();
         return true;
       }
       return false;
@@ -3944,6 +3985,36 @@ class CourierGame extends FlameGame
         ParticleEffectComponent.securityShutterSparks(
           position: shutter.reboundApexWorld,
           count: 28,
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handleCementMixerHop(CementMixerComponent mixer) {
+    mixer.markHopped();
+    final event = gameState.recordCementMixerHop();
+    if (event != null) {
+      audio.playJump();
+      audio.playCourierBark(
+        CourierBarkType.stunt,
+        line: 'Still setting!',
+      );
+      triggerScreenShake(0.15);
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+
+      addEffect(
+        FloatingTextComponent(
+          text: 'CEMENT MIXER HOP! $multStr+\$${event.totalTips}',
+          position: Vector2(mixer.position.x - 12.0, mixer.position.y - 32.0),
+          color: const Color(0xFFB0BEC5),
+        ),
+      );
+      addEffect(
+        ParticleEffectComponent.cementMixerSplashes(
+          position: mixer.hopApexWorld,
+          count: 26,
         ),
       );
       _evaluateAchievements();

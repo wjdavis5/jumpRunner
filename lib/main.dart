@@ -709,6 +709,7 @@ class _CourierDashAppState extends State<CourierDashApp>
             ziplinesCompleted: _gameState.ziplinesCompletedInRun,
             busSheltersCompleted: _gameState.busSheltersVaultedInRun,
             securityShuttersCompleted: _gameState.shuttersReboundedInRun,
+            cementMixersCompleted: _gameState.cementMixerHopsInRun,
             onRestart: _restartGame,
             onReturnToDepot: _quitToTitle,
           ),
