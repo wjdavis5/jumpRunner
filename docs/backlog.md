@@ -146,7 +146,7 @@ build below.
 
 ## Shipped
 
-- 2026-10-08: street construction cement mixers (issue #126) — a
+- 2026-10-08: street construction cement mixers (issue #126, a43cc48) — a
   portable rotary mixer on a safety-yellow tripod chassis churns its
   corrugated drum every frame; an airborne courier bounding onto it gets a
   +230 px/s rotational mortar hop (through `JumpPhysicsSimulator.launch`, so a
