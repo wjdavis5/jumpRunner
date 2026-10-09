@@ -1672,6 +1672,11 @@ class CourierGame extends FlameGame
     _resultsScreenSeconds =
         overlays.isActive('GameOver') ? _resultsScreenSeconds + dt : 0.0;
     if (!isRunning || gameState.status != GameStatus.running) {
+      // The music plays on through the death beat and the results card, but
+      // a stunt streak died with the courier: keep feeding the layer so it
+      // fades out and forgets the streak instead of riding the music over
+      // the figures (and coming back on unmute).
+      audio.updateStreakIntensity(streakActive: false, dt: dt);
       _updateDeathSlowmo(dt);
       return;
     }

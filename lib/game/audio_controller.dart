@@ -29,7 +29,19 @@ enum CustomerReactionType {
 }
 
 /// Crossfade lifecycle between the day and night background tracks.
-enum _MusicSwapState { idle, fadingOut, fadingIn }
+enum _MusicSwapState {
+  idle,
+
+  /// The old track fades out before the swap.
+  fadingOut,
+
+  /// The swap's platform calls are in flight; fades wait for them to land so
+  /// a slow start cannot be overtaken by a fade that already finished.
+  swapping,
+
+  /// The new track fades in.
+  fadingIn,
+}
 
 /// Fade lifecycle of the stunt-streak intensity layer.
 enum _LayerFadeState { silent, fadingIn, audible, fadingOut }
@@ -64,6 +76,12 @@ abstract class AudioPlayerInterface {
 class FlameAudioBackend implements AudioPlayerInterface {
   AudioPlayer? _ambiencePlayer;
   AudioPlayer? _layerPlayer;
+
+  /// Bumped by every layer stop and start. A start whose platform call is
+  /// still in flight compares its own request against this when the player
+  /// finally lands: if it was superseded, it stops the player it just made
+  /// instead of leaking an orphan loop the controller can never reach.
+  int _layerRequest = 0;
 
   @override
   Future<void> playSfx(String file, {double volume = 1.0}) async {
@@ -147,13 +165,25 @@ class FlameAudioBackend implements AudioPlayerInterface {
 
   @override
   Future<void> startLayer(String file, {double volume = 0.0}) async {
+    final request = ++_layerRequest;
     try {
       // One layer at a time: swapping tracks replaces the player instead of
-      // stacking a second loop over the first.
-      if (_layerPlayer != null) {
-        await _layerPlayer!.stop();
+      // stacking a second loop over the first. The slot is cleared before the
+      // load so a stop landing meanwhile does not miss the loading player.
+      final previous = _layerPlayer;
+      _layerPlayer = null;
+      if (previous != null) {
+        await previous.stop();
+        await previous.dispose();
       }
-      _layerPlayer = await FlameAudio.loopLongAudio(file, volume: volume);
+      final player = await FlameAudio.loopLongAudio(file, volume: volume);
+      if (request != _layerRequest) {
+        // Stopped, or superseded by a newer start, while this one loaded.
+        await player.stop();
+        await player.dispose();
+        return;
+      }
+      _layerPlayer = player;
     } catch (e) {
       debugPrint('[Audio] Layer error ($file): $e');
     }
@@ -161,10 +191,13 @@ class FlameAudioBackend implements AudioPlayerInterface {
 
   @override
   Future<void> stopLayer() async {
+    _layerRequest++;
     try {
-      if (_layerPlayer != null) {
-        await _layerPlayer!.stop();
-        _layerPlayer = null;
+      final player = _layerPlayer;
+      _layerPlayer = null;
+      if (player != null) {
+        await player.stop();
+        await player.dispose();
       }
     } catch (e) {
       debugPrint('[Audio] Layer stop error: $e');
@@ -316,13 +349,12 @@ class GameAudioController {
         await _backend.setBgmVolume(_effectiveBgmVolume * _trackFadeMultiplier);
         await _pushLayerVolume();
         if (t >= 1.0 && _swapState == _MusicSwapState.fadingOut) {
-          // Point the swap at the new track before any await: a frame that
-          // lands while the platform calls are still in flight must not
-          // re-run this block and start a second layer over the first.
+          // Claim the swap before any await: frames landing while the
+          // platform calls are still in flight wait for them instead of
+          // re-running the block or starting a second layer over the first.
+          _swapState = _MusicSwapState.swapping;
           isNightTrack = _swapTargetIsNight;
           _activeTrack = isNightTrack ? musicBgmNight : musicBgm;
-          _swapState = _MusicSwapState.fadingIn;
-          _fadeTimer = 0.0;
           await _backend.startBgm(_activeTrack, volume: 0.0);
           if (currentPlaybackRate != 1.0) {
             await _backend.setPlaybackRate(currentPlaybackRate);
@@ -334,7 +366,15 @@ class GameAudioController {
           } else {
             await _backend.stopLayer();
           }
+          // Only now, with the new track actually playing at silence, does
+          // the fade in begin.
+          _swapState = _MusicSwapState.fadingIn;
+          _fadeTimer = 0.0;
         }
+        return;
+
+      case _MusicSwapState.swapping:
+        // A swap is in flight; fades wait for the platform calls to land.
         return;
 
       case _MusicSwapState.fadingIn:
@@ -439,10 +479,22 @@ class GameAudioController {
 
   /// Starts the layer loop at its current fade volume (or at [volume]) and
   /// takes the music's tempo with it.
+  ///
+  /// The player only exists once the backend call returns. If the layer was
+  /// stopped (mute, backgrounding, run restart) while it loaded, the player
+  /// that just landed is stopped again; otherwise it is raised to the volume
+  /// the fade holds *now*, which may have moved on while the start was slow.
   Future<void> _startLayer({double? volume}) async {
     _layerAudible = true;
     await _backend.startLayer(_activeLayerTrack, volume: volume ?? _effectiveLayerVolume);
+    if (isMuted || !isMusicActive || isBackgrounded || _layerState == _LayerFadeState.silent) {
+      // The layer was stopped while the player was loading; a player that
+      // lands after its stop must not keep playing.
+      await _backend.stopLayer();
+      return;
+    }
     await _applyLayerPlaybackRate();
+    await _pushLayerVolume();
   }
 
   /// Starts the layer loop when the state machine says it should be playing

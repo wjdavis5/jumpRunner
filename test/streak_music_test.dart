@@ -25,6 +25,25 @@ class _BlockingBgmBackend extends MockAudioBackend {
   }
 }
 
+/// A backend whose layer player only lands when the blocked start is
+/// cleared, the way the real one holds no player until its platform call
+/// returns.
+class _SlowStartBackend extends MockAudioBackend {
+  Completer<void>? blockNextLayerStart;
+  int layerStartCalls = 0;
+
+  @override
+  Future<void> startLayer(String file, {double volume = 0.0}) async {
+    layerStartCalls++;
+    final blocker = blockNextLayerStart;
+    if (blocker != null) {
+      blockNextLayerStart = null;
+      await blocker.future;
+    }
+    await super.startLayer(file, volume: volume);
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -65,11 +84,17 @@ void main() {
       expect(mockBackend.layerVolume, closeTo(0.0, 0.01),
           reason: 'the fade must start from silence');
 
-      for (var i = 0; i < 6; i++) {
+      for (var i = 0; i < 3; i++) {
         await audio.updateStreakIntensity(streakActive: true, dt: 0.1);
       }
       const fullLayer =
           GameAudioController.defaultBgmVolume * GameAudioController.streakLayerVolumeRatio;
+      expect(mockBackend.layerVolume, closeTo(fullLayer * 0.6, 0.01),
+          reason: 'three tenths into the half-second fade is three fifths up');
+
+      for (var i = 0; i < 3; i++) {
+        await audio.updateStreakIntensity(streakActive: true, dt: 0.1);
+      }
       expect(mockBackend.layerVolume, closeTo(fullLayer, 0.01));
 
       // Held at full, the volume stops moving.
@@ -160,6 +185,8 @@ void main() {
         await audio.updateStreakIntensity(streakActive: false, dt: 0.1);
         elapsed += 0.1;
       }
+      expect(audio.isNightTrack, isTrue,
+          reason: 'the crossfade must complete for this claim to mean anything');
       for (var i = 0; i < 20; i++) {
         await audio.updateMusicPhase(isNight: true, dt: 0.1);
         await audio.updateStreakIntensity(streakActive: false, dt: 0.1);
@@ -271,6 +298,21 @@ void main() {
         reason: 'a track sped up by running must carry the layer with it',
       );
 
+      // The replacement layer a night swap starts keeps the tempo too.
+      var elapsed = 0.0;
+      while (!audio.isNightTrack && elapsed < 5.0) {
+        await audio.updateMusicPhase(isNight: true, dt: 0.1);
+        await audio.updateStreakIntensity(streakActive: true, dt: 0.1);
+        elapsed += 0.1;
+      }
+      expect(audio.isNightTrack, isTrue);
+      expect(mockBackend.activeLayer, equals(GameAudioController.musicBgmNightLayer));
+      expect(
+        mockBackend.layerPlaybackRate,
+        closeTo(audio.currentPlaybackRate, 0.001),
+        reason: 'the replacement layer must start at the tempo the music holds',
+      );
+
       await audio.updateSpeed(200);
       expect(
         mockBackend.layerPlaybackRate,
@@ -310,6 +352,145 @@ void main() {
       expect(backend.layerStarts, equals(2),
           reason: 'the swap itself still brings its one replacement layer');
       expect(backend.activeLayer, equals(GameAudioController.musicBgmNightLayer));
+    });
+
+    test('a slow crossfade still brings the music and the layer back up', () async {
+      final backend = _BlockingBgmBackend();
+      final controller = GameAudioController(backend: backend);
+      await controller.startMusic();
+      for (var i = 0; i < 12; i++) {
+        await controller.updateStreakIntensity(streakActive: true, dt: 0.05);
+      }
+
+      final blocker = Completer<void>();
+      backend.blockNextBgmStart = blocker;
+      final swap = controller.updateMusicPhase(isNight: true, dt: 1.0);
+      // Many frames pass while the swap's platform calls are held open.
+      for (var i = 0; i < 20; i++) {
+        await controller.updateMusicPhase(isNight: true, dt: 0.1);
+        await controller.updateStreakIntensity(streakActive: true, dt: 0.1);
+      }
+
+      blocker.complete();
+      await swap;
+      for (var i = 0; i < 20; i++) {
+        await controller.updateMusicPhase(isNight: true, dt: 0.1);
+        await controller.updateStreakIntensity(streakActive: true, dt: 0.1);
+      }
+
+      expect(controller.isNightTrack, isTrue);
+      expect(backend.activeLayer, equals(GameAudioController.musicBgmNightLayer));
+      expect(backend.bgmVolume, closeTo(GameAudioController.defaultBgmVolume, 0.01),
+          reason: 'the night track must ride back up, not stay at silence');
+      expect(
+        backend.layerVolume,
+        closeTo(
+          GameAudioController.defaultBgmVolume * GameAudioController.streakLayerVolumeRatio,
+          0.01,
+        ),
+        reason: 'the replacement layer must ride back up with it',
+      );
+    });
+
+    test('a player that lands late is raised to the volume the fade holds', () async {
+      final backend = _SlowStartBackend();
+      final controller = GameAudioController(backend: backend);
+      await controller.startMusic();
+
+      final blocker = Completer<void>();
+      backend.blockNextLayerStart = blocker;
+      final start = controller.updateStreakIntensity(streakActive: true, dt: 0.05);
+      // The fade runs all the way open while the player is still loading.
+      for (var i = 0; i < 12; i++) {
+        await controller.updateStreakIntensity(streakActive: true, dt: 0.05);
+      }
+      blocker.complete();
+      await start;
+
+      const fullLayer =
+          GameAudioController.defaultBgmVolume * GameAudioController.streakLayerVolumeRatio;
+      expect(backend.layerStartCalls, equals(1));
+      expect(backend.isLayerPlaying, isTrue);
+      expect(backend.layerVolume, closeTo(fullLayer, 0.01),
+          reason: 'the late player must be raised to the fade, not left at zero');
+    });
+
+    test('mute landing while the layer is still loading keeps it silent', () async {
+      final backend = _SlowStartBackend();
+      final controller = GameAudioController(backend: backend);
+      await controller.startMusic();
+
+      // A streak is live with the sound off, then the sound comes back.
+      await controller.toggleMute();
+      for (var i = 0; i < 6; i++) {
+        await controller.updateStreakIntensity(streakActive: true, dt: 0.05);
+      }
+      await controller.toggleMute();
+
+      final blocker = Completer<void>();
+      backend.blockNextLayerStart = blocker;
+      final streakFrame = controller.updateStreakIntensity(streakActive: true, dt: 0.05);
+      await Future<void>.delayed(Duration.zero);
+      // The sound goes off again while the player is still loading.
+      await controller.toggleMute();
+      blocker.complete();
+      await streakFrame;
+      await Future<void>.delayed(Duration.zero);
+
+      expect(backend.layerStartCalls, equals(1));
+      expect(backend.isLayerPlaying, isFalse,
+          reason: 'a player landing after the mute must be stopped, not left playing');
+      for (var i = 0; i < 6; i++) {
+        await controller.updateStreakIntensity(streakActive: true, dt: 0.05);
+      }
+      expect(backend.isLayerPlaying, isFalse);
+    });
+
+    test('a streak earned after unmute revives a layer the dead one left without a player',
+        () async {
+      await holdStreak();
+      await audio.toggleMute();
+
+      // The streak dies while muted, then the sound comes back...
+      for (var i = 0; i < 10; i++) {
+        await audio.updateStreakIntensity(streakActive: false, dt: 0.05);
+      }
+      await audio.toggleMute();
+      expect(mockBackend.isLayerPlaying, isFalse,
+          reason: 'the dead streak must not bring a ghost layer back');
+
+      // ...and only then is a new streak earned.
+      await holdStreak();
+      expect(mockBackend.isLayerPlaying, isTrue,
+          reason: 'the new streak must get its layer even though the old one left no player');
+      expect(
+        mockBackend.layerVolume,
+        closeTo(
+          GameAudioController.defaultBgmVolume * GameAudioController.streakLayerVolumeRatio,
+          0.01,
+        ),
+      );
+    });
+
+    test('a stopped shift takes its layer and the next run starts silent', () async {
+      await holdStreak();
+      expect(mockBackend.isLayerPlaying, isTrue);
+
+      await audio.stopMusic();
+      expect(mockBackend.isLayerPlaying, isFalse,
+          reason: 'music and layer stop together');
+
+      for (var i = 0; i < 12; i++) {
+        await audio.updateStreakIntensity(streakActive: true, dt: 0.05);
+      }
+      expect(mockBackend.isLayerPlaying, isFalse,
+          reason: 'no layer may run with the music stopped');
+
+      await audio.startMusic();
+      expect(mockBackend.isLayerPlaying, isFalse,
+          reason: 'a new run begins silent until a streak earns the layer');
+      await holdStreak();
+      expect(mockBackend.isLayerPlaying, isTrue);
     });
   });
 }
