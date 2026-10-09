@@ -62,6 +62,7 @@ class MockAudioBackend implements AudioPlayerInterface {
   String? activeLayer;
   bool isLayerPlaying = false;
   double layerVolume = 0.0;
+  double layerPlaybackRate = 1.0;
   int layerStarts = 0;
 
   @override
@@ -81,6 +82,11 @@ class MockAudioBackend implements AudioPlayerInterface {
   @override
   Future<void> setLayerVolume(double volume) async {
     layerVolume = volume;
+  }
+
+  @override
+  Future<void> setLayerPlaybackRate(double rate) async {
+    layerPlaybackRate = rate;
   }
 }
 

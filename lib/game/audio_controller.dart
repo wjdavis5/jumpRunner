@@ -52,6 +52,10 @@ abstract class AudioPlayerInterface {
   Future<void> startLayer(String file, {double volume = 0.0}) async {}
   Future<void> stopLayer() async {}
   Future<void> setLayerVolume(double volume) async {}
+
+  /// Keeps the layer at the music's tempo. Without it a scaled-up track and
+  /// the un-scaled layer drift apart while a streak rides them.
+  Future<void> setLayerPlaybackRate(double rate) async {}
 }
 
 /// Production audio backend delegating to FlameAudio.
@@ -177,6 +181,17 @@ class FlameAudioBackend implements AudioPlayerInterface {
       debugPrint('[Audio] Layer volume error: $e');
     }
   }
+
+  @override
+  Future<void> setLayerPlaybackRate(double rate) async {
+    try {
+      if (_layerPlayer != null) {
+        await _layerPlayer!.setPlaybackRate(rate);
+      }
+    } catch (e) {
+      debugPrint('[Audio] Layer playback rate error: $e');
+    }
+  }
 }
 
 /// Central audio manager for Courier Dash.
@@ -300,9 +315,14 @@ class GameAudioController {
         _trackFadeMultiplier = 1.0 - t;
         await _backend.setBgmVolume(_effectiveBgmVolume * _trackFadeMultiplier);
         await _pushLayerVolume();
-        if (t >= 1.0) {
+        if (t >= 1.0 && _swapState == _MusicSwapState.fadingOut) {
+          // Point the swap at the new track before any await: a frame that
+          // lands while the platform calls are still in flight must not
+          // re-run this block and start a second layer over the first.
           isNightTrack = _swapTargetIsNight;
           _activeTrack = isNightTrack ? musicBgmNight : musicBgm;
+          _swapState = _MusicSwapState.fadingIn;
+          _fadeTimer = 0.0;
           await _backend.startBgm(_activeTrack, volume: 0.0);
           if (currentPlaybackRate != 1.0) {
             await _backend.setPlaybackRate(currentPlaybackRate);
@@ -310,12 +330,10 @@ class GameAudioController {
           // The layer swaps with the track at silence so the two restart in
           // step; with no streak live nothing may survive the swap.
           if (_layerAudible) {
-            await _backend.startLayer(_activeLayerTrack, volume: 0.0);
+            await _startLayer(volume: 0.0);
           } else {
             await _backend.stopLayer();
           }
-          _swapState = _MusicSwapState.fadingIn;
-          _fadeTimer = 0.0;
         }
         return;
 
@@ -325,7 +343,7 @@ class GameAudioController {
         _trackFadeMultiplier = t;
         await _backend.setBgmVolume(_effectiveBgmVolume * t);
         await _pushLayerVolume();
-        if (t >= 1.0) {
+        if (t >= 1.0 && _swapState == _MusicSwapState.fadingIn) {
           _trackFadeMultiplier = 1.0;
           _swapState = _MusicSwapState.idle;
           await setBgmVolume(_effectiveBgmVolume);
@@ -342,20 +360,24 @@ class GameAudioController {
   /// streak dies it fades back out and stops at silence. A streak restarting
   /// while the layer is still up never restarts the loop: only its volume
   /// moves, so the arp stays in step with the music it rides.
+  ///
+  /// The flag is remembered even while muted so a mute/unmute pair cannot
+  /// bring back the layer for a streak that is already gone; a state the
+  /// machine still wants audible but whose backend player was held (mute,
+  /// backgrounding) is started again instead of staying silent for a shift.
   Future<void> updateStreakIntensity({
     required bool streakActive,
     required double dt,
   }) async {
-    if (!isMusicActive || isMuted) return;
     _streakRequested = streakActive;
+    if (!isMusicActive || isMuted) return;
 
     switch (_layerState) {
       case _LayerFadeState.silent:
         if (!streakActive) return;
         _layerFade = 0.0;
         _layerState = _LayerFadeState.fadingIn;
-        _layerAudible = true;
-        await _backend.startLayer(_activeLayerTrack, volume: 0.0);
+        await _startLayer(volume: 0.0);
         return;
 
       case _LayerFadeState.fadingIn:
@@ -363,6 +385,7 @@ class GameAudioController {
           _layerState = _LayerFadeState.fadingOut;
           return;
         }
+        await _startLayerIfMissing();
         _layerFade = (_layerFade + dt / streakLayerFadeDuration).clamp(0.0, 1.0);
         await _pushLayerVolume();
         if (_layerFade >= 1.0) {
@@ -373,7 +396,9 @@ class GameAudioController {
       case _LayerFadeState.audible:
         if (!streakActive) {
           _layerState = _LayerFadeState.fadingOut;
+          return;
         }
+        await _startLayerIfMissing();
         return;
 
       case _LayerFadeState.fadingOut:
@@ -381,6 +406,7 @@ class GameAudioController {
           // The streak came back before the fade-out finished: ride the
           // existing loop back up instead of starting it from the top.
           _layerState = _LayerFadeState.fadingIn;
+          await _startLayerIfMissing();
           return;
         }
         _layerFade = (_layerFade - dt / streakLayerFadeDuration).clamp(0.0, 1.0);
@@ -411,12 +437,35 @@ class GameAudioController {
     }
   }
 
+  /// Starts the layer loop at its current fade volume (or at [volume]) and
+  /// takes the music's tempo with it.
+  Future<void> _startLayer({double? volume}) async {
+    _layerAudible = true;
+    await _backend.startLayer(_activeLayerTrack, volume: volume ?? _effectiveLayerVolume);
+    await _applyLayerPlaybackRate();
+  }
+
+  /// Starts the layer loop when the state machine says it should be playing
+  /// but the backend no longer holds a player: mute and backgrounding stop
+  /// the player without touching the fade state, so a streak that outlives
+  /// them has to bring its layer back, not leave it silent.
+  Future<void> _startLayerIfMissing() async {
+    if (_layerAudible) return;
+    await _startLayer();
+  }
+
+  /// Keeps the layer on the music's current tempo.
+  Future<void> _applyLayerPlaybackRate() async {
+    if (currentPlaybackRate != 1.0) {
+      await _backend.setLayerPlaybackRate(currentPlaybackRate);
+    }
+  }
+
   /// Brings the streak layer back with the music after both were held
   /// (mute, backgrounding): both restart from the top of the loop.
   Future<void> _restartLayerWithMusic() async {
     if (_layerState == _LayerFadeState.silent || !_streakRequested) return;
-    _layerAudible = true;
-    await _backend.startLayer(_activeLayerTrack, volume: _effectiveLayerVolume);
+    await _startLayer();
   }
 
   /// Voice bark text line variations by courier bark category.
@@ -543,6 +592,9 @@ class GameAudioController {
     currentPlaybackRate = rate.clamp(0.5, 2.0);
     if (!isMuted && isMusicActive) {
       await _backend.setPlaybackRate(currentPlaybackRate);
+      // The layer rides the same tempo; without this the running track scales
+      // up while the arp does not, and the two drift apart within a loop.
+      await _backend.setLayerPlaybackRate(currentPlaybackRate);
     }
   }
 

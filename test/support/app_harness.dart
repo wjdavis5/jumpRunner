@@ -43,6 +43,9 @@ class SilentAudioBackend implements AudioPlayerInterface {
 
   @override
   Future<void> setLayerVolume(double volume) async {}
+
+  @override
+  Future<void> setLayerPlaybackRate(double rate) async {}
 }
 
 /// What a whole-app test needs to poke at once the app is running.

@@ -1,9 +1,29 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jump_runner/game/audio_controller.dart';
 import 'package:jump_runner/services/storage_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'audio_controller_test.dart';
+
+/// A backend that can hold the first music start of a crossfade open, so a
+/// later frame can land while the swap is still in flight.
+class _BlockingBgmBackend extends MockAudioBackend {
+  Completer<void>? blockNextBgmStart;
+  int bgmStartCalls = 0;
+
+  @override
+  Future<void> startBgm(String file, {double volume = 0.7}) async {
+    bgmStartCalls++;
+    final blocker = blockNextBgmStart;
+    if (blocker != null) {
+      blockNextBgmStart = null;
+      await blocker.future;
+    }
+    await super.startBgm(file, volume: volume);
+  }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -192,6 +212,104 @@ void main() {
       await audio.resumeFromBackground();
       expect(mockBackend.isLayerPlaying, isTrue);
       expect(mockBackend.activeLayer, equals(GameAudioController.musicBgmLayer));
+    });
+
+    test('a streak that returns while muted still brings the layer back', () async {
+      await holdStreak();
+
+      // The streak dies and its fade-out is under way when the player mutes.
+      await audio.updateStreakIntensity(streakActive: false, dt: 0.1);
+      await audio.toggleMute();
+      expect(mockBackend.isLayerPlaying, isFalse);
+
+      // The streak is re-earned while the sound is off.
+      for (var i = 0; i < 6; i++) {
+        await audio.updateStreakIntensity(streakActive: true, dt: 0.05);
+      }
+      expect(mockBackend.isLayerPlaying, isFalse,
+          reason: 'nothing may play while muted');
+
+      await audio.toggleMute();
+      await holdStreak();
+      expect(mockBackend.isLayerPlaying, isTrue,
+          reason: 'a live streak must revive its layer after a mute');
+      expect(
+        mockBackend.layerVolume,
+        closeTo(
+          GameAudioController.defaultBgmVolume * GameAudioController.streakLayerVolumeRatio,
+          0.01,
+        ),
+      );
+    });
+
+    test('unmuting after the streak died starts no ghost layer', () async {
+      await holdStreak();
+      await audio.toggleMute();
+
+      // The streak dies while the sound is off.
+      for (var i = 0; i < 10; i++) {
+        await audio.updateStreakIntensity(streakActive: false, dt: 0.05);
+      }
+      await audio.toggleMute();
+
+      expect(mockBackend.isLayerPlaying, isFalse,
+          reason: 'the layer must not come back for a streak that is gone');
+      for (var i = 0; i < 12; i++) {
+        await audio.updateStreakIntensity(streakActive: false, dt: 0.05);
+      }
+      expect(mockBackend.isLayerPlaying, isFalse);
+    });
+
+    test('the layer takes the music tempo so the two stay beat-locked', () async {
+      await audio.updateSpeed(550);
+      expect(audio.currentPlaybackRate, greaterThan(1.0));
+      await holdStreak();
+      expect(mockBackend.activeLayer, equals(GameAudioController.musicBgmLayer));
+      expect(
+        mockBackend.layerPlaybackRate,
+        closeTo(audio.currentPlaybackRate, 0.001),
+        reason: 'a track sped up by running must carry the layer with it',
+      );
+
+      await audio.updateSpeed(200);
+      expect(
+        mockBackend.layerPlaybackRate,
+        closeTo(audio.currentPlaybackRate, 0.001),
+        reason: 'slowing back down must carry the layer too',
+      );
+    });
+
+    test('a frame landing mid-swap does not start a second layer', () async {
+      final backend = _BlockingBgmBackend();
+      final controller = GameAudioController(backend: backend);
+      await controller.startMusic();
+      for (var i = 0; i < 12; i++) {
+        await controller.updateStreakIntensity(streakActive: true, dt: 0.05);
+      }
+      expect(backend.isLayerPlaying, isTrue);
+      expect(backend.layerStarts, equals(1));
+
+      final blocker = Completer<void>();
+      backend.blockNextBgmStart = blocker;
+      // This frame crosses the fade threshold and suspends inside the swap's
+      // music start...
+      final swap = controller.updateMusicPhase(isNight: true, dt: 1.0);
+      // ...and the next frame lands while the swap is still in flight.
+      final nextFrame = controller.updateMusicPhase(isNight: true, dt: 0.1);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(backend.bgmStartCalls, equals(2),
+          reason: 'the swap must start the night track once, not once per frame');
+      expect(backend.layerStarts, equals(1),
+          reason: 'a frame landing mid-swap must not start a second layer');
+
+      blocker.complete();
+      await swap;
+      await nextFrame;
+      expect(controller.isNightTrack, isTrue);
+      expect(backend.layerStarts, equals(2),
+          reason: 'the swap itself still brings its one replacement layer');
+      expect(backend.activeLayer, equals(GameAudioController.musicBgmNightLayer));
     });
   });
 }
