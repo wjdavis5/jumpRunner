@@ -89,8 +89,8 @@ void main() {
         for (final c in children) {
           if (_isPermanent(c)) continue;
           // The assist drone is kept alive by every drone cargo the courier
-          // collects, so a shift can legitimately carry one for minutes; it
-          // swoops away and removes itself when the booster expires.
+          // collects, so a shift can legitimately carry one for minutes; its
+          // departure and removal are pinned in delivery_drone_test.dart.
           if (c is DeliveryDroneComponent) continue;
           final x = c is PositionComponent ? c.position.x : double.nan;
           final record = seen.putIfAbsent(c, () {

@@ -65,8 +65,8 @@ class CementMixerComponent extends PositionComponent {
   /// Evaluates whether an approaching courier bounds off the churning drum
   /// for a rotational mortar hop.
   ///
-  /// Contact marks the mixer spent either way; only an airborne courier is
-  /// launched (a grounded courier runs past under the drum).
+  /// Only an airborne courier can bound off the drum; a grounded courier runs
+  /// past under it and leaves the mixer fresh for a real hop.
   bool checkMixerHop(
     Vector2 playerPos,
     Vector2 playerSize,
@@ -92,10 +92,10 @@ class CementMixerComponent extends PositionComponent {
     final inHopWindow = (footY >= windowTop) && (footY <= windowBottom);
     if (!inHopWindow) return false;
 
+    if (simulator.isGrounded) return false;
+
     hasHopped = true;
-    if (!simulator.isGrounded) {
-      simulator.launch(230.0); // Rotational mortar hop off the churning drum.
-    }
+    simulator.launch(230.0); // Rotational mortar hop off the churning drum.
     onHop?.call();
     return true;
   }

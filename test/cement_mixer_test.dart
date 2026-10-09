@@ -79,14 +79,10 @@ void main() {
       final mixer = CementMixerComponent(position: Vector2(300.0, 404.0));
 
       mixer.update(0.5);
-      expect(
-        mixer.drumRotation,
-        closeTo(CementMixerComponent.drumRotationSpeed * 0.5, 0.001),
-      );
+      expect(mixer.drumRotation, closeTo(1.2, 0.001)); // 2.4 rad/s half a second
 
-      final afterHalf = mixer.drumRotation;
       mixer.update(0.5);
-      expect(mixer.drumRotation, closeTo(afterHalf * 2.0, 0.001));
+      expect(mixer.drumRotation, closeTo(2.4, 0.001));
     });
 
     test('checkMixerHop ignores courier outside horizontal bounds', () {
@@ -134,7 +130,7 @@ void main() {
       expect(mixer.hasHopped, isFalse);
     });
 
-    test('a grounded courier is marked but not launched', () {
+    test('a grounded courier runs past without triggering the mixer', () {
       final mixer = CementMixerComponent(position: Vector2(300.0, 404.0));
       final sim = JumpPhysicsSimulator(groundY: 460.0);
       sim.isGrounded = true;
@@ -146,10 +142,19 @@ void main() {
         sim,
       );
 
-      expect(triggered, isTrue);
-      expect(mixer.hasHopped, isTrue);
-      expect(sim.verticalVelocity, equals(0.0),
-          reason: 'running past under the drum is not a hop');
+      expect(triggered, isFalse);
+      expect(mixer.hasHopped, isFalse,
+          reason: 'a run-past must leave the mixer fresh for a real hop');
+      expect(sim.verticalVelocity, equals(0.0));
+
+      // The same mixer still hops the courier once they are airborne.
+      sim.isGrounded = false;
+      sim.currentY = 420.0;
+      expect(
+        mixer.checkMixerHop(Vector2(310.0, 370.0), Vector2(32.0, 40.0), sim),
+        isTrue,
+      );
+      expect(sim.verticalVelocity, equals(230.0));
     });
 
     test('an airborne courier gets the +230 px/s mortar hop once', () {
@@ -189,6 +194,12 @@ void main() {
     test('a fixture scrolled well past the camera recycles', () {
       final mixer = CementMixerComponent(position: Vector2(-300.0, 404.0));
       expect(mixer.shouldRecycle, isTrue);
+    });
+
+    test('a mixer still on screen is not recycled', () {
+      final mixer = CementMixerComponent(position: Vector2(-100.0, 404.0));
+      expect(mixer.shouldRecycle, isFalse,
+          reason: 'its right edge is still 36 px inside the screen');
     });
 
     test('render draws the churning drum, chassis, engine and chute without errors', () {
@@ -248,6 +259,7 @@ void main() {
       expect(event!.baseTips, equals(34));
       expect(event.multiplier, equals(1.2)); // Streak 1 = 1.2x
       expect(event.totalTips, equals(41)); // (34 * 1.2).round() = 41
+      expect(event.stuntStreak, equals(1));
       expect(gs.cementMixerHopsInRun, equals(1));
       expect(gs.tips, equals(initialTips + 41));
       expect(capturedEvent, isNotNull);
@@ -265,6 +277,7 @@ void main() {
       expect(event, isNotNull);
       expect(event!.multiplier, equals(1.5));
       expect(event.totalTips, equals(51)); // (34 * 1.5).round() = 51
+      expect(event.stuntStreak, equals(2));
       expect(gs.tips, equals(initialTips + 51));
       expect(gs.cementMixerHopsInRun, equals(1));
     });
@@ -336,6 +349,43 @@ void main() {
       }
 
       expect(found, isTrue);
+    });
+
+    test('the spawn gate opens exactly at 85 m', () {
+      // 84 m: nothing, over many seeds and chunks.
+      for (var seed = 0; seed < 30; seed++) {
+        final manager = WorldChunkManager(random: math.Random(seed));
+        for (var i = 0; i < 10; i++) {
+          manager.reset();
+          final chunk = manager.generateChunk(
+            startX: 0.0,
+            chunkWidth: 960.0,
+            groundY: 460.0,
+            speed: 200.0,
+            distanceMeters: 84.0,
+          );
+          expect(chunk.cementMixers, isEmpty,
+              reason: 'no mixer may spawn before 85 m (seed $seed)');
+        }
+      }
+
+      // 85 m: the gate is open; at least one mixer appears across the seeds.
+      var found = false;
+      for (var seed = 0; seed < 30 && !found; seed++) {
+        final manager = WorldChunkManager(random: math.Random(seed));
+        for (var i = 0; i < 10 && !found; i++) {
+          manager.reset();
+          final chunk = manager.generateChunk(
+            startX: 0.0,
+            chunkWidth: 960.0,
+            groundY: 460.0,
+            speed: 200.0,
+            distanceMeters: 85.0,
+          );
+          found = chunk.cementMixers.isNotEmpty;
+        }
+      }
+      expect(found, isTrue, reason: 'a mixer must be possible at 85 m');
     });
 
     test('a station chunk never carries a cement mixer', () {
@@ -416,6 +466,9 @@ void main() {
       await game.onLoad();
       game.gameState.startRun();
 
+      final barkLines = <String>[];
+      game.audio.addCourierBarkListener((type, line) => barkLines.add(line));
+
       final mixer = CementMixerComponent(
         position: Vector2(game.player.position.x + 10.0, 404.0),
         width: 64.0,
@@ -442,11 +495,49 @@ void main() {
         floatingTexts.any((ft) => ft.text.contains('CEMENT MIXER HOP')),
         isTrue,
       );
-      expect(backend.playedSfx, contains(GameAudioController.sfxBarkStunt),
-          reason: 'the courier calls "Still setting!"');
+      expect(backend.playedSfx, contains(GameAudioController.sfxBarkStunt));
+      expect(barkLines, contains('Still setting!'));
 
       final particles = game.world.children.whereType<ParticleEffectComponent>();
-      expect(particles.isNotEmpty, isTrue);
+      expect(
+        particles.any((p) => p.particles.length == 26),
+        isTrue,
+        reason: 'the cement splatter effect must be the one spawned',
+      );
+    });
+
+    test('a grounded run-past awards nothing and leaves the mixer fresh', () async {
+      final backend = MockAudioBackend();
+      final game = CourierGame(
+        audioController: GameAudioController(backend: backend),
+      );
+      await game.onLoad();
+      game.gameState.startRun();
+
+      final mixer = CementMixerComponent(
+        position: Vector2(game.player.position.x + 10.0, 404.0),
+        width: 64.0,
+        height: 56.0,
+        groundY: 460.0,
+      );
+      game.activeCementMixers.add(mixer);
+      game.world.add(mixer);
+
+      game.player.simulator.isGrounded = true;
+      game.player.simulator.currentY = 460.0;
+
+      final initialHops = game.gameState.cementMixerHopsInRun;
+      game.update(0.016);
+
+      expect(mixer.hasHopped, isFalse);
+      expect(game.gameState.cementMixerHopsInRun, equals(initialHops));
+      expect(
+        game.world.children
+            .whereType<FloatingTextComponent>()
+            .any((ft) => ft.text.contains('CEMENT MIXER HOP')),
+        isFalse,
+      );
+      expect(backend.playedSfx, isNot(contains(GameAudioController.sfxBarkStunt)));
     });
 
     test('an offscreen cement mixer is recycled', () async {
