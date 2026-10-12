@@ -57,6 +57,7 @@ Widget _results({
         busSheltersCompleted: n(33),
         securityShuttersCompleted: n(34),
         cementMixersCompleted: n(35),
+        dumpstersCompleted: n(36),
       ),
     ),
   );
@@ -123,9 +124,10 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(_results(stunts: 36, onRestart: () {}));
+    // 37 kinds lit: deliveries through the dumpster, which is the last badge.
+    await tester.pumpWidget(_results(stunts: 37, onRestart: () {}));
 
-    final lastBadge = find.byKey(const Key('game_over_cement_mixer_badge'));
+    final lastBadge = find.byKey(const Key('game_over_dumpster_badge'));
     final list = find.byKey(const Key('game_over_badges_scroll'));
     expect(lastBadge, findsOneWidget);
     final listRect = tester.getRect(list);

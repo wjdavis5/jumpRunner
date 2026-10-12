@@ -995,6 +995,33 @@ class CementMixerEvent {
   final int mixersInRun;
 }
 
+/// Event dispatched when spring-bouncing off a curbside dumpster's
+/// rubber lids for a catapult launch.
+class DumpsterEvent {
+  const DumpsterEvent({
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.stuntStreak,
+    required this.bouncesInRun,
+  });
+
+  /// Base tip value before stunt combo scaling ($35).
+  final int baseTips;
+
+  /// Total tip amount awarded after active combo multipliers.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this event.
+  final double multiplier;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+
+  /// Total dumpster bounces in this run.
+  final int bouncesInRun;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -1285,6 +1312,9 @@ class GameState extends ChangeNotifier {
   /// Total construction cement mixer mortar hops in the current run.
   int cementMixerHopsInRun = 0;
 
+  /// Total dumpster lid catapult bounces in the current run.
+  int dumpsterBouncesInRun = 0;
+
   /// Remaining duration of the Thermal Updraft Glide buff in seconds.
   double thermalUpdraftTimer = 0.0;
 
@@ -1350,6 +1380,9 @@ class GameState extends ChangeNotifier {
 
   /// Fired when a cement mixer mortar hop is recorded.
   ValueChanged<CementMixerEvent>? onCementMixerHop;
+
+  /// Fired when a dumpster lid catapult bounce is recorded.
+  ValueChanged<DumpsterEvent>? onDumpsterBounce;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -1422,6 +1455,7 @@ class GameState extends ChangeNotifier {
     busSheltersVaultedInRun = 0;
     shuttersReboundedInRun = 0;
     cementMixerHopsInRun = 0;
+    dumpsterBouncesInRun = 0;
     floralAromaTimer = 0.0;
     notorietyTimer = 0.0;
     caffeineSurgeTimer = 0.0;
@@ -3005,6 +3039,42 @@ class GameState extends ChangeNotifier {
     );
 
     onCementMixerHop?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records a spring-lid catapult bounce off a curbside dumpster, awarding
+  /// tips scaled by active multipliers, incrementing [dumpsterBouncesInRun],
+  /// advancing the stunt streak, and resetting the stunt streak timer.
+  DumpsterEvent? recordDumpsterBounce({int baseTips = 35}) {
+    if (status != GameStatus.running) return null;
+
+    dumpsterBouncesInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    final baseAward = (baseTips * stuntMultiplier).round();
+    final withFloral = isFloralAromaActive ? (baseAward * 1.5).round() : baseAward;
+    final withNotoriety = isNotorietyActive ? (withFloral * 1.5).round() : withFloral;
+    final withGroove = isUrbanGrooveActive ? (withNotoriety * 1.5).round() : withNotoriety;
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? withGroove * 2
+        : withGroove;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = DumpsterEvent(
+      baseTips: baseTips,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+      stuntStreak: stuntStreak,
+      bouncesInRun: dumpsterBouncesInRun,
+    );
+
+    onDumpsterBounce?.call(event);
     notifyListeners();
     return event;
   }

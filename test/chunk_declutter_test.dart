@@ -109,6 +109,9 @@ List<_Span> _streetSpans(ChunkData chunk) {
   for (final p in chunk.cementMixers) {
     add('cementMixer', p.x, p.y, p.width, p.height);
   }
+  for (final p in chunk.dumpsters) {
+    add('dumpster', p.x, p.y, p.width, p.height);
+  }
   return spans;
 }
 
@@ -243,7 +246,7 @@ void main() {
         'steamVent', 'foodCart', 'stormDrain', 'fireEscape', 'foodTruckSlick',
         'barricade', 'mailbox', 'flowerKiosk', 'newsstand', 'cafeBistro',
         'busker', 'fireHydrant', 'clothesline', 'exhaustGrate', 'busShelter',
-        'shutter', 'cementMixer',
+        'shutter', 'cementMixer', 'dumpster',
       ];
       for (final kind in expected) {
         expect(

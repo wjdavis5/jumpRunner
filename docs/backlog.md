@@ -11,7 +11,7 @@ Verified shipped work lands as conventional commits; move done items to Shipped.
    no filter/equalizer API (grepped the pub cache), so a true lowpass needs a
    new audio dependency (an epic), and the mood half would add a third target
    to the day/night swap machine.
-2. **Environment components** (issues #124 dumpster, #118 pretzel
+2. **Environment components** (issues #118 pretzel
    cart, #116 rooftop solarium, #87 debris chute, #84 manhole geyser, #83 window-washer
    cradle, #73 wrecking ball) — follow the established component pattern:
    data class in `world_chunk_manager.dart`, component file, spawn gate, game-over badge.
@@ -146,6 +146,19 @@ build below.
 
 ## Shipped
 
+- 2026-10-09: curbside dumpsters (issue #124) — a forest-green steel bin on
+  caster wheels with ribbed walls, hazard chevrons, a stenciled serial and
+  dual spring-loaded rubber lids resting 15° open; an airborne courier who
+  lands on the lids compresses the hinges and is catapulted +240 px/s,
+  showering 24 aluminum/lime/rubber sparks from the hinge, with a
+  "Trash to treasure!" bark and a DUMPSTER LID LAUNCH! tip float ($35 base,
+  streak-scaled). The lids fling wide for 0.35 s on the bounce. Spawns past
+  70 m, never in a station chunk, clear of hazards, vendor carts and other
+  fixtures, and thinned by `declutterStreet`; a grounded run-past earns
+  nothing and leaves the bin fresh. Results badge `game_over_dumpster_badge`
+  (1 DUMPSTER LAUNCH / N LAUNCHES); results-fit scroll test now uses 37 lit
+  kinds. 22 tests in test/dumpster_test.dart plus housekeeping,
+  station-chunk, declutter and results-fit guards updated.
 - 2026-10-08: street construction cement mixers (issue #126, a43cc48) — a
   portable rotary mixer on a safety-yellow tripod chassis churns its
   corrugated drum every frame; an airborne courier bounding onto it gets a

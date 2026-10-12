@@ -1291,6 +1291,50 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Metallic aluminum flakes, lime-green recycled bottle sparkle and rubber
+  /// compression dust bursting from a dumpster lid spring bounce.
+  factory ParticleEffectComponent.dumpsterSparks({
+    required Vector2 position,
+    int count = 24,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFFB0BEC5), // Aluminum lid flake
+      Color(0xFFCFD8DC), // Bright steel sliver
+      Color(0xFF76FF03), // Lime recycled-bottle glint
+      Color(0xFFAEEA00), // Lime sparkle highlight
+      Color(0xFF4E342E), // Rubber hinge dust
+      Color(0xFF616161), // Grease fleck
+    ];
+
+    for (var i = 0; i < count; i++) {
+      final angle = -math.pi * 0.5 + (rng.nextDouble() - 0.5) * 2.2;
+      final speed = 80.0 + rng.nextDouble() * 150.0;
+      final velocity = Vector2(
+        math.cos(angle) * speed,
+        math.sin(angle) * speed - 35.0,
+      );
+
+      particles.add(
+        GameParticle(
+          position: position.clone() +
+              Vector2((rng.nextDouble() - 0.5) * 20.0, (rng.nextDouble() - 0.5) * 8.0),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 1.6 + rng.nextDouble() * 2.6,
+          maxLife: 0.38 + rng.nextDouble() * 0.32,
+          gravity: 240.0,
+          drag: 0.91,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.

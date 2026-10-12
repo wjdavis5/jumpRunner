@@ -611,6 +611,23 @@ class CementMixerData {
   final double groundY;
 }
 
+/// Data model for a curbside commercial dumpster with spring-loaded rubber lids.
+class DumpsterData {
+  const DumpsterData({
+    required this.x,
+    required this.y,
+    this.width = 76.0,
+    this.height = 50.0,
+    this.groundY = 460.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+  final double groundY;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -651,6 +668,7 @@ class ChunkData {
     this.busShelters = const [],
     this.securityShutters = const [],
     this.cementMixers = const [],
+    this.dumpsters = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -691,6 +709,7 @@ class ChunkData {
   final List<BusShelterData> busShelters;
   final List<SecurityShutterData> securityShutters;
   final List<CementMixerData> cementMixers;
+  final List<DumpsterData> dumpsters;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -2631,6 +2650,7 @@ class WorldChunkManager {
     }
 
     final List<CementMixerData> cementMixers = [];
+
     if (distanceMeters >= 85.0 && _random.nextDouble() < 0.25 && subwayStations.isEmpty) {
       const mixerWidth = 64.0;
       const mixerHeight = 56.0;
@@ -2664,6 +2684,52 @@ class WorldChunkManager {
               y: groundY - mixerHeight,
               width: mixerWidth,
               height: mixerHeight,
+              groundY: groundY,
+            ),
+          );
+          break;
+        }
+      }
+    }
+
+    final List<DumpsterData> dumpsters = [];
+    if (distanceMeters >= 70.0 && _random.nextDouble() < 0.25 && subwayStations.isEmpty) {
+      const dumpsterWidth = 76.0;
+      const dumpsterHeight = 50.0;
+
+      for (var attempt = 0; attempt < 8; attempt++) {
+        final dX = startX + 70.0 + _random.nextDouble() * (chunkWidth - 220.0);
+        final isClear = obstacles.every(
+          (o) => (dX + dumpsterWidth < o.x - 30.0) || (dX > o.x + o.width + 30.0),
+        ) && flowerKiosks.every(
+          (fk) => (dX + dumpsterWidth < fk.x - 30.0) || (dX > fk.x + fk.width + 30.0),
+        ) && newsstands.every(
+          (ns) => (dX + dumpsterWidth < ns.x - 30.0) || (dX > ns.x + ns.width + 30.0),
+        ) && cafeBistros.every(
+          (cb) => (dX + dumpsterWidth < cb.x - 30.0) || (dX > cb.x + cb.width + 30.0),
+        ) && foodCarts.every(
+          (fc) => (dX + dumpsterWidth < fc.x - 30.0) || (dX > fc.x + fc.width + 30.0),
+        ) && streetBuskers.every(
+          (sb) => (dX + dumpsterWidth < sb.x - 30.0) || (dX > sb.x + sb.width + 30.0),
+        ) && fireHydrants.every(
+          (fh) => (dX + dumpsterWidth < fh.x - 30.0) || (dX > fh.x + fh.width + 30.0),
+        ) && subwayExhaustGrates.every(
+          (seg) => (dX + dumpsterWidth < seg.x - 30.0) || (dX > seg.x + seg.width + 30.0),
+        ) && busShelters.every(
+          (bs) => (dX + dumpsterWidth < bs.x - 30.0) || (dX > bs.x + bs.width + 30.0),
+        ) && securityShutters.every(
+          (ss) => (dX + dumpsterWidth < ss.x - 30.0) || (dX > ss.x + ss.width + 30.0),
+        ) && cementMixers.every(
+          (cm) => (dX + dumpsterWidth < cm.x - 30.0) || (dX > cm.x + cm.width + 30.0),
+        );
+
+        if (isClear) {
+          dumpsters.add(
+            DumpsterData(
+              x: dX,
+              y: groundY - dumpsterHeight,
+              width: dumpsterWidth,
+              height: dumpsterHeight,
               groundY: groundY,
             ),
           );
@@ -2709,6 +2775,7 @@ class WorldChunkManager {
         for (final p in droneCargos.toList()) street(p.x, p.y, p.width, p.height, () => droneCargos.remove(p)),
         for (final p in securityShutters.toList()) street(p.x, p.y, p.width, p.height, () => securityShutters.remove(p)),
         for (final p in cementMixers.toList()) street(p.x, p.y, p.width, p.height, () => cementMixers.remove(p)),
+        for (final p in dumpsters.toList()) street(p.x, p.y, p.width, p.height, () => dumpsters.remove(p)),
         for (final p in busShelters.toList()) street(p.x, p.y, p.width, p.height, () => busShelters.remove(p)),
         for (final p in subwayExhaustGrates.toList()) street(p.x, p.y, p.width, p.height, () => subwayExhaustGrates.remove(p)),
         for (final p in satelliteDishes.toList()) street(p.x, p.y, p.width, p.height, () => satelliteDishes.remove(p)),
@@ -2755,6 +2822,7 @@ class WorldChunkManager {
       busShelters: busShelters,
       securityShutters: securityShutters,
       cementMixers: cementMixers,
+      dumpsters: dumpsters,
     );
   }
 }

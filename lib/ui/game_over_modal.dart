@@ -60,6 +60,7 @@ class GameOverModal extends StatelessWidget {
     this.busSheltersCompleted = 0,
     this.securityShuttersCompleted = 0,
     this.cementMixersCompleted = 0,
+    this.dumpstersCompleted = 0,
   });
 
   final int distance;
@@ -128,6 +129,7 @@ class GameOverModal extends StatelessWidget {
   final int busSheltersCompleted;
   final int securityShuttersCompleted;
   final int cementMixersCompleted;
+  final int dumpstersCompleted;
   final VoidCallback onRestart;
 
   /// Leaves for the title screen, where the Locker, Bodega and Daily Shift
@@ -1419,6 +1421,37 @@ class GameOverModal extends StatelessWidget {
                         '$cementMixersCompleted CEMENT MIXER HOP${cementMixersCompleted > 1 ? 'S' : ''}',
                         style: const TextStyle(
                           color: Color(0xFFFFF8E1),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            if (dumpstersCompleted > 0)
+              Container(
+                key: const Key('game_over_dumpster_badge'),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF76FF03).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF76FF03), width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.delete_outline, color: Color(0xFF76FF03), size: 16),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '$dumpstersCompleted DUMPSTER LAUNCH${dumpstersCompleted > 1 ? 'ES' : ''}',
+                        style: const TextStyle(
+                          color: Color(0xFFF1F8E9),
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                           letterSpacing: 0.5,
