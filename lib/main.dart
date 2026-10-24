@@ -711,6 +711,7 @@ class _CourierDashAppState extends State<CourierDashApp>
             securityShuttersCompleted: _gameState.shuttersReboundedInRun,
             cementMixersCompleted: _gameState.cementMixerHopsInRun,
             dumpstersCompleted: _gameState.dumpsterBouncesInRun,
+            manholeGeysersCompleted: _gameState.manholeGeysersInRun,
             onRestart: _restartGame,
             onReturnToDepot: _quitToTitle,
           ),

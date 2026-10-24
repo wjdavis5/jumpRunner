@@ -303,6 +303,7 @@ class GameAudioController {
   static const String sfxBarkGlide = 'sfx/bark_glide.ogg';
   static const String sfxCustomerThankYou = 'sfx/customer_thank_you.ogg';
   static const String sfxCustomerFiveStars = 'sfx/customer_five_stars.ogg';
+  static const String sfxManholeRattle = 'sfx/manhole_rattle.ogg';
   static const String musicBgm = 'music/courier_groove.ogg';
 
   /// Mellow midnight-city loop that crossfades in during the night phase.
@@ -654,6 +655,7 @@ class GameAudioController {
         sfxBarkGlide,
         sfxCustomerThankYou,
         sfxCustomerFiveStars,
+        sfxManholeRattle,
         musicBgm,
         musicBgmNight,
         musicBgmLayer,
@@ -868,6 +870,13 @@ class GameAudioController {
     attemptedPlays.add(sfxMilestone);
     duckForMilestone(duration: duckDuration);
     await _backend.playSfx(sfxMilestone, volume: 1.0);
+  }
+
+  /// Plays the cast-iron manhole lid rattle as pressure builds.
+  Future<void> playManholeRattle() async {
+    if (isMuted) return;
+    attemptedPlays.add(sfxManholeRattle);
+    await _backend.playSfx(sfxManholeRattle, volume: 0.85);
   }
 
   /// Plays rolling thunderstorm rumble audio.

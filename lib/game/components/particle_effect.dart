@@ -1291,6 +1291,50 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Dense billowy white/grey steam clouds and water droplets erupting from
+  /// a manhole geyser: a towering column that rises rather than falls.
+  factory ParticleEffectComponent.geyserSteamBurst({
+    required Vector2 position,
+    int count = 30,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFFFFFFFF), // Steam core white
+      Color(0xFFECEFF1), // Billow grey-white
+      Color(0xFFCFD8DC), // Pressure cloud
+      Color(0xFFB0BEC5), // Deep steam shadow
+      Color(0xFF80DEEA), // Water droplet flash
+      Color(0xFFE0F7FA), // Droplet mist
+    ];
+
+    for (var i = 0; i < count; i++) {
+      final angle = -math.pi / 2 + (rng.nextDouble() - 0.5) * 0.9;
+      final speed = 180.0 + rng.nextDouble() * 260.0;
+      final velocity = Vector2(
+        math.cos(angle) * speed * 0.5,
+        math.sin(angle) * speed,
+      );
+
+      particles.add(
+        GameParticle(
+          position: position.clone() +
+              Vector2((rng.nextDouble() - 0.5) * 22.0, (rng.nextDouble() - 0.5) * 6.0),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 2.6 + rng.nextDouble() * 3.6,
+          maxLife: 0.50 + rng.nextDouble() * 0.45,
+          gravity: -70.0, // Buoyant: the column climbs.
+          drag: 1.1,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   /// Metallic aluminum flakes, lime-green recycled bottle sparkle and rubber
   /// compression dust bursting from a dumpster lid spring bounce.
   factory ParticleEffectComponent.dumpsterSparks({

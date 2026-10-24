@@ -36,6 +36,7 @@ import 'components/bus_shelter_component.dart';
 import 'components/security_shutter_component.dart';
 import 'components/cement_mixer_component.dart';
 import 'components/dumpster_component.dart';
+import 'components/manhole_geyser_component.dart';
 import 'components/lightning_flash_component.dart';
 import 'components/grind_rail_component.dart';
 import 'components/hvac_wind_tunnel_component.dart';
@@ -308,6 +309,9 @@ class CourierGame extends FlameGame
 
   /// Curbside dumpsters currently riding the street.
   final List<DumpsterComponent> activeDumpsters = [];
+
+  /// Street manholes with live sewer pressure currently riding the street.
+  final List<ManholeGeyserComponent> activeManholeGeysers = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
@@ -1045,6 +1049,17 @@ class CourierGame extends FlameGame
       world.add(dComp);
     }
 
+    for (final mg in chunk.manholeGeysers) {
+      final mgComp = ManholeGeyserComponent(
+        position: Vector2(mg.x, mg.y),
+        width: mg.width,
+        height: mg.height,
+        groundY: groundY,
+      );
+      activeManholeGeysers.add(mgComp);
+      world.add(mgComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -1382,6 +1397,13 @@ class CourierGame extends FlameGame
     for (final d in world.children.whereType<DumpsterComponent>().toList()) {
       d.removeFromParent();
     }
+
+    for (final mg in activeManholeGeysers.toList()) {
+      mg.removeFromParent();
+    }
+    for (final mg in world.children.whereType<ManholeGeyserComponent>().toList()) {
+      mg.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -1419,6 +1441,7 @@ class CourierGame extends FlameGame
     activeSecurityShutters.clear();
     activeCementMixers.clear();
     activeDumpsters.clear();
+    activeManholeGeysers.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
@@ -1977,6 +2000,10 @@ class CourierGame extends FlameGame
 
     for (final d in activeDumpsters) {
       d.position.x -= scrollDelta;
+    }
+
+    for (final mg in activeManholeGeysers) {
+      mg.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -2671,6 +2698,15 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4an. Evaluate Manhole Geyser Eruptions
+    for (final mg in activeManholeGeysers) {
+      if (mg.state == ManholeGeyserState.erupted) continue;
+      final outcome = mg.checkGeyser(player.position, player.size, player.simulator);
+      if (outcome != GeyserUpdate.none) {
+        _handleManholeGeyserUpdate(mg, outcome);
+      }
+    }
+
 
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
@@ -2989,6 +3025,14 @@ class CourierGame extends FlameGame
     activeDumpsters.removeWhere((d) {
       if (d.shouldRecycle || d.isRemoved) {
         if (d.isMounted) d.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+
+    activeManholeGeysers.removeWhere((mg) {
+      if (mg.shouldRecycle || mg.isRemoved) {
+        if (mg.isMounted) mg.removeFromParent();
         return true;
       }
       return false;
@@ -4092,6 +4136,70 @@ class CourierGame extends FlameGame
         ),
       );
       _evaluateAchievements();
+    }
+  }
+
+  void _handleManholeGeyserUpdate(
+    ManholeGeyserComponent manhole,
+    GeyserUpdate outcome,
+  ) {
+    if (outcome == GeyserUpdate.rumblingStarted) {
+      audio.playManholeRattle();
+      return;
+    }
+
+    // The geyser blew: a towering steam column rises from the rim.
+    addEffect(
+      ParticleEffectComponent.geyserSteamBurst(
+        position: manhole.rimCenterWorld,
+        count: 30,
+      ),
+    );
+    triggerScreenShake(0.2);
+
+    // A ring of airborne coins rides the blast for a courier to catch.
+    _spawnGeyserCoinRing(manhole.rimCenterWorld);
+
+    if (outcome == GeyserUpdate.launched) {
+      final event = gameState.recordManholeGeyser();
+      if (event != null) {
+        audio.playJump();
+        audio.playCourierBark(
+          CourierBarkType.stunt,
+          line: 'Riding the tube!',
+        );
+
+        final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+        addEffect(
+          FloatingTextComponent(
+            text: 'MANHOLE GEYSER! $multStr+\$${event.totalTips}',
+            position: Vector2(manhole.position.x - 24.0, manhole.position.y - 46.0),
+            color: const Color(0xFF80DEEA),
+          ),
+        );
+        _evaluateAchievements();
+      }
+    }
+  }
+
+  /// Spawns an arc of airborne coins above an erupting manhole geyser.
+  void _spawnGeyserCoinRing(Vector2 origin) {
+    for (var i = 0; i < 8; i++) {
+      final t = i / 7.0;
+      late final PickupComponent coin;
+      coin = PickupComponent(
+        type: PickupType.coin,
+        position: Vector2(
+          origin.x - 78.0 + 156.0 * t,
+          origin.y - 52.0 - math.sin(math.pi * t) * 88.0,
+        ),
+        onCollected: (type) {
+          activePickups.removeWhere((item) => item.isCollected);
+          _handlePickup(type, coin.position + (coin.size / 2));
+        },
+      );
+      activePickups.add(coin);
+      world.add(coin);
     }
   }
 

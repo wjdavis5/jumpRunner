@@ -11,9 +11,8 @@ Verified shipped work lands as conventional commits; move done items to Shipped.
    no filter/equalizer API (grepped the pub cache), so a true lowpass needs a
    new audio dependency (an epic), and the mood half would add a third target
    to the day/night swap machine.
-2. **Environment components** (issues #118 pretzel
-   cart, #116 rooftop solarium, #87 debris chute, #84 manhole geyser, #83 window-washer
-   cradle, #73 wrecking ball) — follow the established component pattern:
+2. **Environment components** (issues #118 pretzel cart,
+  , #116 rooftop solarium, #87 debris chute, #83 window-washer cradle, #73 wrecking ball) — follow the established component pattern:
    data class in `world_chunk_manager.dart`, component file, spawn gate, game-over badge.
    **A new street piece also needs**, or a test will fail:
    - its `active*` list in the scroll section of `CourierGame._step`, in the
@@ -146,6 +145,20 @@ build below.
 
 ## Shipped
 
+- 2026-10-09: manhole cover geysers (issue #84) — a cast-iron street plate on
+  a pressurized sewer main rattles when the courier draws within 180 px
+  (synthesized metallic rattle, `tool/generate_audio.py`, deterministic like
+  the rest), then erupts when the buildup completes or the courier steps onto
+  the lid: the lid blasts off spinning, a 30-particle buoyant steam column
+  rises, an 8-coin ring rides the blast, and a courier standing in the column
+  (grounded or airborne, below 150 px) is launched +480 px/s with a
+  "Riding the tube!" bark and a MANHOLE GEYSER! tip float ($40 base,
+  streak-scaled). One eruption per manhole; a courier off the column gets the
+  show and the coins but pays nothing. Spawns past 130 m, never in a station
+  chunk, clear of hazards, fixtures and storm drains, declutter-registered.
+  Results badge `game_over_manhole_badge` (GEYSER RIDE/RIDES); results-fit
+  scroll test now lights 38 kinds. 25 tests in test/manhole_geyser_test.dart
+  plus the station-chunk, declutter and results-fit guards updated.
 - 2026-10-09: curbside dumpsters (issue #124) — a forest-green steel bin on
   caster wheels with ribbed walls, hazard chevrons, a stenciled serial and
   dual spring-loaded rubber lids resting 15° open; an airborne courier who

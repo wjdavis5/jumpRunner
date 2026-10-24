@@ -628,6 +628,23 @@ class DumpsterData {
   final double groundY;
 }
 
+/// Data model for a street manhole cover sitting on a pressurized sewer main.
+class ManholeGeyserData {
+  const ManholeGeyserData({
+    required this.x,
+    required this.y,
+    this.width = 48.0,
+    this.height = 14.0,
+    this.groundY = 460.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+  final double groundY;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -669,6 +686,7 @@ class ChunkData {
     this.securityShutters = const [],
     this.cementMixers = const [],
     this.dumpsters = const [],
+    this.manholeGeysers = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -710,6 +728,7 @@ class ChunkData {
   final List<SecurityShutterData> securityShutters;
   final List<CementMixerData> cementMixers;
   final List<DumpsterData> dumpsters;
+  final List<ManholeGeyserData> manholeGeysers;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -2738,6 +2757,56 @@ class WorldChunkManager {
       }
     }
 
+    final List<ManholeGeyserData> manholeGeysers = [];
+    if (distanceMeters >= 130.0 && _random.nextDouble() < 0.2 && subwayStations.isEmpty) {
+      const manholeWidth = 48.0;
+      const manholeHeight = 14.0;
+
+      for (var attempt = 0; attempt < 8; attempt++) {
+        final mX = startX + 80.0 + _random.nextDouble() * (chunkWidth - 200.0);
+        final isClear = obstacles.every(
+          (o) => (mX + manholeWidth < o.x - 30.0) || (mX > o.x + o.width + 30.0),
+        ) && flowerKiosks.every(
+          (fk) => (mX + manholeWidth < fk.x - 30.0) || (mX > fk.x + fk.width + 30.0),
+        ) && newsstands.every(
+          (ns) => (mX + manholeWidth < ns.x - 30.0) || (mX > ns.x + ns.width + 30.0),
+        ) && cafeBistros.every(
+          (cb) => (mX + manholeWidth < cb.x - 30.0) || (mX > cb.x + cb.width + 30.0),
+        ) && foodCarts.every(
+          (fc) => (mX + manholeWidth < fc.x - 30.0) || (mX > fc.x + fc.width + 30.0),
+        ) && streetBuskers.every(
+          (sb) => (mX + manholeWidth < sb.x - 30.0) || (mX > sb.x + sb.width + 30.0),
+        ) && fireHydrants.every(
+          (fh) => (mX + manholeWidth < fh.x - 30.0) || (mX > fh.x + fh.width + 30.0),
+        ) && subwayExhaustGrates.every(
+          (seg) => (mX + manholeWidth < seg.x - 30.0) || (mX > seg.x + seg.width + 30.0),
+        ) && busShelters.every(
+          (bs) => (mX + manholeWidth < bs.x - 30.0) || (mX > bs.x + bs.width + 30.0),
+        ) && securityShutters.every(
+          (ss) => (mX + manholeWidth < ss.x - 30.0) || (mX > ss.x + ss.width + 30.0),
+        ) && cementMixers.every(
+          (cm) => (mX + manholeWidth < cm.x - 30.0) || (mX > cm.x + cm.width + 30.0),
+        ) && dumpsters.every(
+          (d) => (mX + manholeWidth < d.x - 30.0) || (mX > d.x + d.width + 30.0),
+        ) && stormDrains.every(
+          (sd) => (mX + manholeWidth < sd.x - 40.0) || (mX > sd.x + sd.width + 40.0),
+        );
+
+        if (isClear) {
+          manholeGeysers.add(
+            ManholeGeyserData(
+              x: mX,
+              y: groundY - manholeHeight,
+              width: manholeWidth,
+              height: manholeHeight,
+              groundY: groundY,
+            ),
+          );
+          break;
+        }
+      }
+    }
+
     // Thin out optional street set pieces that would be drawn on top of each
     // other or on a hazard. Puddles (a ground decal), cyclists (they ride
     // through) and crane masts (background structure) may share space.
@@ -2776,6 +2845,7 @@ class WorldChunkManager {
         for (final p in securityShutters.toList()) street(p.x, p.y, p.width, p.height, () => securityShutters.remove(p)),
         for (final p in cementMixers.toList()) street(p.x, p.y, p.width, p.height, () => cementMixers.remove(p)),
         for (final p in dumpsters.toList()) street(p.x, p.y, p.width, p.height, () => dumpsters.remove(p)),
+        for (final p in manholeGeysers.toList()) street(p.x, p.y, p.width, p.height, () => manholeGeysers.remove(p)),
         for (final p in busShelters.toList()) street(p.x, p.y, p.width, p.height, () => busShelters.remove(p)),
         for (final p in subwayExhaustGrates.toList()) street(p.x, p.y, p.width, p.height, () => subwayExhaustGrates.remove(p)),
         for (final p in satelliteDishes.toList()) street(p.x, p.y, p.width, p.height, () => satelliteDishes.remove(p)),
@@ -2823,6 +2893,7 @@ class WorldChunkManager {
       securityShutters: securityShutters,
       cementMixers: cementMixers,
       dumpsters: dumpsters,
+      manholeGeysers: manholeGeysers,
     );
   }
 }

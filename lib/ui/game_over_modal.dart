@@ -61,6 +61,7 @@ class GameOverModal extends StatelessWidget {
     this.securityShuttersCompleted = 0,
     this.cementMixersCompleted = 0,
     this.dumpstersCompleted = 0,
+    this.manholeGeysersCompleted = 0,
   });
 
   final int distance;
@@ -130,6 +131,7 @@ class GameOverModal extends StatelessWidget {
   final int securityShuttersCompleted;
   final int cementMixersCompleted;
   final int dumpstersCompleted;
+  final int manholeGeysersCompleted;
   final VoidCallback onRestart;
 
   /// Leaves for the title screen, where the Locker, Bodega and Daily Shift
@@ -1462,11 +1464,42 @@ class GameOverModal extends StatelessWidget {
                   ],
                 ),
               ),
+            if (manholeGeysersCompleted > 0)
+              Container(
+                key: const Key('game_over_manhole_badge'),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF80DEEA).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF80DEEA), width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.air, color: Color(0xFF80DEEA), size: 16),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '$manholeGeysersCompleted GEYSER RIDE${manholeGeysersCompleted > 1 ? 'S' : ''}',
+                        style: const TextStyle(
+                          color: Color(0xFFE0F7FA),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
                   ],
                 ),
               ),
               ),
             ),
+
 
             // Stats grid
             Row(
