@@ -645,6 +645,27 @@ class ManholeGeyserData {
   final double groundY;
 }
 
+/// Data model for a demolition crane mast with a swinging wrecking ball.
+class WreckingBallData {
+  const WreckingBallData({
+    required this.x,
+    required this.y,
+    this.width = 300.0,
+    this.height = 380.0,
+    this.groundY = 460.0,
+    this.phase = 0.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+  final double groundY;
+
+  /// Pendulum phase offset in radians at spawn.
+  final double phase;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -687,6 +708,7 @@ class ChunkData {
     this.cementMixers = const [],
     this.dumpsters = const [],
     this.manholeGeysers = const [],
+    this.wreckingBalls = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -729,6 +751,7 @@ class ChunkData {
   final List<CementMixerData> cementMixers;
   final List<DumpsterData> dumpsters;
   final List<ManholeGeyserData> manholeGeysers;
+  final List<WreckingBallData> wreckingBalls;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -2758,6 +2781,7 @@ class WorldChunkManager {
     }
 
     final List<ManholeGeyserData> manholeGeysers = [];
+
     if (distanceMeters >= 130.0 && _random.nextDouble() < 0.2 && subwayStations.isEmpty) {
       const manholeWidth = 48.0;
       const manholeHeight = 14.0;
@@ -2800,6 +2824,36 @@ class WorldChunkManager {
               width: manholeWidth,
               height: manholeHeight,
               groundY: groundY,
+            ),
+          );
+          break;
+        }
+      }
+    }
+
+    final List<WreckingBallData> wreckingBalls = [];
+    if (distanceMeters >= 140.0 && _random.nextDouble() < 0.18 && subwayStations.isEmpty) {
+      const ballWidth = 300.0;
+      const ballHeight = 380.0;
+
+      for (var attempt = 0; attempt < 6; attempt++) {
+        final bX = startX + 240.0 + _random.nextDouble() * (chunkWidth - 520.0);
+        // Background structure like the crane masts, so it shares the street
+        // with fixtures: two swinging balls in one chunk is the only crowd
+        // worth avoiding.
+        final isClear = wreckingBalls.every(
+          (wb) => (bX + ballWidth < wb.x - 120.0) || (bX > wb.x + wb.width + 120.0),
+        );
+
+        if (isClear) {
+          wreckingBalls.add(
+            WreckingBallData(
+              x: bX,
+              y: groundY - ballHeight,
+              width: ballWidth,
+              height: ballHeight,
+              groundY: groundY,
+              phase: _random.nextDouble() * 2 * math.pi,
             ),
           );
           break;
@@ -2894,6 +2948,7 @@ class WorldChunkManager {
       cementMixers: cementMixers,
       dumpsters: dumpsters,
       manholeGeysers: manholeGeysers,
+      wreckingBalls: wreckingBalls,
     );
   }
 }

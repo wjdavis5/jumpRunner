@@ -37,6 +37,7 @@ import 'components/security_shutter_component.dart';
 import 'components/cement_mixer_component.dart';
 import 'components/dumpster_component.dart';
 import 'components/manhole_geyser_component.dart';
+import 'components/wrecking_ball_component.dart';
 import 'components/lightning_flash_component.dart';
 import 'components/grind_rail_component.dart';
 import 'components/hvac_wind_tunnel_component.dart';
@@ -312,6 +313,9 @@ class CourierGame extends FlameGame
 
   /// Street manholes with live sewer pressure currently riding the street.
   final List<ManholeGeyserComponent> activeManholeGeysers = [];
+
+  /// Demolition wrecking balls swinging over the street.
+  final List<WreckingBallComponent> activeWreckingBalls = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
@@ -1060,6 +1064,18 @@ class CourierGame extends FlameGame
       world.add(mgComp);
     }
 
+    for (final wb in chunk.wreckingBalls) {
+      final wbComp = WreckingBallComponent(
+        position: Vector2(wb.x, wb.y),
+        width: wb.width,
+        height: wb.height,
+        groundY: groundY,
+        phase: wb.phase,
+      );
+      activeWreckingBalls.add(wbComp);
+      world.add(wbComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -1404,6 +1420,13 @@ class CourierGame extends FlameGame
     for (final mg in world.children.whereType<ManholeGeyserComponent>().toList()) {
       mg.removeFromParent();
     }
+
+    for (final wb in activeWreckingBalls.toList()) {
+      wb.removeFromParent();
+    }
+    for (final wb in world.children.whereType<WreckingBallComponent>().toList()) {
+      wb.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -1442,6 +1465,7 @@ class CourierGame extends FlameGame
     activeCementMixers.clear();
     activeDumpsters.clear();
     activeManholeGeysers.clear();
+    activeWreckingBalls.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
@@ -2004,6 +2028,10 @@ class CourierGame extends FlameGame
 
     for (final mg in activeManholeGeysers) {
       mg.position.x -= scrollDelta;
+    }
+
+    for (final wb in activeWreckingBalls) {
+      wb.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -2707,6 +2735,15 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4ao. Evaluate Wrecking Ball Pendulum Hits
+    for (final wb in activeWreckingBalls) {
+      if (wb.checkBallHit(player.position, player.size)) {
+        // takeDamage honors invulnerability; the onDamage cascade plays the
+        // fumble, the bark, the impact burst and the screen shake.
+        player.takeDamage(source: 'wrecking ball');
+      }
+    }
+
 
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
@@ -3033,6 +3070,14 @@ class CourierGame extends FlameGame
     activeManholeGeysers.removeWhere((mg) {
       if (mg.shouldRecycle || mg.isRemoved) {
         if (mg.isMounted) mg.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+
+    activeWreckingBalls.removeWhere((wb) {
+      if (wb.shouldRecycle || wb.isRemoved) {
+        if (wb.isMounted) wb.removeFromParent();
         return true;
       }
       return false;

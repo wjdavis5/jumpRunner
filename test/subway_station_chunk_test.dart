@@ -61,6 +61,7 @@ Map<String, int> _streetPieces(ChunkData chunk) {
     'cement mixers': chunk.cementMixers,
     'dumpsters': chunk.dumpsters,
     'manholes': chunk.manholeGeysers,
+    'wrecking balls': chunk.wreckingBalls,
   };
   return {
     for (final entry in lists.entries)
