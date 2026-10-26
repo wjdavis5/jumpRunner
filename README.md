@@ -6,9 +6,10 @@ One input does everything: tap to hop, hold to leap, tap again in the air to
 open a glide chute. The three packages you carry are your lives. The game is
 offline and ad-free; progress is stored on the device only.
 
-**Status:** active hobby project. The web build is hosted at
-https://imagine.wjd.io, on a Cloudflare Worker that serves the built files
-(`wrangler.jsonc`); it was first deployed by hand on 2026-10-05. Every push to
+**Status:** active hobby project. The web build is a Cloudflare Worker that serves
+the built files (`wrangler.jsonc`), first deployed by hand on 2026-10-05. It has
+**no public address since 2026-10-26**: its hostname, imagine.wjd.io, went back to
+the lab's image generator (imagine-feed). A new hostname needs an Access app first. Every push to
 `main` builds the web bundle, but publishing from the workflow is not switched
 on yet (issue #134). iOS and Android builds are produced from version tags.
 
@@ -96,7 +97,7 @@ engine.
 
 | Target | Trigger | Workflow |
 |---|---|---|
-| Web (Cloudflare Worker `jump-runner-web`, https://imagine.wjd.io) | By hand: `flutter build web --release --no-web-resources-cdn`, then `npx wrangler deploy`. The workflow runs on a push to `main` touching `lib/`, `web/`, `assets/`, `pubspec.*` or `wrangler.jsonc`; it builds today, and its publish step is skipped until the Cloudflare secrets are set (issue #134) | `wrangler.jsonc`, `.github/workflows/web-deploy.yml` |
+| Web (Cloudflare Worker `jump-runner-web`, no hostname since 2026-10-26) | By hand: `flutter build web --release --no-web-resources-cdn`, then `npx wrangler deploy`. The workflow runs on a push to `main` touching `lib/`, `web/`, `assets/`, `pubspec.*` or `wrangler.jsonc`; it builds today, and its publish step is skipped until the Cloudflare secrets are set (issue #134) | `wrangler.jsonc`, `.github/workflows/web-deploy.yml` |
 | Android APK and App Bundle | Tag `v*.*.*` | `.github/workflows/android-release.yml` |
 | iOS (TestFlight via fastlane) | Tag `v*.*.*` | `.github/workflows/ios-release.yml` |
 
