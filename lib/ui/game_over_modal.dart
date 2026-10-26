@@ -62,6 +62,7 @@ class GameOverModal extends StatelessWidget {
     this.cementMixersCompleted = 0,
     this.dumpstersCompleted = 0,
     this.manholeGeysersCompleted = 0,
+    this.pretzelSprintsCompleted = 0,
   });
 
   final int distance;
@@ -132,6 +133,7 @@ class GameOverModal extends StatelessWidget {
   final int cementMixersCompleted;
   final int dumpstersCompleted;
   final int manholeGeysersCompleted;
+  final int pretzelSprintsCompleted;
   final VoidCallback onRestart;
 
   /// Leaves for the title screen, where the Locker, Bodega and Daily Shift
@@ -1484,6 +1486,37 @@ class GameOverModal extends StatelessWidget {
                         '$manholeGeysersCompleted GEYSER RIDE${manholeGeysersCompleted > 1 ? 'S' : ''}',
                         style: const TextStyle(
                           color: Color(0xFFE0F7FA),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            if (pretzelSprintsCompleted > 0)
+              Container(
+                key: const Key('game_over_pretzel_badge'),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFD54F).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFFD54F), width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.bakery_dining, color: Color(0xFFFFD54F), size: 16),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '$pretzelSprintsCompleted PRETZEL SPRINT${pretzelSprintsCompleted > 1 ? 'S' : ''}',
+                        style: const TextStyle(
+                          color: Color(0xFFFFF8E1),
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                           letterSpacing: 0.5,

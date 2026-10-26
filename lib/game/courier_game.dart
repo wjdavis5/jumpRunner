@@ -38,6 +38,7 @@ import 'components/cement_mixer_component.dart';
 import 'components/dumpster_component.dart';
 import 'components/manhole_geyser_component.dart';
 import 'components/wrecking_ball_component.dart';
+import 'components/street_vendor_cart_component.dart';
 import 'components/lightning_flash_component.dart';
 import 'components/grind_rail_component.dart';
 import 'components/hvac_wind_tunnel_component.dart';
@@ -316,6 +317,9 @@ class CourierGame extends FlameGame
 
   /// Demolition wrecking balls swinging over the street.
   final List<WreckingBallComponent> activeWreckingBalls = [];
+
+  /// Hot pretzel vendor carts riding the street.
+  final List<StreetVendorCartComponent> activeStreetVendors = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
@@ -1076,6 +1080,17 @@ class CourierGame extends FlameGame
       world.add(wbComp);
     }
 
+    for (final sv in chunk.streetVendors) {
+      final svComp = StreetVendorCartComponent(
+        position: Vector2(sv.x, sv.y),
+        width: sv.width,
+        height: sv.height,
+        groundY: groundY,
+      );
+      activeStreetVendors.add(svComp);
+      world.add(svComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -1427,6 +1442,13 @@ class CourierGame extends FlameGame
     for (final wb in world.children.whereType<WreckingBallComponent>().toList()) {
       wb.removeFromParent();
     }
+
+    for (final sv in activeStreetVendors.toList()) {
+      sv.removeFromParent();
+    }
+    for (final sv in world.children.whereType<StreetVendorCartComponent>().toList()) {
+      sv.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -1466,6 +1488,7 @@ class CourierGame extends FlameGame
     activeDumpsters.clear();
     activeManholeGeysers.clear();
     activeWreckingBalls.clear();
+    activeStreetVendors.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
@@ -1788,6 +1811,7 @@ class CourierGame extends FlameGame
     gameState.updateFloralAromaTimer(dt);
     gameState.updateNotorietyTimer(dt);
     gameState.updateCaffeineSurgeTimer(dt);
+    gameState.updateHotSnackSprintTimer(dt);
     gameState.updateUrbanGrooveTimer(dt);
     gameState.updateHydroplaneTimer(dt);
     gameState.updateThermalUpdraftTimer(dt);
@@ -1819,6 +1843,7 @@ class CourierGame extends FlameGame
 
     // 1. Calculate dynamic scroll speed based on distance (with energy boost, grind surge, and parkour vault surge)
     final speedMultiplier = (gameState.isEnergyBoostActive ? 1.2 : 1.0) *
+        (gameState.isHotSnackSprintActive ? 1.16 : 1.0) *
         (gameState.isCaffeineSurgeActive ? 1.18 : 1.0) *
         (gameState.isHydroplaneActive ? 1.15 : 1.0) *
         (player.isGrinding ? 1.20 : 1.0) *
@@ -2032,6 +2057,10 @@ class CourierGame extends FlameGame
 
     for (final wb in activeWreckingBalls) {
       wb.position.x -= scrollDelta;
+    }
+
+    for (final sv in activeStreetVendors) {
+      sv.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -2744,6 +2773,15 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4ap. Evaluate Hot Pretzel Vendor Cart Hurdle Vaults
+    for (final sv in activeStreetVendors) {
+      if (!sv.hasVaulted) {
+        if (sv.checkVault(player.position, player.size, player.simulator)) {
+          _handleStreetVendorVault(sv);
+        }
+      }
+    }
+
 
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
@@ -3078,6 +3116,14 @@ class CourierGame extends FlameGame
     activeWreckingBalls.removeWhere((wb) {
       if (wb.shouldRecycle || wb.isRemoved) {
         if (wb.isMounted) wb.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+
+    activeStreetVendors.removeWhere((sv) {
+      if (sv.shouldRecycle || sv.isRemoved) {
+        if (sv.isMounted) sv.removeFromParent();
         return true;
       }
       return false;
@@ -4224,6 +4270,35 @@ class CourierGame extends FlameGame
         );
         _evaluateAchievements();
       }
+    }
+  }
+
+  void _handleStreetVendorVault(StreetVendorCartComponent cart) {
+    final event = gameState.recordStreetVendorVault();
+    if (event != null) {
+      audio.playJump();
+      audio.playCourierBark(
+        CourierBarkType.stunt,
+        line: 'Nothing beats fresh street pretzels!',
+      );
+      triggerScreenShake(0.14);
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+
+      addEffect(
+        FloatingTextComponent(
+          text: 'PRETZEL SPRINT! $multStr+\$${event.totalTips}',
+          position: Vector2(cart.position.x - 10.0, cart.vaultApexWorld.y - 16.0),
+          color: const Color(0xFFFFD54F),
+        ),
+      );
+      addEffect(
+        ParticleEffectComponent.pretzelRoastAroma(
+          position: cart.vaultApexWorld,
+          count: 26,
+        ),
+      );
+      _evaluateAchievements();
     }
   }
 

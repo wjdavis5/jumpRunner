@@ -11,8 +11,8 @@ Verified shipped work lands as conventional commits; move done items to Shipped.
    no filter/equalizer API (grepped the pub cache), so a true lowpass needs a
    new audio dependency (an epic), and the mood half would add a third target
    to the day/night swap machine.
-2. **Environment components** (issues #118 pretzel cart,
-  , #116 rooftop solarium, #87 debris chute, #83 window-washer cradle) — follow the established component pattern:
+2. **Environment components** (issues #116 rooftop solarium,
+  , #87 debris chute, #83 window-washer cradle) — follow the established component pattern:
    data class in `world_chunk_manager.dart`, component file, spawn gate, game-over badge.
    **A new street piece also needs**, or a test will fail:
    - its `active*` list in the scroll section of `CourierGame._step`, in the
@@ -145,6 +145,19 @@ build below.
 
 ## Shipped
 
+- 2026-10-09: hot pretzel and chestnut vendor carts (issue #118) — a wheeled
+  steel cart under a blue-and-yellow striped canopy with brass poles, a glass
+  warming display of twisted pretzels, and a copper chestnut cauldron over
+  glowing charcoals. An airborne courier hurdle-vaulting the counter gets a
+  +195 px/s parkour boost, a "Nothing beats fresh street pretzels!" bark, a
+  PRETZEL SPRINT! tip float ($34 base, streak-scaled), 26 buoyant roast-aroma
+  particles, and the new Hot Snack Sprint buff (+16% scroll speed for 3.5 s,
+  its own timer alongside the caffeine surge in the speed multiplier).
+  Spawns past 90 m, never in a station chunk, clear of every vendor stand,
+  fixture and hazard, declutter-registered. Results badge
+  `game_over_pretzel_badge` (PRETZEL SPRINT/SPRINTS); results-fit scroll test
+  now lights 39 kinds. 23 tests in test/street_vendor_cart_test.dart plus
+  the station-chunk, declutter and results-fit guards updated.
 - 2026-10-09: demolition wrecking balls (issue #73) — a lattice crane mast
   stands in the street background with a heavy steel ball swinging on a boom
   cable in a metronomic pendulum arc (54 degrees each way, 2.4 s period,

@@ -1335,6 +1335,50 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Golden amber aroma curls, steam wisps, coarse salt crystals and
+  /// charcoal ember sparks rising from a hot pretzel vendor cart.
+  factory ParticleEffectComponent.pretzelRoastAroma({
+    required Vector2 position,
+    int count = 26,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFFFFD54F), // Golden amber aroma curl
+      Color(0xFFFFCA28), // Warm roast gold
+      Color(0xFFFFFFFF), // Steam wisp
+      Color(0xFFE0F7FA), // Cool steam highlight
+      Color(0xFFFAFAFA), // Coarse salt crystal
+      Color(0xFFFF6D00), // Charcoal ember spark
+    ];
+
+    for (var i = 0; i < count; i++) {
+      final angle = -math.pi / 2 + (rng.nextDouble() - 0.5) * 1.1;
+      final speed = 60.0 + rng.nextDouble() * 130.0;
+      final velocity = Vector2(
+        math.cos(angle) * speed * 0.55,
+        math.sin(angle) * speed,
+      );
+
+      particles.add(
+        GameParticle(
+          position: position.clone() +
+              Vector2((rng.nextDouble() - 0.5) * 24.0, (rng.nextDouble() - 0.5) * 8.0),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 1.6 + rng.nextDouble() * 2.6,
+          maxLife: 0.55 + rng.nextDouble() * 0.40,
+          gravity: -55.0, // Buoyant aroma climbing into the air.
+          drag: 1.15,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   /// Metallic aluminum flakes, lime-green recycled bottle sparkle and rubber
   /// compression dust bursting from a dumpster lid spring bounce.
   factory ParticleEffectComponent.dumpsterSparks({
