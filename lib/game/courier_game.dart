@@ -35,6 +35,10 @@ import 'components/catenary_zipline_component.dart';
 import 'components/bus_shelter_component.dart';
 import 'components/security_shutter_component.dart';
 import 'components/cement_mixer_component.dart';
+import 'components/dumpster_component.dart';
+import 'components/manhole_geyser_component.dart';
+import 'components/wrecking_ball_component.dart';
+import 'components/street_vendor_cart_component.dart';
 import 'components/lightning_flash_component.dart';
 import 'components/grind_rail_component.dart';
 import 'components/hvac_wind_tunnel_component.dart';
@@ -304,6 +308,18 @@ class CourierGame extends FlameGame
 
   /// Construction cement mixers currently riding the street.
   final List<CementMixerComponent> activeCementMixers = [];
+
+  /// Curbside dumpsters currently riding the street.
+  final List<DumpsterComponent> activeDumpsters = [];
+
+  /// Street manholes with live sewer pressure currently riding the street.
+  final List<ManholeGeyserComponent> activeManholeGeysers = [];
+
+  /// Demolition wrecking balls swinging over the street.
+  final List<WreckingBallComponent> activeWreckingBalls = [];
+
+  /// Hot pretzel vendor carts riding the street.
+  final List<StreetVendorCartComponent> activeStreetVendors = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   double _solarSparkTimer = 0.0;
@@ -1030,6 +1046,51 @@ class CourierGame extends FlameGame
       world.add(cmComp);
     }
 
+    for (final d in chunk.dumpsters) {
+      final dComp = DumpsterComponent(
+        position: Vector2(d.x, d.y),
+        width: d.width,
+        height: d.height,
+        groundY: groundY,
+      );
+      activeDumpsters.add(dComp);
+      world.add(dComp);
+    }
+
+    for (final mg in chunk.manholeGeysers) {
+      final mgComp = ManholeGeyserComponent(
+        position: Vector2(mg.x, mg.y),
+        width: mg.width,
+        height: mg.height,
+        groundY: groundY,
+      );
+      activeManholeGeysers.add(mgComp);
+      world.add(mgComp);
+    }
+
+    for (final wb in chunk.wreckingBalls) {
+      final wbComp = WreckingBallComponent(
+        position: Vector2(wb.x, wb.y),
+        width: wb.width,
+        height: wb.height,
+        groundY: groundY,
+        phase: wb.phase,
+      );
+      activeWreckingBalls.add(wbComp);
+      world.add(wbComp);
+    }
+
+    for (final sv in chunk.streetVendors) {
+      final svComp = StreetVendorCartComponent(
+        position: Vector2(sv.x, sv.y),
+        width: sv.width,
+        height: sv.height,
+        groundY: groundY,
+      );
+      activeStreetVendors.add(svComp);
+      world.add(svComp);
+    }
+
     nextChunkX += 960.0;
   }
 
@@ -1360,6 +1421,34 @@ class CourierGame extends FlameGame
     for (final cm in world.children.whereType<CementMixerComponent>().toList()) {
       cm.removeFromParent();
     }
+
+    for (final d in activeDumpsters.toList()) {
+      d.removeFromParent();
+    }
+    for (final d in world.children.whereType<DumpsterComponent>().toList()) {
+      d.removeFromParent();
+    }
+
+    for (final mg in activeManholeGeysers.toList()) {
+      mg.removeFromParent();
+    }
+    for (final mg in world.children.whereType<ManholeGeyserComponent>().toList()) {
+      mg.removeFromParent();
+    }
+
+    for (final wb in activeWreckingBalls.toList()) {
+      wb.removeFromParent();
+    }
+    for (final wb in world.children.whereType<WreckingBallComponent>().toList()) {
+      wb.removeFromParent();
+    }
+
+    for (final sv in activeStreetVendors.toList()) {
+      sv.removeFromParent();
+    }
+    for (final sv in world.children.whereType<StreetVendorCartComponent>().toList()) {
+      sv.removeFromParent();
+    }
     activeScaffolding.clear();
     activeRamps.clear();
     activeDropZones.clear();
@@ -1396,6 +1485,10 @@ class CourierGame extends FlameGame
     activeBusShelters.clear();
     activeSecurityShutters.clear();
     activeCementMixers.clear();
+    activeDumpsters.clear();
+    activeManholeGeysers.clear();
+    activeWreckingBalls.clear();
+    activeStreetVendors.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _solarSparkTimer = 0.0;
@@ -1718,6 +1811,7 @@ class CourierGame extends FlameGame
     gameState.updateFloralAromaTimer(dt);
     gameState.updateNotorietyTimer(dt);
     gameState.updateCaffeineSurgeTimer(dt);
+    gameState.updateHotSnackSprintTimer(dt);
     gameState.updateUrbanGrooveTimer(dt);
     gameState.updateHydroplaneTimer(dt);
     gameState.updateThermalUpdraftTimer(dt);
@@ -1749,6 +1843,7 @@ class CourierGame extends FlameGame
 
     // 1. Calculate dynamic scroll speed based on distance (with energy boost, grind surge, and parkour vault surge)
     final speedMultiplier = (gameState.isEnergyBoostActive ? 1.2 : 1.0) *
+        (gameState.isHotSnackSprintActive ? 1.16 : 1.0) *
         (gameState.isCaffeineSurgeActive ? 1.18 : 1.0) *
         (gameState.isHydroplaneActive ? 1.15 : 1.0) *
         (player.isGrinding ? 1.20 : 1.0) *
@@ -1950,6 +2045,22 @@ class CourierGame extends FlameGame
     }
     for (final cm in activeCementMixers) {
       cm.position.x -= scrollDelta;
+    }
+
+    for (final d in activeDumpsters) {
+      d.position.x -= scrollDelta;
+    }
+
+    for (final mg in activeManholeGeysers) {
+      mg.position.x -= scrollDelta;
+    }
+
+    for (final wb in activeWreckingBalls) {
+      wb.position.x -= scrollDelta;
+    }
+
+    for (final sv in activeStreetVendors) {
+      sv.position.x -= scrollDelta;
     }
     if (activePrMarker != null) {
       activePrMarker!.position.x -= scrollDelta;
@@ -2635,6 +2746,42 @@ class CourierGame extends FlameGame
       }
     }
 
+    // 4am. Evaluate Curbside Dumpster Lid Catapult Bounces
+    for (final d in activeDumpsters) {
+      if (!d.hasBounced) {
+        if (d.checkLidBounce(player.position, player.size, player.simulator)) {
+          _handleDumpsterBounce(d);
+        }
+      }
+    }
+
+    // 4an. Evaluate Manhole Geyser Eruptions
+    for (final mg in activeManholeGeysers) {
+      if (mg.state == ManholeGeyserState.erupted) continue;
+      final outcome = mg.checkGeyser(player.position, player.size, player.simulator);
+      if (outcome != GeyserUpdate.none) {
+        _handleManholeGeyserUpdate(mg, outcome);
+      }
+    }
+
+    // 4ao. Evaluate Wrecking Ball Pendulum Hits
+    for (final wb in activeWreckingBalls) {
+      if (wb.checkBallHit(player.position, player.size)) {
+        // takeDamage honors invulnerability; the onDamage cascade plays the
+        // fumble, the bark, the impact burst and the screen shake.
+        player.takeDamage(source: 'wrecking ball');
+      }
+    }
+
+    // 4ap. Evaluate Hot Pretzel Vendor Cart Hurdle Vaults
+    for (final sv in activeStreetVendors) {
+      if (!sv.hasVaulted) {
+        if (sv.checkVault(player.position, player.size, player.simulator)) {
+          _handleStreetVendorVault(sv);
+        }
+      }
+    }
+
 
     // 5. Coin Magnet Effect: attract nearby coins to the courier while energized
     if (gameState.isEnergyBoostActive) {
@@ -2945,6 +3092,38 @@ class CourierGame extends FlameGame
     activeCementMixers.removeWhere((cm) {
       if (cm.shouldRecycle || cm.isRemoved) {
         if (cm.isMounted) cm.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+
+    activeDumpsters.removeWhere((d) {
+      if (d.shouldRecycle || d.isRemoved) {
+        if (d.isMounted) d.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+
+    activeManholeGeysers.removeWhere((mg) {
+      if (mg.shouldRecycle || mg.isRemoved) {
+        if (mg.isMounted) mg.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+
+    activeWreckingBalls.removeWhere((wb) {
+      if (wb.shouldRecycle || wb.isRemoved) {
+        if (wb.isMounted) wb.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+
+    activeStreetVendors.removeWhere((sv) {
+      if (sv.shouldRecycle || sv.isRemoved) {
+        if (sv.isMounted) sv.removeFromParent();
         return true;
       }
       return false;
@@ -4018,6 +4197,129 @@ class CourierGame extends FlameGame
         ),
       );
       _evaluateAchievements();
+    }
+  }
+
+  void _handleDumpsterBounce(DumpsterComponent dumpster) {
+    dumpster.markBounced();
+    final event = gameState.recordDumpsterBounce();
+    if (event != null) {
+      audio.playJump();
+      audio.playCourierBark(
+        CourierBarkType.stunt,
+        line: 'Trash to treasure!',
+      );
+      triggerScreenShake(0.15);
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+
+      addEffect(
+        FloatingTextComponent(
+          text: 'DUMPSTER LID LAUNCH! $multStr+\$${event.totalTips}',
+          position: Vector2(dumpster.position.x - 12.0, dumpster.position.y - 30.0),
+          color: const Color(0xFF76FF03),
+        ),
+      );
+      addEffect(
+        ParticleEffectComponent.dumpsterSparks(
+          position: dumpster.lidHingeWorld,
+          count: 24,
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  void _handleManholeGeyserUpdate(
+    ManholeGeyserComponent manhole,
+    GeyserUpdate outcome,
+  ) {
+    if (outcome == GeyserUpdate.rumblingStarted) {
+      audio.playManholeRattle();
+      return;
+    }
+
+    // The geyser blew: a towering steam column rises from the rim.
+    addEffect(
+      ParticleEffectComponent.geyserSteamBurst(
+        position: manhole.rimCenterWorld,
+        count: 30,
+      ),
+    );
+    triggerScreenShake(0.2);
+
+    // A ring of airborne coins rides the blast for a courier to catch.
+    _spawnGeyserCoinRing(manhole.rimCenterWorld);
+
+    if (outcome == GeyserUpdate.launched) {
+      final event = gameState.recordManholeGeyser();
+      if (event != null) {
+        audio.playJump();
+        audio.playCourierBark(
+          CourierBarkType.stunt,
+          line: 'Riding the tube!',
+        );
+
+        final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+        addEffect(
+          FloatingTextComponent(
+            text: 'MANHOLE GEYSER! $multStr+\$${event.totalTips}',
+            position: Vector2(manhole.position.x - 24.0, manhole.position.y - 46.0),
+            color: const Color(0xFF80DEEA),
+          ),
+        );
+        _evaluateAchievements();
+      }
+    }
+  }
+
+  void _handleStreetVendorVault(StreetVendorCartComponent cart) {
+    final event = gameState.recordStreetVendorVault();
+    if (event != null) {
+      audio.playJump();
+      audio.playCourierBark(
+        CourierBarkType.stunt,
+        line: 'Nothing beats fresh street pretzels!',
+      );
+      triggerScreenShake(0.14);
+
+      final multStr = event.multiplier > 1.0 ? '${event.multiplier}x ' : '';
+
+      addEffect(
+        FloatingTextComponent(
+          text: 'PRETZEL SPRINT! $multStr+\$${event.totalTips}',
+          position: Vector2(cart.position.x - 10.0, cart.vaultApexWorld.y - 16.0),
+          color: const Color(0xFFFFD54F),
+        ),
+      );
+      addEffect(
+        ParticleEffectComponent.pretzelRoastAroma(
+          position: cart.vaultApexWorld,
+          count: 26,
+        ),
+      );
+      _evaluateAchievements();
+    }
+  }
+
+  /// Spawns an arc of airborne coins above an erupting manhole geyser.
+  void _spawnGeyserCoinRing(Vector2 origin) {
+    for (var i = 0; i < 8; i++) {
+      final t = i / 7.0;
+      late final PickupComponent coin;
+      coin = PickupComponent(
+        type: PickupType.coin,
+        position: Vector2(
+          origin.x - 78.0 + 156.0 * t,
+          origin.y - 52.0 - math.sin(math.pi * t) * 88.0,
+        ),
+        onCollected: (type) {
+          activePickups.removeWhere((item) => item.isCollected);
+          _handlePickup(type, coin.position + (coin.size / 2));
+        },
+      );
+      activePickups.add(coin);
+      world.add(coin);
     }
   }
 

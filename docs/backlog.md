@@ -11,9 +11,8 @@ Verified shipped work lands as conventional commits; move done items to Shipped.
    no filter/equalizer API (grepped the pub cache), so a true lowpass needs a
    new audio dependency (an epic), and the mood half would add a third target
    to the day/night swap machine.
-2. **Environment components** (issues #124 dumpster, #118 pretzel
-   cart, #116 rooftop solarium, #87 debris chute, #84 manhole geyser, #83 window-washer
-   cradle, #73 wrecking ball) — follow the established component pattern:
+2. **Environment components** (issues #116 rooftop solarium,
+  , #87 debris chute, #83 window-washer cradle) — follow the established component pattern:
    data class in `world_chunk_manager.dart`, component file, spawn gate, game-over badge.
    **A new street piece also needs**, or a test will fail:
    - its `active*` list in the scroll section of `CourierGame._step`, in the
@@ -146,6 +145,61 @@ build below.
 
 ## Shipped
 
+- 2026-10-09: hot pretzel and chestnut vendor carts (issue #118) — a wheeled
+  steel cart under a blue-and-yellow striped canopy with brass poles, a glass
+  warming display of twisted pretzels, and a copper chestnut cauldron over
+  glowing charcoals. An airborne courier hurdle-vaulting the counter gets a
+  +195 px/s parkour boost, a "Nothing beats fresh street pretzels!" bark, a
+  PRETZEL SPRINT! tip float ($34 base, streak-scaled), 26 buoyant roast-aroma
+  particles, and the new Hot Snack Sprint buff (+16% scroll speed for 3.5 s,
+  its own timer alongside the caffeine surge in the speed multiplier).
+  Spawns past 90 m, never in a station chunk, clear of every vendor stand,
+  fixture and hazard, declutter-registered. Results badge
+  `game_over_pretzel_badge` (PRETZEL SPRINT/SPRINTS); results-fit scroll test
+  now lights 39 kinds. 23 tests in test/street_vendor_cart_test.dart plus
+  the station-chunk, declutter and results-fit guards updated.
+- 2026-10-09: demolition wrecking balls (issue #73) — a lattice crane mast
+  stands in the street background with a heavy steel ball swinging on a boom
+  cable in a metronomic pendulum arc (54 degrees each way, 2.4 s period,
+  per-spawn phase so consecutive balls swing out of step). The low point
+  mows across a grounded courier's upper body: time the run through while
+  the ball is on the far side, or hop the arc. Contact flows through the
+  player's standard damage path (one hit per swing; invulnerability gates
+  the rest). The mast is background structure and shares street space like
+  the crane masts; spawns past 140 m, never in a station chunk, and two
+  balls never share a chunk. No tips and no badge: it is the first pure
+  moving hazard. 15 tests in test/wrecking_ball_test.dart (pendulum math,
+  phase stagger, circle-vs-rect contact at the low point and at max
+  deflection, recycle boundary, spawn gate pins at 139/140 m, station
+  exclusion, game integration for the hit, invulnerability hold, and the
+  swung-away miss) plus the station-chunk guard updated.
+- 2026-10-09: manhole cover geysers (issue #84) — a cast-iron street plate on
+  a pressurized sewer main rattles when the courier draws within 180 px
+  (synthesized metallic rattle, `tool/generate_audio.py`, deterministic like
+  the rest), then erupts when the buildup completes or the courier steps onto
+  the lid: the lid blasts off spinning, a 30-particle buoyant steam column
+  rises, an 8-coin ring rides the blast, and a courier standing in the column
+  (grounded or airborne, below 150 px) is launched +480 px/s with a
+  "Riding the tube!" bark and a MANHOLE GEYSER! tip float ($40 base,
+  streak-scaled). One eruption per manhole; a courier off the column gets the
+  show and the coins but pays nothing. Spawns past 130 m, never in a station
+  chunk, clear of hazards, fixtures and storm drains, declutter-registered.
+  Results badge `game_over_manhole_badge` (GEYSER RIDE/RIDES); results-fit
+  scroll test now lights 38 kinds. 25 tests in test/manhole_geyser_test.dart
+  plus the station-chunk, declutter and results-fit guards updated.
+- 2026-10-09: curbside dumpsters (issue #124) — a forest-green steel bin on
+  caster wheels with ribbed walls, hazard chevrons, a stenciled serial and
+  dual spring-loaded rubber lids resting 15° open; an airborne courier who
+  lands on the lids compresses the hinges and is catapulted +240 px/s,
+  showering 24 aluminum/lime/rubber sparks from the hinge, with a
+  "Trash to treasure!" bark and a DUMPSTER LID LAUNCH! tip float ($35 base,
+  streak-scaled). The lids fling wide for 0.35 s on the bounce. Spawns past
+  70 m, never in a station chunk, clear of hazards, vendor carts and other
+  fixtures, and thinned by `declutterStreet`; a grounded run-past earns
+  nothing and leaves the bin fresh. Results badge `game_over_dumpster_badge`
+  (1 DUMPSTER LAUNCH / N LAUNCHES); results-fit scroll test now uses 37 lit
+  kinds. 22 tests in test/dumpster_test.dart plus housekeeping,
+  station-chunk, declutter and results-fit guards updated.
 - 2026-10-08: street construction cement mixers (issue #126, a43cc48) — a
   portable rotary mixer on a safety-yellow tripod chassis churns its
   corrugated drum every frame; an airborne courier bounding onto it gets a

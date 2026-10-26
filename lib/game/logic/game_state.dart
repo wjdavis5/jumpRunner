@@ -995,6 +995,89 @@ class CementMixerEvent {
   final int mixersInRun;
 }
 
+/// Event dispatched when spring-bouncing off a curbside dumpster's
+/// rubber lids for a catapult launch.
+class DumpsterEvent {
+  const DumpsterEvent({
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.stuntStreak,
+    required this.bouncesInRun,
+  });
+
+  /// Base tip value before stunt combo scaling ($35).
+  final int baseTips;
+
+  /// Total tip amount awarded after active combo multipliers.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this event.
+  final double multiplier;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+
+  /// Total dumpster bounces in this run.
+  final int bouncesInRun;
+}
+
+/// Event dispatched when riding a manhole cover geyser eruption skyward.
+class ManholeGeyserEvent {
+  const ManholeGeyserEvent({
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.stuntStreak,
+    required this.geysersInRun,
+  });
+
+  /// Base tip value before stunt combo scaling ($40).
+  final int baseTips;
+
+  /// Total tip amount awarded after active combo multipliers.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this event.
+  final double multiplier;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+
+  /// Total manhole geyser rides in this run.
+  final int geysersInRun;
+}
+
+/// Event dispatched when hurdle-vaulting a hot pretzel vendor cart.
+class StreetVendorEvent {
+  const StreetVendorEvent({
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.stuntStreak,
+    required this.vendorsInRun,
+    required this.sprintDuration,
+  });
+
+  /// Base tip value before stunt combo scaling ($34).
+  final int baseTips;
+
+  /// Total tip amount awarded after active combo multipliers.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this event.
+  final double multiplier;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+
+  /// Total street vendor vaults in this run.
+  final int vendorsInRun;
+
+  /// Duration of the Hot Snack Sprint speed surge in seconds.
+  final double sprintDuration;
+}
+
 /// Central state machine managing the package HP mechanism, shift milestones,
 /// stunt combos, and score tracking.
 ///
@@ -1085,6 +1168,12 @@ class GameState extends ChangeNotifier {
   /// Returns true if the Extra! Extra! notoriety score multiplier (+1.5x) is actively buffing stunts.
   bool get isNotorietyActive => notorietyTimer > 0;
 
+  /// Duration of the Hot Snack Sprint speed surge from a pretzel cart vault.
+  static const double hotSnackSprintDuration = 3.5;
+
+  /// Remaining duration in seconds for the Hot Snack Sprint speed boost buff.
+  double hotSnackSprintTimer = 0.0;
+
   /// Remaining duration in seconds for the energetic Caffeine Surge speed boost buff.
   double caffeineSurgeTimer = 0.0;
 
@@ -1093,6 +1182,9 @@ class GameState extends ChangeNotifier {
 
   /// Returns true if the Caffeine Surge (+18% speed boost) is actively energizing the courier.
   bool get isCaffeineSurgeActive => caffeineSurgeTimer > 0;
+
+  /// Returns true if the Hot Snack Sprint (+16% speed surge) is active.
+  bool get isHotSnackSprintActive => hotSnackSprintTimer > 0;
 
   /// Remaining duration in seconds for the Urban Groove tempo score multiplier buff.
   double urbanGrooveTimer = 0.0;
@@ -1285,6 +1377,15 @@ class GameState extends ChangeNotifier {
   /// Total construction cement mixer mortar hops in the current run.
   int cementMixerHopsInRun = 0;
 
+  /// Total dumpster lid catapult bounces in the current run.
+  int dumpsterBouncesInRun = 0;
+
+  /// Total manhole geyser rides in the current run.
+  int manholeGeysersInRun = 0;
+
+  /// Total street vendor cart vaults in the current run.
+  int streetVendorsVaultedInRun = 0;
+
   /// Remaining duration of the Thermal Updraft Glide buff in seconds.
   double thermalUpdraftTimer = 0.0;
 
@@ -1350,6 +1451,15 @@ class GameState extends ChangeNotifier {
 
   /// Fired when a cement mixer mortar hop is recorded.
   ValueChanged<CementMixerEvent>? onCementMixerHop;
+
+  /// Fired when a dumpster lid catapult bounce is recorded.
+  ValueChanged<DumpsterEvent>? onDumpsterBounce;
+
+  /// Fired when a manhole geyser ride is recorded.
+  ValueChanged<ManholeGeyserEvent>? onManholeGeyserEruption;
+
+  /// Fired when a street vendor cart vault is recorded.
+  ValueChanged<StreetVendorEvent>? onStreetVendorVault;
   ValueChanged<ShiftContract>? onContractCompleted;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
@@ -1422,6 +1532,10 @@ class GameState extends ChangeNotifier {
     busSheltersVaultedInRun = 0;
     shuttersReboundedInRun = 0;
     cementMixerHopsInRun = 0;
+    dumpsterBouncesInRun = 0;
+    manholeGeysersInRun = 0;
+    streetVendorsVaultedInRun = 0;
+    hotSnackSprintTimer = 0.0;
     floralAromaTimer = 0.0;
     notorietyTimer = 0.0;
     caffeineSurgeTimer = 0.0;
@@ -1584,6 +1698,15 @@ class GameState extends ChangeNotifier {
   }
 
   /// Updates the active Caffeine Surge speed boost countdown timer.
+  void updateHotSnackSprintTimer(double dt) {
+    if (hotSnackSprintTimer > 0) {
+      hotSnackSprintTimer -= dt;
+      if (hotSnackSprintTimer <= 0) {
+        hotSnackSprintTimer = 0.0;
+      }
+    }
+  }
+
   void updateCaffeineSurgeTimer(double dt) {
     if (caffeineSurgeTimer > 0) {
       caffeineSurgeTimer -= dt;
@@ -3005,6 +3128,116 @@ class GameState extends ChangeNotifier {
     );
 
     onCementMixerHop?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records a spring-lid catapult bounce off a curbside dumpster, awarding
+  /// tips scaled by active multipliers, incrementing [dumpsterBouncesInRun],
+  /// advancing the stunt streak, and resetting the stunt streak timer.
+  DumpsterEvent? recordDumpsterBounce({int baseTips = 35}) {
+    if (status != GameStatus.running) return null;
+
+    dumpsterBouncesInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    final baseAward = (baseTips * stuntMultiplier).round();
+    final withFloral = isFloralAromaActive ? (baseAward * 1.5).round() : baseAward;
+    final withNotoriety = isNotorietyActive ? (withFloral * 1.5).round() : withFloral;
+    final withGroove = isUrbanGrooveActive ? (withNotoriety * 1.5).round() : withNotoriety;
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? withGroove * 2
+        : withGroove;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = DumpsterEvent(
+      baseTips: baseTips,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+      stuntStreak: stuntStreak,
+      bouncesInRun: dumpsterBouncesInRun,
+    );
+
+    onDumpsterBounce?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records a manhole geyser eruption ride, awarding tips scaled by active
+  /// multipliers, incrementing [manholeGeysersInRun], advancing the stunt
+  /// streak, and resetting the stunt streak timer.
+  ManholeGeyserEvent? recordManholeGeyser({int baseTips = 40}) {
+    if (status != GameStatus.running) return null;
+
+    manholeGeysersInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    final baseAward = (baseTips * stuntMultiplier).round();
+    final withFloral = isFloralAromaActive ? (baseAward * 1.5).round() : baseAward;
+    final withNotoriety = isNotorietyActive ? (withFloral * 1.5).round() : withFloral;
+    final withGroove = isUrbanGrooveActive ? (withNotoriety * 1.5).round() : withNotoriety;
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? withGroove * 2
+        : withGroove;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = ManholeGeyserEvent(
+      baseTips: baseTips,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+      stuntStreak: stuntStreak,
+      geysersInRun: manholeGeysersInRun,
+    );
+
+    onManholeGeyserEruption?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records a hurdle-vault over a hot pretzel vendor cart, awarding tips
+  /// scaled by active multipliers, incrementing [streetVendorsVaultedInRun],
+  /// advancing the stunt streak, and igniting the Hot Snack Sprint surge.
+  StreetVendorEvent? recordStreetVendorVault({int baseTips = 34}) {
+    if (status != GameStatus.running) return null;
+
+    streetVendorsVaultedInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+    hotSnackSprintTimer = hotSnackSprintDuration;
+
+    final baseAward = (baseTips * stuntMultiplier).round();
+    final withFloral = isFloralAromaActive ? (baseAward * 1.5).round() : baseAward;
+    final withNotoriety = isNotorietyActive ? (withFloral * 1.5).round() : withFloral;
+    final withGroove = isUrbanGrooveActive ? (withNotoriety * 1.5).round() : withNotoriety;
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? withGroove * 2
+        : withGroove;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = StreetVendorEvent(
+      baseTips: baseTips,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+      stuntStreak: stuntStreak,
+      vendorsInRun: streetVendorsVaultedInRun,
+      sprintDuration: hotSnackSprintDuration,
+    );
+
+    onStreetVendorVault?.call(event);
     notifyListeners();
     return event;
   }

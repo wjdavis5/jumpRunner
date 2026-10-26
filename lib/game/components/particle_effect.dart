@@ -1291,6 +1291,138 @@ class ParticleEffectComponent extends PositionComponent {
     return ParticleEffectComponent(particles: particles);
   }
 
+  /// Dense billowy white/grey steam clouds and water droplets erupting from
+  /// a manhole geyser: a towering column that rises rather than falls.
+  factory ParticleEffectComponent.geyserSteamBurst({
+    required Vector2 position,
+    int count = 30,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFFFFFFFF), // Steam core white
+      Color(0xFFECEFF1), // Billow grey-white
+      Color(0xFFCFD8DC), // Pressure cloud
+      Color(0xFFB0BEC5), // Deep steam shadow
+      Color(0xFF80DEEA), // Water droplet flash
+      Color(0xFFE0F7FA), // Droplet mist
+    ];
+
+    for (var i = 0; i < count; i++) {
+      final angle = -math.pi / 2 + (rng.nextDouble() - 0.5) * 0.9;
+      final speed = 180.0 + rng.nextDouble() * 260.0;
+      final velocity = Vector2(
+        math.cos(angle) * speed * 0.5,
+        math.sin(angle) * speed,
+      );
+
+      particles.add(
+        GameParticle(
+          position: position.clone() +
+              Vector2((rng.nextDouble() - 0.5) * 22.0, (rng.nextDouble() - 0.5) * 6.0),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 2.6 + rng.nextDouble() * 3.6,
+          maxLife: 0.50 + rng.nextDouble() * 0.45,
+          gravity: -70.0, // Buoyant: the column climbs.
+          drag: 1.1,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
+  /// Golden amber aroma curls, steam wisps, coarse salt crystals and
+  /// charcoal ember sparks rising from a hot pretzel vendor cart.
+  factory ParticleEffectComponent.pretzelRoastAroma({
+    required Vector2 position,
+    int count = 26,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFFFFD54F), // Golden amber aroma curl
+      Color(0xFFFFCA28), // Warm roast gold
+      Color(0xFFFFFFFF), // Steam wisp
+      Color(0xFFE0F7FA), // Cool steam highlight
+      Color(0xFFFAFAFA), // Coarse salt crystal
+      Color(0xFFFF6D00), // Charcoal ember spark
+    ];
+
+    for (var i = 0; i < count; i++) {
+      final angle = -math.pi / 2 + (rng.nextDouble() - 0.5) * 1.1;
+      final speed = 60.0 + rng.nextDouble() * 130.0;
+      final velocity = Vector2(
+        math.cos(angle) * speed * 0.55,
+        math.sin(angle) * speed,
+      );
+
+      particles.add(
+        GameParticle(
+          position: position.clone() +
+              Vector2((rng.nextDouble() - 0.5) * 24.0, (rng.nextDouble() - 0.5) * 8.0),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 1.6 + rng.nextDouble() * 2.6,
+          maxLife: 0.55 + rng.nextDouble() * 0.40,
+          gravity: -55.0, // Buoyant aroma climbing into the air.
+          drag: 1.15,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
+  /// Metallic aluminum flakes, lime-green recycled bottle sparkle and rubber
+  /// compression dust bursting from a dumpster lid spring bounce.
+  factory ParticleEffectComponent.dumpsterSparks({
+    required Vector2 position,
+    int count = 24,
+    math.Random? random,
+  }) {
+    final rng = random ?? math.Random();
+    final particles = <GameParticle>[];
+
+    const palette = [
+      Color(0xFFB0BEC5), // Aluminum lid flake
+      Color(0xFFCFD8DC), // Bright steel sliver
+      Color(0xFF76FF03), // Lime recycled-bottle glint
+      Color(0xFFAEEA00), // Lime sparkle highlight
+      Color(0xFF4E342E), // Rubber hinge dust
+      Color(0xFF616161), // Grease fleck
+    ];
+
+    for (var i = 0; i < count; i++) {
+      final angle = -math.pi * 0.5 + (rng.nextDouble() - 0.5) * 2.2;
+      final speed = 80.0 + rng.nextDouble() * 150.0;
+      final velocity = Vector2(
+        math.cos(angle) * speed,
+        math.sin(angle) * speed - 35.0,
+      );
+
+      particles.add(
+        GameParticle(
+          position: position.clone() +
+              Vector2((rng.nextDouble() - 0.5) * 20.0, (rng.nextDouble() - 0.5) * 8.0),
+          velocity: velocity,
+          color: palette[rng.nextInt(palette.length)],
+          radius: 1.6 + rng.nextDouble() * 2.6,
+          maxLife: 0.38 + rng.nextDouble() * 0.32,
+          gravity: 240.0,
+          drag: 0.91,
+        ),
+      );
+    }
+
+    return ParticleEffectComponent(particles: particles);
+  }
+
   final List<GameParticle> particles;
 
   /// Whether all particles in this effect have completed their lifecycle.

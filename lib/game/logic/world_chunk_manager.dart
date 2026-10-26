@@ -611,6 +611,78 @@ class CementMixerData {
   final double groundY;
 }
 
+/// Data model for a curbside commercial dumpster with spring-loaded rubber lids.
+class DumpsterData {
+  const DumpsterData({
+    required this.x,
+    required this.y,
+    this.width = 76.0,
+    this.height = 50.0,
+    this.groundY = 460.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+  final double groundY;
+}
+
+/// Data model for a street manhole cover sitting on a pressurized sewer main.
+class ManholeGeyserData {
+  const ManholeGeyserData({
+    required this.x,
+    required this.y,
+    this.width = 48.0,
+    this.height = 14.0,
+    this.groundY = 460.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+  final double groundY;
+}
+
+/// Data model for a demolition crane mast with a swinging wrecking ball.
+class WreckingBallData {
+  const WreckingBallData({
+    required this.x,
+    required this.y,
+    this.width = 300.0,
+    this.height = 380.0,
+    this.groundY = 460.0,
+    this.phase = 0.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+  final double groundY;
+
+  /// Pendulum phase offset in radians at spawn.
+  final double phase;
+}
+
+/// Data model for a hot pretzel and chestnut vendor cart.
+class StreetVendorData {
+  const StreetVendorData({
+    required this.x,
+    required this.y,
+    this.width = 72.0,
+    this.height = 58.0,
+    this.groundY = 460.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+  final double groundY;
+}
+
 class ChunkData {
   const ChunkData({
     required this.obstacles,
@@ -651,6 +723,10 @@ class ChunkData {
     this.busShelters = const [],
     this.securityShutters = const [],
     this.cementMixers = const [],
+    this.dumpsters = const [],
+    this.manholeGeysers = const [],
+    this.wreckingBalls = const [],
+    this.streetVendors = const [],
   });
 
   final List<ObstacleData> obstacles;
@@ -691,6 +767,10 @@ class ChunkData {
   final List<BusShelterData> busShelters;
   final List<SecurityShutterData> securityShutters;
   final List<CementMixerData> cementMixers;
+  final List<DumpsterData> dumpsters;
+  final List<ManholeGeyserData> manholeGeysers;
+  final List<WreckingBallData> wreckingBalls;
+  final List<StreetVendorData> streetVendors;
 }
 
 /// Procedural chunk generator managing speed scaling, obstacle spacing, and pickup arcs.
@@ -2631,6 +2711,7 @@ class WorldChunkManager {
     }
 
     final List<CementMixerData> cementMixers = [];
+
     if (distanceMeters >= 85.0 && _random.nextDouble() < 0.25 && subwayStations.isEmpty) {
       const mixerWidth = 64.0;
       const mixerHeight = 56.0;
@@ -2664,6 +2745,184 @@ class WorldChunkManager {
               y: groundY - mixerHeight,
               width: mixerWidth,
               height: mixerHeight,
+              groundY: groundY,
+            ),
+          );
+          break;
+        }
+      }
+    }
+
+    final List<DumpsterData> dumpsters = [];
+    if (distanceMeters >= 70.0 && _random.nextDouble() < 0.25 && subwayStations.isEmpty) {
+      const dumpsterWidth = 76.0;
+      const dumpsterHeight = 50.0;
+
+      for (var attempt = 0; attempt < 8; attempt++) {
+        final dX = startX + 70.0 + _random.nextDouble() * (chunkWidth - 220.0);
+        final isClear = obstacles.every(
+          (o) => (dX + dumpsterWidth < o.x - 30.0) || (dX > o.x + o.width + 30.0),
+        ) && flowerKiosks.every(
+          (fk) => (dX + dumpsterWidth < fk.x - 30.0) || (dX > fk.x + fk.width + 30.0),
+        ) && newsstands.every(
+          (ns) => (dX + dumpsterWidth < ns.x - 30.0) || (dX > ns.x + ns.width + 30.0),
+        ) && cafeBistros.every(
+          (cb) => (dX + dumpsterWidth < cb.x - 30.0) || (dX > cb.x + cb.width + 30.0),
+        ) && foodCarts.every(
+          (fc) => (dX + dumpsterWidth < fc.x - 30.0) || (dX > fc.x + fc.width + 30.0),
+        ) && streetBuskers.every(
+          (sb) => (dX + dumpsterWidth < sb.x - 30.0) || (dX > sb.x + sb.width + 30.0),
+        ) && fireHydrants.every(
+          (fh) => (dX + dumpsterWidth < fh.x - 30.0) || (dX > fh.x + fh.width + 30.0),
+        ) && subwayExhaustGrates.every(
+          (seg) => (dX + dumpsterWidth < seg.x - 30.0) || (dX > seg.x + seg.width + 30.0),
+        ) && busShelters.every(
+          (bs) => (dX + dumpsterWidth < bs.x - 30.0) || (dX > bs.x + bs.width + 30.0),
+        ) && securityShutters.every(
+          (ss) => (dX + dumpsterWidth < ss.x - 30.0) || (dX > ss.x + ss.width + 30.0),
+        ) && cementMixers.every(
+          (cm) => (dX + dumpsterWidth < cm.x - 30.0) || (dX > cm.x + cm.width + 30.0),
+        );
+
+        if (isClear) {
+          dumpsters.add(
+            DumpsterData(
+              x: dX,
+              y: groundY - dumpsterHeight,
+              width: dumpsterWidth,
+              height: dumpsterHeight,
+              groundY: groundY,
+            ),
+          );
+          break;
+        }
+      }
+    }
+
+    final List<ManholeGeyserData> manholeGeysers = [];
+
+    if (distanceMeters >= 130.0 && _random.nextDouble() < 0.2 && subwayStations.isEmpty) {
+      const manholeWidth = 48.0;
+      const manholeHeight = 14.0;
+
+      for (var attempt = 0; attempt < 8; attempt++) {
+        final mX = startX + 80.0 + _random.nextDouble() * (chunkWidth - 200.0);
+        final isClear = obstacles.every(
+          (o) => (mX + manholeWidth < o.x - 30.0) || (mX > o.x + o.width + 30.0),
+        ) && flowerKiosks.every(
+          (fk) => (mX + manholeWidth < fk.x - 30.0) || (mX > fk.x + fk.width + 30.0),
+        ) && newsstands.every(
+          (ns) => (mX + manholeWidth < ns.x - 30.0) || (mX > ns.x + ns.width + 30.0),
+        ) && cafeBistros.every(
+          (cb) => (mX + manholeWidth < cb.x - 30.0) || (mX > cb.x + cb.width + 30.0),
+        ) && foodCarts.every(
+          (fc) => (mX + manholeWidth < fc.x - 30.0) || (mX > fc.x + fc.width + 30.0),
+        ) && streetBuskers.every(
+          (sb) => (mX + manholeWidth < sb.x - 30.0) || (mX > sb.x + sb.width + 30.0),
+        ) && fireHydrants.every(
+          (fh) => (mX + manholeWidth < fh.x - 30.0) || (mX > fh.x + fh.width + 30.0),
+        ) && subwayExhaustGrates.every(
+          (seg) => (mX + manholeWidth < seg.x - 30.0) || (mX > seg.x + seg.width + 30.0),
+        ) && busShelters.every(
+          (bs) => (mX + manholeWidth < bs.x - 30.0) || (mX > bs.x + bs.width + 30.0),
+        ) && securityShutters.every(
+          (ss) => (mX + manholeWidth < ss.x - 30.0) || (mX > ss.x + ss.width + 30.0),
+        ) && cementMixers.every(
+          (cm) => (mX + manholeWidth < cm.x - 30.0) || (mX > cm.x + cm.width + 30.0),
+        ) && dumpsters.every(
+          (d) => (mX + manholeWidth < d.x - 30.0) || (mX > d.x + d.width + 30.0),
+        ) && stormDrains.every(
+          (sd) => (mX + manholeWidth < sd.x - 40.0) || (mX > sd.x + sd.width + 40.0),
+        );
+
+        if (isClear) {
+          manholeGeysers.add(
+            ManholeGeyserData(
+              x: mX,
+              y: groundY - manholeHeight,
+              width: manholeWidth,
+              height: manholeHeight,
+              groundY: groundY,
+            ),
+          );
+          break;
+        }
+      }
+    }
+
+    final List<WreckingBallData> wreckingBalls = [];
+
+    if (distanceMeters >= 140.0 && _random.nextDouble() < 0.18 && subwayStations.isEmpty) {
+      const ballWidth = 300.0;
+      const ballHeight = 380.0;
+
+      for (var attempt = 0; attempt < 6; attempt++) {
+        final bX = startX + 240.0 + _random.nextDouble() * (chunkWidth - 520.0);
+        // Background structure like the crane masts, so it shares the street
+        // with fixtures: two swinging balls in one chunk is the only crowd
+        // worth avoiding.
+        final isClear = wreckingBalls.every(
+          (wb) => (bX + ballWidth < wb.x - 120.0) || (bX > wb.x + wb.width + 120.0),
+        );
+
+        if (isClear) {
+          wreckingBalls.add(
+            WreckingBallData(
+              x: bX,
+              y: groundY - ballHeight,
+              width: ballWidth,
+              height: ballHeight,
+              groundY: groundY,
+              phase: _random.nextDouble() * 2 * math.pi,
+            ),
+          );
+          break;
+        }
+      }
+    }
+
+    final List<StreetVendorData> streetVendors = [];
+    if (distanceMeters >= 90.0 && _random.nextDouble() < 0.25 && subwayStations.isEmpty) {
+      const vendorWidth = 72.0;
+      const vendorHeight = 58.0;
+
+      for (var attempt = 0; attempt < 8; attempt++) {
+        final vX = startX + 70.0 + _random.nextDouble() * (chunkWidth - 210.0);
+        final isClear = obstacles.every(
+          (o) => (vX + vendorWidth < o.x - 30.0) || (vX > o.x + o.width + 30.0),
+        ) && flowerKiosks.every(
+          (fk) => (vX + vendorWidth < fk.x - 30.0) || (vX > fk.x + fk.width + 30.0),
+        ) && newsstands.every(
+          (ns) => (vX + vendorWidth < ns.x - 30.0) || (vX > ns.x + ns.width + 30.0),
+        ) && cafeBistros.every(
+          (cb) => (vX + vendorWidth < cb.x - 30.0) || (vX > cb.x + cb.width + 30.0),
+        ) && foodCarts.every(
+          (fc) => (vX + vendorWidth < fc.x - 30.0) || (vX > fc.x + fc.width + 30.0),
+        ) && streetBuskers.every(
+          (sb) => (vX + vendorWidth < sb.x - 30.0) || (vX > sb.x + sb.width + 30.0),
+        ) && fireHydrants.every(
+          (fh) => (vX + vendorWidth < fh.x - 30.0) || (vX > fh.x + fh.width + 30.0),
+        ) && subwayExhaustGrates.every(
+          (seg) => (vX + vendorWidth < seg.x - 30.0) || (vX > seg.x + seg.width + 30.0),
+        ) && busShelters.every(
+          (bs) => (vX + vendorWidth < bs.x - 30.0) || (vX > bs.x + bs.width + 30.0),
+        ) && securityShutters.every(
+          (ss) => (vX + vendorWidth < ss.x - 30.0) || (vX > ss.x + ss.width + 30.0),
+        ) && cementMixers.every(
+          (cm) => (vX + vendorWidth < cm.x - 30.0) || (vX > cm.x + cm.width + 30.0),
+        ) && dumpsters.every(
+          (dd) => (vX + vendorWidth < dd.x - 30.0) || (vX > dd.x + dd.width + 30.0),
+        ) && manholeGeysers.every(
+          (mg) => (vX + vendorWidth < mg.x - 30.0) || (vX > mg.x + mg.width + 30.0),
+        );
+
+        if (isClear) {
+          streetVendors.add(
+            StreetVendorData(
+              x: vX,
+              y: groundY - vendorHeight,
+              width: vendorWidth,
+              height: vendorHeight,
               groundY: groundY,
             ),
           );
@@ -2709,6 +2968,9 @@ class WorldChunkManager {
         for (final p in droneCargos.toList()) street(p.x, p.y, p.width, p.height, () => droneCargos.remove(p)),
         for (final p in securityShutters.toList()) street(p.x, p.y, p.width, p.height, () => securityShutters.remove(p)),
         for (final p in cementMixers.toList()) street(p.x, p.y, p.width, p.height, () => cementMixers.remove(p)),
+        for (final p in dumpsters.toList()) street(p.x, p.y, p.width, p.height, () => dumpsters.remove(p)),
+        for (final p in manholeGeysers.toList()) street(p.x, p.y, p.width, p.height, () => manholeGeysers.remove(p)),
+        for (final p in streetVendors.toList()) street(p.x, p.y, p.width, p.height, () => streetVendors.remove(p)),
         for (final p in busShelters.toList()) street(p.x, p.y, p.width, p.height, () => busShelters.remove(p)),
         for (final p in subwayExhaustGrates.toList()) street(p.x, p.y, p.width, p.height, () => subwayExhaustGrates.remove(p)),
         for (final p in satelliteDishes.toList()) street(p.x, p.y, p.width, p.height, () => satelliteDishes.remove(p)),
@@ -2755,6 +3017,10 @@ class WorldChunkManager {
       busShelters: busShelters,
       securityShutters: securityShutters,
       cementMixers: cementMixers,
+      dumpsters: dumpsters,
+      manholeGeysers: manholeGeysers,
+      wreckingBalls: wreckingBalls,
+      streetVendors: streetVendors,
     );
   }
 }
