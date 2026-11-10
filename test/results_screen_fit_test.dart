@@ -57,6 +57,9 @@ Widget _results({
         busSheltersCompleted: n(33),
         securityShuttersCompleted: n(34),
         cementMixersCompleted: n(35),
+        dumpstersCompleted: n(36),
+        manholeGeysersCompleted: n(37),
+        pretzelSprintsCompleted: n(38),
       ),
     ),
   );
@@ -119,20 +122,25 @@ void main() {
   }
 
   testWidgets('Badges that do not fit are reached by scrolling the list', (tester) async {
-    tester.view.physicalSize = const Size(844, 390);
+    // The short phone: at 38 badge kinds the 844x390 list ends exactly on
+    // the fold, so the overflow case is tested where it overflows clearly.
+    tester.view.physicalSize = const Size(667, 375);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(_results(stunts: 36, onRestart: () {}));
+    // 39 kinds lit: deliveries through the pretzel cart, the last badge.
+    await tester.pumpWidget(_results(stunts: 39, onRestart: () {}));
 
-    final lastBadge = find.byKey(const Key('game_over_cement_mixer_badge'));
+    final lastBadge = find.byKey(const Key('game_over_pretzel_badge'));
     final list = find.byKey(const Key('game_over_badges_scroll'));
     expect(lastBadge, findsOneWidget);
     final listRect = tester.getRect(list);
+    // The badge must lie below the fold: its top may sit exactly on the
+    // viewport bottom, so the body crossing it is the overflow proof.
     expect(
-      tester.getRect(lastBadge).top,
+      tester.getRect(lastBadge).bottom,
       greaterThan(listRect.bottom),
-      reason: 'with 36 badges the last one starts below the visible list',
+      reason: 'with every badge kind lit the last one starts below the visible list',
     );
 
     await tester.ensureVisible(lastBadge);

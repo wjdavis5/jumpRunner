@@ -314,6 +314,55 @@ def write_ogg(name, samples, quality, out_dir=None):
           f"{os.path.getsize(path) / 1024:.0f} KB")
 
 
+def rattle():
+    """A cast-iron manhole lid rattling as pressure builds: a burst of
+    metallic clanks that tighten and grow, then one last heavier clang."""
+    seconds = 0.62
+    n = int(seconds * RATE)
+    rng = np.random.default_rng(84)
+
+    total = np.zeros(n)
+    # Eight clanks: the gaps shrink as the pressure builds, so the rattle
+    # accelerates, and each clank rings a little louder than the last.
+    starts = [0.04, 0.11, 0.17, 0.24, 0.30, 0.36, 0.43, 0.50]
+    for idx, start_s in enumerate(starts):
+        burst_s = 0.09
+        bn = int(burst_s * RATE)
+        begin = int(start_s * seconds * RATE)
+        if begin + bn > n:
+            bn = n - begin
+            if bn <= 0:
+                break
+
+        # Metallic ring: two band-passed noise grains high in the spectrum
+        # (the lid's rim ringing) over a low body thunk (the seat).
+        ring = shaped_noise(bn, lambda f: band(f, 1800.0, 4200.0, 3), rng)
+        thunk = shaped_noise(bn, lambda f: band(f, 120.0, 340.0, 2), rng)
+
+        grain = ring * 0.9 + thunk * 0.7
+        envelope = np.exp(-np.arange(bn) / (bn * 0.22))
+        gain = (0.55 + 0.45 * idx / (len(starts) - 1)) * envelope
+        total[begin:begin + bn] += grain * gain
+
+    # The final heavier clang, landing just after the last clank.
+    clang_s = 0.16
+    cn = int(clang_s * RATE)
+    begin = n - cn
+    ring = shaped_noise(cn, lambda f: band(f, 1400.0, 3600.0, 3), rng)
+    thunk = shaped_noise(cn, lambda f: band(f, 90.0, 300.0, 2), rng)
+    grain = (ring * 0.8 + thunk * 1.1) * np.exp(-np.arange(cn) / (cn * 0.16))
+    total[begin:] += grain * 1.15
+
+    total = normalize_peak(total, -6.0)
+
+    # A touch of stereo width: the ring and thunk lean to opposite sides.
+    hiss_left = shaped_noise(n, lambda f: band(f, 1500.0, 4000.0, 2), rng) * db(-24)
+    hiss_right = shaped_noise(n, lambda f: band(f, 1500.0, 4000.0, 2), rng) * db(-24)
+    left = total * 0.92 + hiss_left
+    right = total * 0.92 + hiss_right
+    return normalize_peak(np.stack([left, right], axis=1), -6.0)
+
+
 def main():
     if not os.path.isdir(OUT_DIR):
         sys.exit(f"Run from the repository root: {OUT_DIR} not found")
@@ -322,6 +371,7 @@ def main():
     write_ogg("rain_ambience.ogg", rain(), quality=3)
     write_ogg("thunder.ogg", thunder(), quality=4)
     write_ogg("bark_near_miss.ogg", whoosh(), quality=4)
+    write_ogg("manhole_rattle.ogg", rattle(), quality=4)
     write_ogg("courier_groove_layer.ogg", groove_streak_layer(), quality=3, out_dir=MUSIC_DIR)
     write_ogg("courier_night_layer.ogg", night_streak_layer(), quality=3, out_dir=MUSIC_DIR)
 

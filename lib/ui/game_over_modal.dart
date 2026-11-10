@@ -60,6 +60,9 @@ class GameOverModal extends StatelessWidget {
     this.busSheltersCompleted = 0,
     this.securityShuttersCompleted = 0,
     this.cementMixersCompleted = 0,
+    this.dumpstersCompleted = 0,
+    this.manholeGeysersCompleted = 0,
+    this.pretzelSprintsCompleted = 0,
   });
 
   final int distance;
@@ -128,6 +131,9 @@ class GameOverModal extends StatelessWidget {
   final int busSheltersCompleted;
   final int securityShuttersCompleted;
   final int cementMixersCompleted;
+  final int dumpstersCompleted;
+  final int manholeGeysersCompleted;
+  final int pretzelSprintsCompleted;
   final VoidCallback onRestart;
 
   /// Leaves for the title screen, where the Locker, Bodega and Daily Shift
@@ -1429,11 +1435,104 @@ class GameOverModal extends StatelessWidget {
                   ],
                 ),
               ),
+
+            if (dumpstersCompleted > 0)
+              Container(
+                key: const Key('game_over_dumpster_badge'),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF76FF03).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF76FF03), width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.delete_outline, color: Color(0xFF76FF03), size: 16),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '$dumpstersCompleted DUMPSTER LAUNCH${dumpstersCompleted > 1 ? 'ES' : ''}',
+                        style: const TextStyle(
+                          color: Color(0xFFF1F8E9),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (manholeGeysersCompleted > 0)
+              Container(
+                key: const Key('game_over_manhole_badge'),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF80DEEA).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF80DEEA), width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.air, color: Color(0xFF80DEEA), size: 16),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '$manholeGeysersCompleted GEYSER RIDE${manholeGeysersCompleted > 1 ? 'S' : ''}',
+                        style: const TextStyle(
+                          color: Color(0xFFE0F7FA),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            if (pretzelSprintsCompleted > 0)
+              Container(
+                key: const Key('game_over_pretzel_badge'),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFD54F).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFFD54F), width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.bakery_dining, color: Color(0xFFFFD54F), size: 16),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '$pretzelSprintsCompleted PRETZEL SPRINT${pretzelSprintsCompleted > 1 ? 'S' : ''}',
+                        style: const TextStyle(
+                          color: Color(0xFFFFF8E1),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
                   ],
                 ),
               ),
               ),
             ),
+
 
             // Stats grid
             Row(
