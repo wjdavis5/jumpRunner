@@ -10,6 +10,7 @@ import 'package:jump_runner/game/components/delivery_drone_component.dart';
 import 'package:jump_runner/game/components/lightning_flash_component.dart';
 import 'package:jump_runner/game/components/parallax_city.dart';
 import 'package:jump_runner/game/components/rain_component.dart';
+import 'package:jump_runner/game/components/speed_lines_component.dart';
 import 'package:jump_runner/game/courier_game.dart';
 import 'package:jump_runner/game/logic/game_state.dart';
 import 'package:jump_runner/game/logic/world_chunk_manager.dart';
@@ -19,6 +20,7 @@ bool _isPermanent(Component c) =>
     c is CourierPlayer ||
     c is ParallaxCityComponent ||
     c is RainComponent ||
+    c is SpeedLinesComponent ||
     c is LightningFlashComponent;
 
 /// Things that keep their place on screen on purpose: the assist drone

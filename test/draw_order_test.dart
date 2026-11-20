@@ -11,6 +11,7 @@ import 'package:jump_runner/game/components/floating_text_component.dart';
 import 'package:jump_runner/game/components/lightning_flash_component.dart';
 import 'package:jump_runner/game/components/particle_effect.dart';
 import 'package:jump_runner/game/components/rain_component.dart';
+import 'package:jump_runner/game/components/speed_lines_component.dart';
 import 'package:jump_runner/game/components/speech_bubble_component.dart';
 import 'package:jump_runner/game/courier_game.dart';
 import 'package:jump_runner/game/draw_order.dart';
@@ -26,6 +27,7 @@ bool _mayCover(Component c) =>
     c is FloatingTextComponent ||
     c is SpeechBubbleComponent ||
     c is RainComponent ||
+    c is SpeedLinesComponent ||
     c is LightningFlashComponent;
 
 void main() {

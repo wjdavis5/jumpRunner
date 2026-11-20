@@ -53,6 +53,7 @@ import 'components/postal_mailbox_component.dart';
 import 'components/pr_marker_component.dart';
 import 'components/puddle_component.dart';
 import 'components/rain_component.dart';
+import 'components/speed_lines_component.dart';
 import 'components/ramp_component.dart';
 import 'components/satellite_dish_component.dart';
 import 'components/scaffolding_component.dart';
@@ -261,6 +262,7 @@ class CourierGame extends FlameGame
 
   late final ParallaxCityComponent parallaxCity;
   late final RainComponent rainComponent;
+  late final SpeedLinesComponent speedLines;
   late final LightningFlashComponent lightningComponent;
   late final CourierPlayer player;
 
@@ -461,6 +463,9 @@ class CourierGame extends FlameGame
 
     rainComponent = RainComponent(size: virtualResolution);
     world.add(rainComponent);
+
+    speedLines = SpeedLinesComponent(size: virtualResolution, groundY: groundY);
+    world.add(speedLines);
 
     lightningComponent = LightningFlashComponent(
       size: virtualResolution,
@@ -1939,6 +1944,11 @@ class CourierGame extends FlameGame
     weatherController.update(gameState.distanceMeters);
     rainComponent.rainIntensity = weatherController.rainIntensity;
     rainComponent.horizontalScrollSpeed = currentSpeed;
+    // Rushing-air streaks spin up through the top of the speed ramp.
+    speedLines.horizontalScrollSpeed = currentSpeed;
+    speedLines.intensity =
+        ((currentSpeed - 380.0) / (550.0 - 380.0)).clamp(0.0, 1.0);
+    player.runCycleRate = (currentSpeed / 200.0).clamp(1.0, 2.4);
     lightningComponent.rainIntensity = weatherController.rainIntensity;
     lightningComponent.isRaining = weatherController.isRaining;
     audio.updateWeather(weatherController.rainIntensity);

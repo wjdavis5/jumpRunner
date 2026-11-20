@@ -272,6 +272,14 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
   double _runCycleTimer = 0.0;
   int _currentRunFrame = 0;
 
+  /// How fast the run cycle ticks relative to its base street-speed stride.
+  /// The game feeds this from the scroll speed (1.0 at 200 px/s, up to 2.4
+  /// at the 550 px/s cap) so a flat-out sprint's legs don't moonwalk.
+  double runCycleRate = 1.0;
+
+  /// The current run-cycle frame (0-3), for tests and HUD polish.
+  int get runFrame => _currentRunFrame;
+
   /// Curated Kenney character sprites for running, jumping, and hurt states.
   List<Sprite>? runSprites;
   Sprite? jumpSprite;
@@ -671,9 +679,9 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
       }
     }
 
-    // Run animation ticker
+    // Run animation ticker, faster as the street scrolls faster
     if (state == CourierState.running) {
-      _runCycleTimer += dt;
+      _runCycleTimer += dt * runCycleRate;
       if (_runCycleTimer >= 0.12) {
         _runCycleTimer = 0.0;
         _currentRunFrame = (_currentRunFrame + 1) % 4;
