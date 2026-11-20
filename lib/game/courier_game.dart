@@ -14,6 +14,7 @@ import 'components/courier_player.dart';
 import 'components/coach_hint_component.dart';
 import 'components/crane_swing_component.dart';
 import 'components/crosswalk_zone_component.dart';
+import 'components/debris_chute_component.dart';
 import 'components/cyclist_companion_component.dart';
 import 'components/delivery_drone_component.dart';
 import 'components/drone_cargo_component.dart';
@@ -271,6 +272,7 @@ class CourierGame extends FlameGame
   final List<ObstacleComponent> activeObstacles = [];
   final List<PickupComponent> activePickups = [];
   final List<ScaffoldingComponent> activeScaffolding = [];
+  final List<DebrisChuteComponent> activeDebrisChutes = [];
   final List<RampComponent> activeRamps = [];
   final List<DropZoneComponent> activeDropZones = [];
   final List<GrindRailComponent> activeGrindRails = [];
@@ -322,8 +324,10 @@ class CourierGame extends FlameGame
   final List<StreetVendorCartComponent> activeStreetVendors = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
+  DebrisChuteComponent? _activeDebrisChute;
   double _solarSparkTimer = 0.0;
   double _ziplineSparkTimer = 0.0;
+  double _chuteDustTimer = 0.0;
   ObstacleComponent? _currentVaultTarget;
   double cameraTargetY = 270.0;
   double _grindSparkTimer = 0.0;
@@ -659,6 +663,17 @@ class CourierGame extends FlameGame
       );
       activeScaffolding.add(scComp);
       world.add(scComp);
+    }
+
+    for (final c in chunk.debrisChutes) {
+      final chuteComp = DebrisChuteComponent(
+        position: Vector2(c.x, c.y),
+        width: c.width,
+        height: c.height,
+        groundY: groundY,
+      );
+      activeDebrisChutes.add(chuteComp);
+      world.add(chuteComp);
     }
 
     for (final r in chunk.ramps) {
@@ -1208,11 +1223,17 @@ class CourierGame extends FlameGame
     for (final s in activeScaffolding.toList()) {
       s.removeFromParent();
     }
+    for (final c in activeDebrisChutes.toList()) {
+      c.removeFromParent();
+    }
     for (final r in activeRamps.toList()) {
       r.removeFromParent();
     }
     for (final s in world.children.whereType<ScaffoldingComponent>().toList()) {
       s.removeFromParent();
+    }
+    for (final c in world.children.whereType<DebrisChuteComponent>().toList()) {
+      c.removeFromParent();
     }
     for (final r in world.children.whereType<RampComponent>().toList()) {
       r.removeFromParent();
@@ -1450,6 +1471,7 @@ class CourierGame extends FlameGame
       sv.removeFromParent();
     }
     activeScaffolding.clear();
+    activeDebrisChutes.clear();
     activeRamps.clear();
     activeDropZones.clear();
     activeGrindRails.clear();
@@ -1491,8 +1513,10 @@ class CourierGame extends FlameGame
     activeStreetVendors.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
+    _activeDebrisChute = null;
     _solarSparkTimer = 0.0;
     _ziplineSparkTimer = 0.0;
+    _chuteDustTimer = 0.0;
     cameraTargetY = virtualResolution.y / 2;
     player.endGrinding();
     player.stopGlide();
@@ -1940,6 +1964,9 @@ class CourierGame extends FlameGame
     for (final s in activeScaffolding) {
       s.position.x -= scrollDelta;
     }
+    for (final c in activeDebrisChutes) {
+      c.position.x -= scrollDelta;
+    }
     for (final r in activeRamps) {
       r.position.x -= scrollDelta;
     }
@@ -2206,6 +2233,9 @@ class CourierGame extends FlameGame
           );
         }
       }
+    } else if (player.isGrinding && _activeDebrisChute != null) {
+      // 4f-3. Riding a debris chute tube down to street level.
+      _updateChuteSlide(dt, distanceDelta);
     } else if (player.isGrinding) {
       if (_activeSolarPanel != null) {
         final panel = _activeSolarPanel!;
@@ -2254,7 +2284,27 @@ class CourierGame extends FlameGame
       }
       _activeGrindRail = null;
 
-      if (supportingScaffolding != null) {
+      // 4f-4. Debris chute: catch an elevated courier reaching the tube —
+      // running off the deck, or landing on it partway down — and aim an
+      // airborne one at its slide surface. A courier still at street level
+      // walks under the bottom sliver untouched.
+      DebrisChuteComponent? chuteCandidate;
+      for (final c in activeDebrisChutes) {
+        if (courierFootX >= c.position.x && courierFootX <= c.position.x + c.size.x) {
+          if (courierFootY <= c.surfaceYAt(courierFootX) + 16.0) {
+            chuteCandidate = c;
+            break;
+          }
+        }
+      }
+      if (chuteCandidate != null) {
+        final surface = chuteCandidate.surfaceYAt(courierFootX);
+        if (player.simulator.isGrounded && player.isElevated) {
+          _beginChuteSlide(chuteCandidate, surface);
+        } else if (!player.simulator.isGrounded) {
+          player.setTargetSurfaceY(surface);
+        }
+      } else if (supportingScaffolding != null) {
         player.setTargetSurfaceY(supportingScaffolding.surfaceY);
       } else {
         player.resetTargetSurfaceY();
@@ -2847,6 +2897,13 @@ class CourierGame extends FlameGame
     activeScaffolding.removeWhere((s) {
       if (s.shouldRecycle || s.isRemoved) {
         if (s.isMounted) s.removeFromParent();
+        return true;
+      }
+      return false;
+    });
+    activeDebrisChutes.removeWhere((c) {
+      if (c.shouldRecycle || c.isRemoved) {
+        if (c.isMounted) c.removeFromParent();
         return true;
       }
       return false;
@@ -3467,6 +3524,85 @@ class CourierGame extends FlameGame
         ),
       );
       _evaluateAchievements();
+    }
+  }
+
+  /// Catches a courier onto a debris chute tube and starts the slide down.
+  void _beginChuteSlide(DebrisChuteComponent chute, double surface) {
+    _activeDebrisChute = chute;
+    _chuteDustTimer = 0.0;
+    player.startGrinding(surface);
+    audio.playCoin();
+    spawnSparkles(
+      Vector2(player.position.x + player.size.x / 2, surface),
+      color: const Color(0xFF90CAF9),
+      count: 6,
+    );
+  }
+
+  /// Steps an in-progress chute slide: rides the tube's descending surface,
+  /// kicks up dust, and ends the slide when the bottom mouth passes the
+  /// courier (full ride, awarded) or they jump bail out mid-slide.
+  void _updateChuteSlide(double dt, double distanceDelta) {
+    final chute = _activeDebrisChute;
+    if (chute == null) return;
+
+    final footX = player.position.x + (player.size.x / 2);
+    final inSpan =
+        footX >= chute.position.x && footX <= chute.position.x + chute.size.x;
+    final bailed = !player.simulator.isGrounded;
+
+    if (!inSpan || bailed) {
+      if (inSpan) {
+        // Bailed out mid-slide: back to the street, no award.
+        player.endGrinding();
+        player.resetTargetSurfaceY();
+      } else {
+        _finishChuteSlide();
+      }
+      _activeDebrisChute = null;
+      _chuteDustTimer = 0.0;
+      return;
+    }
+
+    player.followSlideSurface(chute.surfaceYAt(footX));
+    player.grindDistance += distanceDelta;
+    chute.hasSlid = true;
+
+    _chuteDustTimer += dt;
+    if (_chuteDustTimer >= 0.06) {
+      _chuteDustTimer = 0.0;
+      spawnSparkles(
+        Vector2(footX, chute.surfaceYAt(footX)),
+        color: const Color(0xFFBCAAA4),
+        count: 3,
+      );
+    }
+  }
+
+  /// Pays out a completed chute ride at the bottom mouth.
+  void _finishChuteSlide() {
+    final chute = _activeDebrisChute;
+    if (chute == null) return;
+
+    final meters = player.grindDistance;
+    player.endGrinding();
+    player.resetTargetSurfaceY();
+    _chuteDustTimer = 0.0;
+
+    spawnSparkles(chute.exitWorld, color: const Color(0xFFCFD8DC), count: 12);
+
+    final event = gameState.recordChuteSlide(slideDistanceMeters: meters);
+    if (event != null) {
+      audio.playCoin();
+      triggerScreenShake(0.12);
+      addEffect(
+        FloatingTextComponent(
+          text: 'CHUTE SLIDE! +\$${event.bonusTips}',
+          position: Vector2(player.position.x - 10.0, player.position.y - 30.0),
+          color: const Color(0xFF64B5F6),
+        ),
+      );
     }
   }
 

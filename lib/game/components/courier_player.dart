@@ -457,6 +457,16 @@ class CourierPlayer extends PositionComponent with CollisionCallbacks {
     grindDistance = 0.0;
   }
 
+  /// Keeps a sliding courier pinned to a descending slide surface (e.g. a
+  /// debris chute tube) for this frame. Unlike [setTargetSurfaceY], which
+  /// un-grounds a courier whose surface just dropped away, this rides the
+  /// surface down: the slide is a controlled descent, not a fall.
+  void followSlideSurface(double surfaceY) {
+    simulator.currentY = surfaceY;
+    simulator.verticalVelocity = 0.0;
+    simulator.isGrounded = true;
+  }
+
   /// Initiates an agile parkour speed vault over a low obstacle.
   void startVault({double impulse = 220.0}) {
     state = CourierState.vaulting;

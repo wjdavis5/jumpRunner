@@ -128,6 +128,21 @@ class RailClearEvent {
   final int bonusTips;
 }
 
+/// Chute slide event dispatched when riding a construction debris chute from
+/// its hopper mouth down to street level.
+class ChuteSlideEvent {
+  const ChuteSlideEvent({
+    required this.slideDistanceMeters,
+    required this.bonusTips,
+  });
+
+  /// Distance in meters covered along the chute's descent.
+  final double slideDistanceMeters;
+
+  /// Bonus tips awarded for riding the chute to the bottom mouth.
+  final int bonusTips;
+}
+
 /// Vault event dispatched when executing an agile parkour vault over a low obstacle.
 class VaultEvent {
   const VaultEvent({
@@ -1260,6 +1275,9 @@ class GameState extends ChangeNotifier {
   /// Total rail grinds and trick dismounts performed in current run.
   int grindsInRun = 0;
 
+  /// Total construction debris chute slides ridden to street level in current run.
+  int chuteSlidesInRun = 0;
+
   /// Total agile parkour obstacle vaults performed in current run.
   int vaultsInRun = 0;
 
@@ -1414,6 +1432,7 @@ class GameState extends ChangeNotifier {
   ValueChanged<DeliveryEvent>? onDeliveryCompleted;
   ValueChanged<RailOllieEvent>? onRailOllie;
   ValueChanged<RailClearEvent>? onRailClear;
+  ValueChanged<ChuteSlideEvent>? onChuteSlide;
   ValueChanged<VaultEvent>? onVault;
   ValueChanged<SteamVentEvent>? onSteamVent;
   ValueChanged<GlideEvent>? onGlide;
@@ -1495,6 +1514,7 @@ class GameState extends ChangeNotifier {
     deliveriesInRun = 0;
     deliveryStreak = 0;
     grindsInRun = 0;
+    chuteSlidesInRun = 0;
     vaultsInRun = 0;
     steamBoostsInRun = 0;
     glidesInRun = 0;
@@ -1832,6 +1852,28 @@ class GameState extends ChangeNotifier {
     );
 
     onRailClear?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records riding a construction debris chute from its hopper mouth down
+  /// to street level, awarding bonus tips scaled by the energy boost.
+  ChuteSlideEvent? recordChuteSlide({required double slideDistanceMeters}) {
+    if (status != GameStatus.running) return null;
+
+    chuteSlidesInRun++;
+    const baseTip = 12;
+    final awarded = isEnergyBoostActive ? baseTip * 2 : baseTip;
+    tips += awarded;
+
+    contractManager.onTipCollected(awarded);
+
+    final event = ChuteSlideEvent(
+      slideDistanceMeters: slideDistanceMeters,
+      bonusTips: awarded,
+    );
+
+    onChuteSlide?.call(event);
     notifyListeners();
     return event;
   }

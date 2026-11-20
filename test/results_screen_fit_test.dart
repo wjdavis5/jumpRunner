@@ -60,6 +60,7 @@ Widget _results({
         dumpstersCompleted: n(36),
         manholeGeysersCompleted: n(37),
         pretzelSprintsCompleted: n(38),
+        chuteSlidesCompleted: n(39),
       ),
     ),
   );
@@ -128,10 +129,10 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    // 39 kinds lit: deliveries through the pretzel cart, the last badge.
-    await tester.pumpWidget(_results(stunts: 39, onRestart: () {}));
+    // 40 kinds lit: deliveries through the debris chute, the last badge.
+    await tester.pumpWidget(_results(stunts: 40, onRestart: () {}));
 
-    final lastBadge = find.byKey(const Key('game_over_pretzel_badge'));
+    final lastBadge = find.byKey(const Key('game_over_chute_badge'));
     final list = find.byKey(const Key('game_over_badges_scroll'));
     expect(lastBadge, findsOneWidget);
     final listRect = tester.getRect(list);

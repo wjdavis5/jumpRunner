@@ -32,13 +32,21 @@ class QaFlags {
   /// is one. Stations are otherwise about one per kilometre.
   static bool get forceSubway => any && Uri.base.queryParameters['qa_subway'] == '1';
 
+  /// `--dart-define=QA_FORCE_CHUTE=true` in a QA build: every scaffolding
+  /// route that has room carries a debris chute, so slides can be recorded
+  /// without waiting on the dice. Compiled out of a normal build.
+  static const bool forceChute = bool.fromEnvironment('QA_FORCE_CHUTE');
+
   /// `?qa_seed=7` in a QA build: the street is generated from that seed, so
   /// two page loads build the same street. Frame rates can only be compared
   /// between runs that drew the same things. Null in a normal build and
-  /// when no seed is given.
+  /// when no seed is given. Off-web builds take it as `--dart-define=QA_SEED=7`.
+  static const int seedDefine = int.fromEnvironment('QA_SEED');
+
   static math.Random? get streetRandom {
     if (!any) return null;
-    final seed = int.tryParse(Uri.base.queryParameters['qa_seed'] ?? '');
+    final seed = int.tryParse(Uri.base.queryParameters['qa_seed'] ?? '') ??
+        (seedDefine > 0 ? seedDefine : null);
     return seed == null ? null : math.Random(seed);
   }
 }

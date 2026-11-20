@@ -281,8 +281,8 @@ void main() {
       await _runUntil(game, () {
         sawVan = sawVan ||
             game.activeObstacles.any((o) => o.type == ObstacleType.van);
-        return game.gameState.distanceMeters > 400;
-      }, maxFrames: 60 * 90);
+        return game.gameState.distanceMeters > 800;
+      }, maxFrames: 60 * 120);
       expect(sawVan, isTrue, reason: 'the shift did meet a van');
       expect(game.leapCoach, isNull);
     });

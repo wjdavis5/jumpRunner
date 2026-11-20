@@ -25,6 +25,7 @@ Iterable<ChunkData> _streets({int seeds = 200}) sync* {
 Map<String, int> _streetPieces(ChunkData chunk) {
   final lists = <String, List<Object>>{
     'scaffolding': chunk.scaffoldings,
+    'debris chutes': chunk.debrisChutes,
     'ramps': chunk.ramps,
     'drop zones': chunk.dropZones,
     'grind rails': chunk.grindRails,

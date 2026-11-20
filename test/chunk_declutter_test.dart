@@ -31,6 +31,9 @@ List<_Span> _streetSpans(ChunkData chunk) {
   for (final p in chunk.scaffoldings) {
     add('anchor', p.x, p.y, p.width, p.height);
   }
+  for (final p in chunk.debrisChutes) {
+    add('anchor', p.x, p.y, p.width, p.height);
+  }
   for (final p in chunk.ramps) {
     add('anchor', p.x, p.y, p.width, p.height);
   }

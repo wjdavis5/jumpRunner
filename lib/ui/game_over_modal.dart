@@ -63,6 +63,7 @@ class GameOverModal extends StatelessWidget {
     this.dumpstersCompleted = 0,
     this.manholeGeysersCompleted = 0,
     this.pretzelSprintsCompleted = 0,
+    this.chuteSlidesCompleted = 0,
   });
 
   final int distance;
@@ -134,6 +135,7 @@ class GameOverModal extends StatelessWidget {
   final int dumpstersCompleted;
   final int manholeGeysersCompleted;
   final int pretzelSprintsCompleted;
+  final int chuteSlidesCompleted;
   final VoidCallback onRestart;
 
   /// Leaves for the title screen, where the Locker, Bodega and Daily Shift
@@ -1527,7 +1529,37 @@ class GameOverModal extends StatelessWidget {
                   ],
                 ),
               ),
+
+            if (chuteSlidesCompleted > 0)
+              Container(
+                key: const Key('game_over_chute_badge'),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4A90D9).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF4A90D9), width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.south_east, color: Color(0xFF64B5F6), size: 16),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '$chuteSlidesCompleted CHUTE SLIDE${chuteSlidesCompleted > 1 ? 'S' : ''}',
+                        style: const TextStyle(
+                          color: Color(0xFFFFF8E1),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ],
+                ),
+              ),                  ],
                 ),
               ),
               ),

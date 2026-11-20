@@ -4,6 +4,7 @@ import '../components/obstacle_component.dart';
 import '../components/pickup_component.dart';
 import 'chunk_declutter.dart';
 import 'jump_physics.dart';
+import 'qa_flags.dart';
 
 /// Data representation of an obstacle placement within a procedural chunk.
 class ObstacleData {
@@ -48,6 +49,27 @@ class ScaffoldingData {
   final double y;
   final double width;
   final double height;
+}
+
+/// Data model for a corrugated debris chute sliding off the end of a
+/// scaffolding deck down to street level.
+///
+/// [x] is the hopper mouth (the deck's trailing edge), [y] the deck level the
+/// mouth hangs at; the tube descends [height] pixels over [width] of street.
+class DebrisChuteData {
+  const DebrisChuteData({
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+    this.groundY = 460.0,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+  final double groundY;
 }
 
 /// Data model for a construction launch ramp.
@@ -688,6 +710,7 @@ class ChunkData {
     required this.obstacles,
     required this.pickups,
     this.scaffoldings = const [],
+    this.debrisChutes = const [],
     this.ramps = const [],
     this.dropZones = const [],
     this.grindRails = const [],
@@ -732,6 +755,7 @@ class ChunkData {
   final List<ObstacleData> obstacles;
   final List<PickupData> pickups;
   final List<ScaffoldingData> scaffoldings;
+  final List<DebrisChuteData> debrisChutes;
   final List<RampData> ramps;
   final List<DropZoneData> dropZones;
   final List<GrindRailData> grindRails;
@@ -1030,6 +1054,7 @@ class WorldChunkManager {
     final obstacles = <ObstacleData>[];
     final pickups = <PickupData>[];
     final scaffoldings = <ScaffoldingData>[];
+    final debrisChutes = <DebrisChuteData>[];
     final ramps = <RampData>[];
     final grindRails = <GrindRailData>[];
     final steamVents = <SteamVentData>[];
@@ -1133,6 +1158,33 @@ class WorldChunkManager {
           }
 
           _pieceEndsAt(railX + railWidth, height: groundY - scaffoldingY);
+          cursorX = _lastObstacleEndX + minClearance + 1.0;
+        } else if ((QaFlags.forceChute || _random.nextDouble() < 0.40) &&
+            remainingScaffoldSpace >= 150.0) {
+          // Corrugated debris chute riding the deck's trailing edge: the
+          // courier who runs off the deck slides its tube straight down to
+          // the street instead of dropping.
+          final chuteX = scaffoldingX + scaffoldingWidth - 6.0;
+          final chuteWidth = math.min(170.0, endX - chuteX + 6.0);
+          final chuteHeight = groundY - scaffoldingY;
+          debrisChutes.add(DebrisChuteData(
+            x: chuteX,
+            y: scaffoldingY,
+            width: chuteWidth,
+            height: chuteHeight,
+            groundY: groundY,
+          ));
+
+          // Reward tips lining the slide path, collected mid-descent.
+          for (final t in const [0.38, 0.66, 0.9]) {
+            pickups.add(PickupData(
+              type: t == 0.66 ? PickupType.coin5 : PickupType.coin,
+              x: chuteX + chuteWidth * t,
+              y: scaffoldingY + chuteHeight * t - 26.0,
+            ));
+          }
+
+          _pieceEndsAt(chuteX + chuteWidth, height: groundY - scaffoldingY);
           cursorX = _lastObstacleEndX + minClearance + 1.0;
         } else if (_random.nextDouble() < 0.40 && remainingScaffoldSpace >= 180.0) {
           final panelX = scaffoldingX + scaffoldingWidth + 12.0;
@@ -2946,6 +2998,7 @@ class WorldChunkManager {
         for (final p in turnstiles) street(p.x, p.y, p.width, p.height),
         for (final p in ramps) street(p.x, p.y, p.width, p.height),
         for (final p in scaffoldings) street(p.x, p.y, p.width, p.height),
+        for (final p in debrisChutes) street(p.x, p.y, p.width, p.height),
         for (final p in grindRails) street(p.x, p.y, p.width, p.height),
       ],
       optionalByPriority: [
@@ -2982,6 +3035,7 @@ class WorldChunkManager {
       obstacles: obstacles,
       pickups: pickups,
       scaffoldings: scaffoldings,
+      debrisChutes: debrisChutes,
       ramps: ramps,
       dropZones: dropZones,
       grindRails: grindRails,
