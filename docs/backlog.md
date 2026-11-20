@@ -12,7 +12,7 @@ Verified shipped work lands as conventional commits; move done items to Shipped.
    new audio dependency (an epic), and the mood half would add a third target
    to the day/night swap machine.
 2. **Environment components** (issues #116 rooftop solarium,
-  , #87 debris chute, #83 window-washer cradle) — follow the established component pattern:
+  , #83 window-washer cradle) — follow the established component pattern:
    data class in `world_chunk_manager.dart`, component file, spawn gate, game-over badge.
    **A new street piece also needs**, or a test will fail:
    - its `active*` list in the scroll section of `CourierGame._step`, in the
@@ -145,6 +145,24 @@ build below.
 
 ## Shipped
 
+- 2026-11-20: construction debris chute slides (issue #87) — a corrugated
+  blue chute hangs off the scaffolding deck's trailing edge, angling down to
+  the sidewalk with yellow mounting straps, rib rings, plaster chunks sliding
+  inside, and a tarp-covered debris bin at the bottom mouth. A courier who
+  runs off the deck rides the tube to street level: the hopper mouth catches
+  them into a grind-style slide, followSlideSurface pins them to the
+  descending line each frame (setTargetSurfaceY would un-ground a courier
+  whose surface just dropped), the bottom mouth pays 'CHUTE SLIDE! +$12'
+  (energy boost doubles it) and dust, and jumping mid-slide bails out the
+  ordinary way while a street-level courier walks under the bottom sliver
+  untouched. Spawns on aerial routes past 150 m in the branch order rail,
+  chute, solar, plain drop, lined with three tips collected mid-descent,
+  declutter-registered as an anchor, never in a station chunk (inherits the
+  scaffold gate). Results badge 'game_over_chute_badge' (CHUTE SLIDE/SLIDES);
+  results-fit scroll test now lights 40 kinds. QA tooling gains QA_SEED and
+  QA_FORCE_CHUTE dart-defines for deterministic recording. 18 tests in
+  test/debris_chute_test.dart plus station-chunk, declutter, results-fit and
+  coaching (van window widened to 800 m) guards updated.
 - 2026-10-09: hot pretzel and chestnut vendor carts (issue #118) — a wheeled
   steel cart under a blue-and-yellow striped canopy with brass poles, a glass
   warming display of twisted pretzels, and a copper chestnut cauldron over
