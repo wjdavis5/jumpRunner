@@ -11,8 +11,9 @@ Verified shipped work lands as conventional commits; move done items to Shipped.
    no filter/equalizer API (grepped the pub cache), so a true lowpass needs a
    new audio dependency (an epic), and the mood half would add a third target
    to the day/night swap machine.
-2. **Environment components** (issue #116 rooftop solarium) — follow the
-   established component pattern:
+2. (Environment components: the last queued piece, #116 rooftop solarium,
+   shipped as redundant with the glass skylight - see the 2026-11-20 note
+   below. New pieces now need a design reason of their own.)
    data class in `world_chunk_manager.dart`, component file, spawn gate, game-over badge.
    **A new street piece also needs**, or a test will fail:
    - its `active*` list in the scroll section of `CourierGame._step`, in the
@@ -145,6 +146,16 @@ build below.
 
 ## Shipped
 
+- 2026-11-20: top-speed feel — the courier's run stride used to cycle at one
+  fixed 0.12 s no matter how fast the street scrolled (moonwalking at 550
+  px/s); it now ticks with the scroll speed (up to 2.4x at the cap), and a
+  new viewport SpeedLinesComponent streams thin air smears leftward above the
+  sidewalk whenever the ramp lifts past ~380 px/s, full at 550. Calm streets
+  draw nothing. The draw-order and housekeeping guards exempt it as viewport
+  weather. 10 tests in test/top_speed_feel_test.dart. Issue #116 (rooftop
+  solarium) was examined and dropped: the glass skylight already covers
+  'glass dome the courier interacts with aerially', and issue #136 asks
+  whether the piece count should stop growing.
 - 2026-11-20: window-washer cradle rides (issue #83) — a davit boom on a slim
   mast suspends a steel platform on two cables, bobbing between floors with a
   washer aboard sweeping a squeegee over soap-sud drips. A courier who leaps
