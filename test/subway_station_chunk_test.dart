@@ -26,6 +26,7 @@ Map<String, int> _streetPieces(ChunkData chunk) {
   final lists = <String, List<Object>>{
     'scaffolding': chunk.scaffoldings,
     'debris chutes': chunk.debrisChutes,
+    'cradle rigs': chunk.washerCradles,
     'ramps': chunk.ramps,
     'drop zones': chunk.dropZones,
     'grind rails': chunk.grindRails,

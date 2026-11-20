@@ -143,6 +143,37 @@ class ChuteSlideEvent {
   final int bonusTips;
 }
 
+/// Cradle ride event dispatched when a courier rides a window-washer's
+/// cradle across the top of its bob.
+class CradleRideEvent {
+  const CradleRideEvent({
+    required this.apexHeightMeters,
+    required this.baseTips,
+    required this.totalTips,
+    required this.multiplier,
+    required this.stuntStreak,
+    required this.ridesInRun,
+  });
+
+  /// How high the platform carried the courier at the apex, in meters.
+  final double apexHeightMeters;
+
+  /// Base tip value before stunt combo scaling ($18).
+  final int baseTips;
+
+  /// Total tip amount awarded after active combo multipliers.
+  final int totalTips;
+
+  /// Active stunt combo multiplier applied to this ride.
+  final double multiplier;
+
+  /// Current consecutive stunt streak count.
+  final int stuntStreak;
+
+  /// Total cradle rides completed in this run.
+  final int ridesInRun;
+}
+
 /// Vault event dispatched when executing an agile parkour vault over a low obstacle.
 class VaultEvent {
   const VaultEvent({
@@ -1278,6 +1309,9 @@ class GameState extends ChangeNotifier {
   /// Total construction debris chute slides ridden to street level in current run.
   int chuteSlidesInRun = 0;
 
+  /// Total window-washer cradle rides carried across an apex in current run.
+  int cradleRidesInRun = 0;
+
   /// Total agile parkour obstacle vaults performed in current run.
   int vaultsInRun = 0;
 
@@ -1433,6 +1467,7 @@ class GameState extends ChangeNotifier {
   ValueChanged<RailOllieEvent>? onRailOllie;
   ValueChanged<RailClearEvent>? onRailClear;
   ValueChanged<ChuteSlideEvent>? onChuteSlide;
+  ValueChanged<CradleRideEvent>? onCradleRide;
   ValueChanged<VaultEvent>? onVault;
   ValueChanged<SteamVentEvent>? onSteamVent;
   ValueChanged<GlideEvent>? onGlide;
@@ -1515,6 +1550,7 @@ class GameState extends ChangeNotifier {
     deliveryStreak = 0;
     grindsInRun = 0;
     chuteSlidesInRun = 0;
+    cradleRidesInRun = 0;
     vaultsInRun = 0;
     steamBoostsInRun = 0;
     glidesInRun = 0;
@@ -1874,6 +1910,43 @@ class GameState extends ChangeNotifier {
     );
 
     onChuteSlide?.call(event);
+    notifyListeners();
+    return event;
+  }
+
+  /// Records riding a window-washer's cradle across the top of its bob,
+  /// advancing the stunt streak and scaling the tips by active multipliers.
+  CradleRideEvent? recordCradleRide({required double apexHeightMeters}) {
+    if (status != GameStatus.running) return null;
+
+    cradleRidesInRun++;
+    stuntStreak++;
+    stuntStreakTimer = stuntComboDuration;
+
+    const baseTip = 18;
+    final baseAward = (baseTip * stuntMultiplier).round();
+    final withFloral = isFloralAromaActive ? (baseAward * 1.5).round() : baseAward;
+    final withNotoriety = isNotorietyActive ? (withFloral * 1.5).round() : withFloral;
+    final withGroove = isUrbanGrooveActive ? (withNotoriety * 1.5).round() : withNotoriety;
+    final withDaily = (activeDailyShift?.modifier == DailyModifier.skateCommute)
+        ? withGroove * 2
+        : withGroove;
+    final awarded = isEnergyBoostActive ? withDaily * 2 : withDaily;
+    tips += awarded;
+
+    contractManager.onStuntPerformed();
+    contractManager.onTipCollected(awarded);
+
+    final event = CradleRideEvent(
+      apexHeightMeters: apexHeightMeters,
+      baseTips: baseTip,
+      totalTips: awarded,
+      multiplier: stuntMultiplier,
+      stuntStreak: stuntStreak,
+      ridesInRun: cradleRidesInRun,
+    );
+
+    onCradleRide?.call(event);
     notifyListeners();
     return event;
   }

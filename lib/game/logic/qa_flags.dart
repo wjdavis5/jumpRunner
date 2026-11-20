@@ -37,6 +37,11 @@ class QaFlags {
   /// without waiting on the dice. Compiled out of a normal build.
   static const bool forceChute = bool.fromEnvironment('QA_FORCE_CHUTE');
 
+  /// `--dart-define=QA_FORCE_CRADLE=true` in a QA build: every chunk that can
+  /// carry a window-washer cradle does, for deterministic ride recordings.
+  /// Compiled out of a normal build.
+  static const bool forceCradle = bool.fromEnvironment('QA_FORCE_CRADLE');
+
   /// `?qa_seed=7` in a QA build: the street is generated from that seed, so
   /// two page loads build the same street. Frame rates can only be compared
   /// between runs that drew the same things. Null in a normal build and

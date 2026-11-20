@@ -688,6 +688,28 @@ class WreckingBallData {
   final double phase;
 }
 
+/// Data model for a window-washer's suspended cradle bobbing between floors.
+///
+/// [x] is the rig's left edge; the platform hangs from the boom at the top of
+/// the [height]-tall rig and bobs [bobAmplitude] px with period [bobPeriod].
+class WindowWasherCradleData {
+  const WindowWasherCradleData({
+    required this.x,
+    required this.width,
+    required this.height,
+    required this.groundY,
+    this.phase = 0.0,
+  });
+
+  final double x;
+  final double width;
+  final double height;
+  final double groundY;
+
+  /// Bob phase offset in radians at spawn.
+  final double phase;
+}
+
 /// Data model for a hot pretzel and chestnut vendor cart.
 class StreetVendorData {
   const StreetVendorData({
@@ -749,6 +771,7 @@ class ChunkData {
     this.dumpsters = const [],
     this.manholeGeysers = const [],
     this.wreckingBalls = const [],
+    this.washerCradles = const [],
     this.streetVendors = const [],
   });
 
@@ -794,6 +817,7 @@ class ChunkData {
   final List<DumpsterData> dumpsters;
   final List<ManholeGeyserData> manholeGeysers;
   final List<WreckingBallData> wreckingBalls;
+  final List<WindowWasherCradleData> washerCradles;
   final List<StreetVendorData> streetVendors;
 }
 
@@ -2933,6 +2957,55 @@ class WorldChunkManager {
       }
     }
 
+    // Window-washer cradle: a rig bobbing between floors. Rides overhead
+    // background structure like the crane masts, but it asks for a leap and
+    // a landing, so it keeps clear of scaffold routes, wrecking balls and
+    // stations: two sky watches at once is one too many.
+    final List<WindowWasherCradleData> washerCradles = [];
+    if (distanceMeters >= 170.0 &&
+        (QaFlags.forceCradle || _random.nextDouble() < 0.20) &&
+        subwayStations.isEmpty &&
+        scaffoldings.isEmpty &&
+        wreckingBalls.isEmpty) {
+      const cradleWidth = 120.0;
+      const cradleHeight = 300.0;
+
+      for (var attempt = 0; attempt < 6; attempt++) {
+        final cX = startX + 120.0 + _random.nextDouble() * (chunkWidth - 260.0);
+        final isClear = obstacles.every(
+              (o) => (cX + cradleWidth < o.x - 30.0) || (cX > o.x + o.width + 30.0),
+            ) &&
+            washerCradles.every(
+              (c) => (cX + cradleWidth < c.x - 120.0) || (cX > c.x + c.width + 120.0),
+            );
+
+        if (isClear) {
+          washerCradles.add(
+            WindowWasherCradleData(
+              x: cX,
+              width: cradleWidth,
+              height: cradleHeight,
+              groundY: groundY,
+              phase: _random.nextDouble() * 2 * math.pi,
+            ),
+          );
+
+          // Tips floating at the ride's apex, collected from the platform.
+          pickups.add(PickupData(
+            type: PickupType.coin5,
+            x: cX + cradleWidth * 0.5,
+            y: groundY - 158.0 - 26.0,
+          ));
+          pickups.add(PickupData(
+            type: PickupType.coin,
+            x: cX + cradleWidth * 0.3,
+            y: groundY - 125.0 - 26.0,
+          ));
+          break;
+        }
+      }
+    }
+
     final List<StreetVendorData> streetVendors = [];
     if (distanceMeters >= 90.0 && _random.nextDouble() < 0.25 && subwayStations.isEmpty) {
       const vendorWidth = 72.0;
@@ -3074,6 +3147,7 @@ class WorldChunkManager {
       dumpsters: dumpsters,
       manholeGeysers: manholeGeysers,
       wreckingBalls: wreckingBalls,
+      washerCradles: washerCradles,
       streetVendors: streetVendors,
     );
   }

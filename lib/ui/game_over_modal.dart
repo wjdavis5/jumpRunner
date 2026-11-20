@@ -64,6 +64,7 @@ class GameOverModal extends StatelessWidget {
     this.manholeGeysersCompleted = 0,
     this.pretzelSprintsCompleted = 0,
     this.chuteSlidesCompleted = 0,
+    this.cradleRidesCompleted = 0,
   });
 
   final int distance;
@@ -136,6 +137,7 @@ class GameOverModal extends StatelessWidget {
   final int manholeGeysersCompleted;
   final int pretzelSprintsCompleted;
   final int chuteSlidesCompleted;
+  final int cradleRidesCompleted;
   final VoidCallback onRestart;
 
   /// Leaves for the title screen, where the Locker, Bodega and Daily Shift
@@ -1548,6 +1550,37 @@ class GameOverModal extends StatelessWidget {
                     Flexible(
                       child: Text(
                         '$chuteSlidesCompleted CHUTE SLIDE${chuteSlidesCompleted > 1 ? 'S' : ''}',
+                        style: const TextStyle(
+                          color: Color(0xFFFFF8E1),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            if (cradleRidesCompleted > 0)
+              Container(
+                key: const Key('game_over_cradle_badge'),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF26A69A).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF26A69A), width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.cleaning_services, color: Color(0xFF4DB6AC), size: 16),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '$cradleRidesCompleted CRADLE RIDE${cradleRidesCompleted > 1 ? 'S' : ''}',
                         style: const TextStyle(
                           color: Color(0xFFFFF8E1),
                           fontWeight: FontWeight.bold,

@@ -15,6 +15,7 @@ import 'components/coach_hint_component.dart';
 import 'components/crane_swing_component.dart';
 import 'components/crosswalk_zone_component.dart';
 import 'components/debris_chute_component.dart';
+import 'components/window_washer_cradle_component.dart';
 import 'components/cyclist_companion_component.dart';
 import 'components/delivery_drone_component.dart';
 import 'components/drone_cargo_component.dart';
@@ -319,12 +320,16 @@ class CourierGame extends FlameGame
 
   /// Demolition wrecking balls swinging over the street.
   final List<WreckingBallComponent> activeWreckingBalls = [];
+  final List<WindowWasherCradleComponent> activeWasherCradles = [];
 
   /// Hot pretzel vendor carts riding the street.
   final List<StreetVendorCartComponent> activeStreetVendors = [];
   SolarPanelComponent? _activeSolarPanel;
   GrindRailComponent? _activeGrindRail;
   DebrisChuteComponent? _activeDebrisChute;
+  WindowWasherCradleComponent? _activeCradle;
+  double? _cradlePrevSurfaceY;
+  bool _cradleSawRise = false;
   double _solarSparkTimer = 0.0;
   double _ziplineSparkTimer = 0.0;
   double _chuteDustTimer = 0.0;
@@ -1095,6 +1100,18 @@ class CourierGame extends FlameGame
       world.add(wbComp);
     }
 
+    for (final wc in chunk.washerCradles) {
+      final wcComp = WindowWasherCradleComponent(
+        position: Vector2(wc.x, groundY - wc.height),
+        width: wc.width,
+        height: wc.height,
+        groundY: groundY,
+        phase: wc.phase,
+      );
+      activeWasherCradles.add(wcComp);
+      world.add(wcComp);
+    }
+
     for (final sv in chunk.streetVendors) {
       final svComp = StreetVendorCartComponent(
         position: Vector2(sv.x, sv.y),
@@ -1463,6 +1480,12 @@ class CourierGame extends FlameGame
     for (final wb in world.children.whereType<WreckingBallComponent>().toList()) {
       wb.removeFromParent();
     }
+    for (final wc in activeWasherCradles.toList()) {
+      wc.removeFromParent();
+    }
+    for (final wc in world.children.whereType<WindowWasherCradleComponent>().toList()) {
+      wc.removeFromParent();
+    }
 
     for (final sv in activeStreetVendors.toList()) {
       sv.removeFromParent();
@@ -1510,10 +1533,14 @@ class CourierGame extends FlameGame
     activeDumpsters.clear();
     activeManholeGeysers.clear();
     activeWreckingBalls.clear();
+    activeWasherCradles.clear();
     activeStreetVendors.clear();
     _activeSolarPanel = null;
     _activeGrindRail = null;
     _activeDebrisChute = null;
+    _activeCradle = null;
+    _cradlePrevSurfaceY = null;
+    _cradleSawRise = false;
     _solarSparkTimer = 0.0;
     _ziplineSparkTimer = 0.0;
     _chuteDustTimer = 0.0;
@@ -2085,6 +2112,9 @@ class CourierGame extends FlameGame
     for (final wb in activeWreckingBalls) {
       wb.position.x -= scrollDelta;
     }
+    for (final wc in activeWasherCradles) {
+      wc.position.x -= scrollDelta;
+    }
 
     for (final sv in activeStreetVendors) {
       sv.position.x -= scrollDelta;
@@ -2304,10 +2334,58 @@ class CourierGame extends FlameGame
         } else if (!player.simulator.isGrounded) {
           player.setTargetSurfaceY(surface);
         }
-      } else if (supportingScaffolding != null) {
-        player.setTargetSurfaceY(supportingScaffolding.surfaceY);
       } else {
-        player.resetTargetSurfaceY();
+        // 4f-5. Window-washer cradle: leap onto the bobbing platform, ride
+        // it through its apex for the timing bonus, and step or jump off
+        // the ordinary way. Rising couriers pass under it untouched; the
+        // platform never comes low enough to reach a street-level courier.
+        WindowWasherCradleComponent? cradleCandidate;
+        for (final c in activeWasherCradles) {
+          final span = c.platformSpanWorld;
+          final fallingOrRiding =
+              player.simulator.verticalVelocity <= 0.0 || player.simulator.isGrounded;
+          if (courierFootX >= span.left &&
+              courierFootX <= span.right &&
+              courierFootY <= c.surfaceY + 16.0 &&
+              fallingOrRiding) {
+            cradleCandidate = c;
+            break;
+          }
+        }
+        if (cradleCandidate != null) {
+          final surface = cradleCandidate.surfaceY;
+          if (player.simulator.isGrounded) {
+            if (_activeCradle != cradleCandidate) {
+              _activeCradle = cradleCandidate;
+              _cradlePrevSurfaceY = null;
+              _cradleSawRise = false;
+              audio.playCoin();
+            }
+            player.followSlideSurface(surface);
+            final prev = _cradlePrevSurfaceY;
+            if (prev != null) {
+              if (surface < prev) _cradleSawRise = true;
+              if (_cradleSawRise && surface > prev && !_activeCradle!.hasAwardedRide) {
+                _handleCradleApex(_activeCradle!, surface);
+              }
+            }
+            _cradlePrevSurfaceY = surface;
+          } else {
+            // Falling toward the platform: aim the descent at its surface.
+            player.setTargetSurfaceY(surface);
+          }
+        } else {
+          if (_activeCradle != null) {
+            _activeCradle = null;
+            _cradlePrevSurfaceY = null;
+            _cradleSawRise = false;
+          }
+          if (supportingScaffolding != null) {
+            player.setTargetSurfaceY(supportingScaffolding.surfaceY);
+          } else {
+            player.resetTargetSurfaceY();
+          }
+        }
       }
     }
 
@@ -3177,6 +3255,13 @@ class CourierGame extends FlameGame
       }
       return false;
     });
+    activeWasherCradles.removeWhere((wc) {
+      if (wc.shouldRecycle || wc.isRemoved) {
+        if (wc.isMounted) wc.removeFromParent();
+        return true;
+      }
+      return false;
+    });
 
     activeStreetVendors.removeWhere((sv) {
       if (sv.shouldRecycle || sv.isRemoved) {
@@ -3524,6 +3609,29 @@ class CourierGame extends FlameGame
         ),
       );
       _evaluateAchievements();
+    }
+  }
+
+  /// Pays out riding a cradle across the top of its bob.
+  void _handleCradleApex(WindowWasherCradleComponent cradle, double surface) {
+    cradle.hasAwardedRide = true;
+    final apexMeters = (groundY - surface) / 20.0;
+    final event = gameState.recordCradleRide(apexHeightMeters: apexMeters);
+    if (event != null) {
+      audio.playCoin();
+      triggerScreenShake(0.14);
+      addEffect(
+        FloatingTextComponent(
+          text: 'CRADLE RIDE! +941310{event.bonusTips}',
+          position: Vector2(player.position.x - 10.0, player.position.y - 30.0),
+          color: const Color(0xFF26A69A),
+        ),
+      );
+      spawnSparkles(
+        Vector2(player.position.x + player.size.x / 2, surface),
+        color: const Color(0xFF80CBC4),
+        count: 12,
+      );
     }
   }
 
