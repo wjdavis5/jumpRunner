@@ -11,8 +11,8 @@ Verified shipped work lands as conventional commits; move done items to Shipped.
    no filter/equalizer API (grepped the pub cache), so a true lowpass needs a
    new audio dependency (an epic), and the mood half would add a third target
    to the day/night swap machine.
-2. **Environment components** (issues #116 rooftop solarium,
-  , #83 window-washer cradle) — follow the established component pattern:
+2. **Environment components** (issue #116 rooftop solarium) — follow the
+   established component pattern:
    data class in `world_chunk_manager.dart`, component file, spawn gate, game-over badge.
    **A new street piece also needs**, or a test will fail:
    - its `active*` list in the scroll section of `CourierGame._step`, in the
@@ -145,6 +145,18 @@ build below.
 
 ## Shipped
 
+- 2026-11-20: window-washer cradle rides (issue #83) — a davit boom on a slim
+  mast suspends a steel platform on two cables, bobbing between floors with a
+  washer aboard sweeping a squeegee over soap-sud drips. A courier who leaps
+  aboard rides the moving deck (followSlideSurface pins them to the bob),
+  crossing the apex after a seen rise pays 'CRADLE RIDE!' tips scaled by the
+  stunt chain, jumping bails, landing back re-rides, rising couriers pass
+  under untouched, and the deck never crowds the sidewalk. Rigs keep clear of
+  scaffold routes, wrecking balls and stations; two tips float at the apex
+  height. Results badge 'game_over_cradle_badge' (41st kind); QA tooling
+  gains QA_FORCE_CRADLE. 15 tests in test/window_washer_cradle_test.dart
+  (bare-street land/ride/apex/bail/walk-under) plus station-chunk and
+  results-fit guards updated.
 - 2026-11-20: construction debris chute slides (issue #87) — a corrugated
   blue chute hangs off the scaffolding deck's trailing edge, angling down to
   the sidewalk with yellow mounting straps, rib rings, plaster chunks sliding
