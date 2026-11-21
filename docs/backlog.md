@@ -146,6 +146,16 @@ build below.
 
 ## Shipped
 
+- 2026-11-21: web playability verified for the first time — served
+  build/web locally and drove a full loop with browser automation: the
+  title renders with desktop key hints, Space starts the shift, canvas
+  clicks hop (courier jumped a scooter), the pause card opens by click with
+  all five settings and the contracts panel, the browser save is isolated
+  (0 m / $0 fresh), and no page errors. One verification quirk: the very
+  first click on a freshly opened tab did not reach the game (focus order)
+  — a click to focus first, or the keyboard, works. No game changes were
+  needed; the web build ships as-is. When a new hostname ships (issue #134
+  follow-up), repeat this loop against the deployed site.
 - 2026-11-21: pushed a month of work — 21 commits (wrecking balls through
   the voice lines) had never left this machine: origin sat at the cement
   mixers from 2026-10-27, so CI had validated none of it and the live web
