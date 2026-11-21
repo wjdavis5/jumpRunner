@@ -146,6 +146,15 @@ build below.
 
 ## Shipped
 
+- 2026-11-21: career record footer on the trophies card — the trophies
+  screen answered 'what have I unlocked' but not 'what have I
+  accomplished': a five-figure strip (BEST distance, TIPS, DROPS, DEALS,
+  DAILY stars) now sits pinned under the trophy grid, fed from storage via
+  an optional CareerTotals param on the modal. The DAILY star routes
+  through withStars like every star (the font-coverage scan caught the
+  bare literal) and the footer test scopes its assertions to the strip -
+  the title behind the card shows some of the same figures. Also this
+  cycle: six new stunt bark lines for the most repeated bark type.
 - 2026-11-21: contract near-complete heads-up — contracts were invisible
   until they completed (results badge, pause panel). The ContractManager
   now fires onContractNearComplete the first time an open contract crosses
