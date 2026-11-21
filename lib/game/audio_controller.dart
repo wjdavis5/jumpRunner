@@ -79,16 +79,74 @@ class FlameAudioBackend implements AudioPlayerInterface {
   AudioPlayer? _ambiencePlayer;
   AudioPlayer? _layerPlayer;
 
+  /// One low-latency player pool per one-shot sound. `FlameAudio.play`
+  /// creates a brand-new AudioPlayer per call and never disposes it - on
+  /// Android each leaked player keeps its platform player and cached audio
+  /// alive, which soaked ~200 MB/min into RSS during cycle 25's run. Pooled
+  /// players are created once here and reused; every play schedules the
+  /// player's return to its pool after the sound has fully played.
+  final Map<String, AudioPool> _sfxPools = {};
+  final Map<String, Duration> _sfxPoolStopDelays = {};
+
   /// Bumped by every layer stop and start. A start whose platform call is
   /// still in flight compares its own request against this when the player
   /// finally lands: if it was superseded, it stops the player it just made
   /// instead of leaking an orphan loop the controller can never reach.
   int _layerRequest = 0;
 
+  /// The one-shot sfx that ride the pools. The rain ambience is a long
+  /// looping player (startAmbience) and stays out.
+  final List<String> _pooledSfx = [
+    GameAudioController.sfxJump,
+    GameAudioController.sfxCoin,
+    GameAudioController.sfxFumble,
+    GameAudioController.sfxMilestone,
+    GameAudioController.sfxManholeRattle,
+    GameAudioController.sfxThunder,
+    GameAudioController.sfxBarkStunt,
+    GameAudioController.sfxBarkNearMiss,
+    GameAudioController.sfxBarkDamage,
+    GameAudioController.sfxBarkGlide,
+    GameAudioController.sfxCustomerThankYou,
+    GameAudioController.sfxCustomerFiveStars,
+  ];
+
+  /// Creates a low-latency player pool per one-shot sound, and measures each
+  /// file once for its pool-return delay. Called once from preload.
+  Future<void> initPools() async {
+    for (final sfx in _pooledSfx) {
+      _sfxPools[sfx] = await FlameAudio.createPool(sfx, maxPlayers: 4);
+      _sfxPoolStopDelays[sfx] = await _measureSfx(sfx);
+    }
+  }
+
+  /// Measures a sound file once, with margin, for the pool-return delay.
+  Future<Duration> _measureSfx(String sfx) async {
+    final probe = AudioPlayer();
+    try {
+      await probe.setSource(AssetSource('audio/$sfx'));
+      final ms = (await probe.getDuration())?.inMilliseconds;
+      return Duration(milliseconds: (ms ?? 0) + 250);
+    } catch (_) {
+      return const Duration(milliseconds: 1200);
+    } finally {
+      await probe.dispose();
+    }
+  }
+
   @override
   Future<void> playSfx(String file, {double volume = 1.0}) async {
     try {
-      await FlameAudio.play(file, volume: volume);
+      final pool = _sfxPools[file];
+      if (pool != null) {
+        final stop = await pool.start(volume: volume);
+        // Low-latency pool players have no completion callback: hand the
+        // player back after the sound has fully played.
+        Future.delayed(_sfxPoolStopDelays[file] ?? const Duration(milliseconds: 1200),
+            () async => await stop());
+      } else {
+        await FlameAudio.play(file, volume: volume);
+      }
     } catch (e) {
       debugPrint('[Audio] Sfx error ($file): $e');
     }
@@ -671,7 +729,8 @@ class GameAudioController {
   double currentRainVolume = 0.0;
   bool isRainAudioActive = false;
 
-  /// Preloads audio assets into cache for low-latency playback.
+  /// Preloads audio assets into cache for low-latency playback, and
+  /// initializes the backend's sfx pools (see [FlameAudioBackend.initPools]).
   Future<void> preload() async {
     try {
       await FlameAudio.audioCache.loadAll([
@@ -693,6 +752,8 @@ class GameAudioController {
         musicBgmLayer,
         musicBgmNightLayer,
       ]);
+      final backend = _backend;
+      if (backend is FlameAudioBackend) await backend.initPools();
     } catch (_) {}
   }
 
