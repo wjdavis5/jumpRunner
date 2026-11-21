@@ -146,6 +146,14 @@ build below.
 
 ## Shipped
 
+- 2026-11-21: contract near-complete heads-up — contracts were invisible
+  until they completed (results badge, pause panel). The ContractManager
+  now fires onContractNearComplete the first time an open contract crosses
+  75% - once per contract per shift, never for a tick that vaults past
+  completion - and CourierGame floats 'Rush Hour Tips: 75% (+$100)' above
+  the courier like the trophy announcements. Resets with the shift. 3
+  manager tests. An em-dash in the new text tripped stars_test's
+  font-coverage scan and is now ASCII, like every other in-game string.
 - 2026-11-21: pause consistency locked for the moving-surface mechanics —
   two integration tests prove a mid-slide (or mid-ride) pause freezes the
   frame exactly (tube, bob, courier) and resuming carries the ride through
