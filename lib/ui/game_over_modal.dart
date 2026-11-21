@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import '../game/components/obstacle_component.dart';
 import '../game/game_font.dart';
+import '../game/logic/game_state.dart';
 import '../game/models/achievement.dart';
 import '../game/models/courier_skin.dart';
 import 'fit_to_screen.dart';
 import 'hazard_lesson.dart';
 import 'key_hint.dart';
 import 'money.dart';
+import 'shift_contracts_panel.dart';
 
 /// Modal dialog presented when all carried packages are dropped (Game Over).
 class GameOverModal extends StatelessWidget {
@@ -24,6 +26,7 @@ class GameOverModal extends StatelessWidget {
     this.trophies = const [],
     this.completedContracts = 0,
     this.contractBonusTips = 0,
+    this.gameState,
     this.deliveriesCompleted = 0,
     this.grindsCompleted = 0,
     this.vaultsCompleted = 0,
@@ -97,6 +100,11 @@ class GameOverModal extends StatelessWidget {
   final List<Achievement> trophies;
   final int completedContracts;
   final int contractBonusTips;
+
+  /// The live shift state, when the results screen should show the shift's
+  /// contracts with their final progress. Tests that build the modal from
+  /// plain numbers omit it.
+  final GameState? gameState;
   final int deliveriesCompleted;
   final int grindsCompleted;
   final int vaultsCompleted;
@@ -259,10 +267,12 @@ class GameOverModal extends StatelessWidget {
                   ],
                 ).createShader(bounds),
               child: _BadgeScroller(
-                child: Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 8,
+                child: Column(
                   children: [
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 8,
+                      children: [
             if (isNewRecord && compact) _buildRecordBanner(),
             for (final trophy in trophies)
               Container(
@@ -1594,6 +1604,17 @@ class GameOverModal extends StatelessWidget {
                 ),
               ),                  ],
                 ),
+                    if (gameState != null) ...[
+                      ShiftContractsPanel(
+                        gameState: gameState!,
+                        panelKey: 'results_contracts_panel',
+                        summaryKey: 'results_contracts_summary',
+                        rowKeyPrefix: 'results_contract_',
+                        statusKeyPrefix: 'results_contract_status_',
+                      ),
+                    ],
+            ],
+          ),
               ),
               ),
             ),

@@ -697,6 +697,7 @@ class _CourierDashAppState extends State<CourierDashApp>
           ),
       'ResumeCountdown': (context, game) => ResumeCountdown(onDone: _finishResume),
       'GameOver': (context, game) => GameOverModal(
+            gameState: _gameState,
             distance: _lastDistance,
             tips: _lastTips,
             isNewRecord: _isNewRecord,
