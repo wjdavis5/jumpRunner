@@ -304,7 +304,17 @@ class GameAudioController {
   /// Seconds until a failed layer start may be tried again.
   double _layerRetryCooldown = 0.0;
 
+  /// Every sound the controller has been asked for, oldest first, capped so
+  /// a long shift of coin pickups cannot grow the list without end.
+  static const int attemptedPlaysHistory = 100;
   final List<String> attemptedPlays = [];
+
+  void _recordAttempt(String path) {
+    attemptedPlays.add(path);
+    if (attemptedPlays.length > attemptedPlaysHistory) {
+      attemptedPlays.removeAt(0);
+    }
+  }
 
   // Asset paths relative to assets/audio/
   static const String sfxJump = 'sfx/jump.ogg';
@@ -904,21 +914,21 @@ class GameAudioController {
   /// Plays jump sound effect.
   Future<void> playJump() async {
     if (_sfxGated) return;
-    attemptedPlays.add(sfxJump);
+    _recordAttempt(sfxJump);
     await _backend.playSfx(sfxJump, volume: 0.8);
   }
 
   /// Plays coin collection chime.
   Future<void> playCoin() async {
     if (_sfxGated) return;
-    attemptedPlays.add(sfxCoin);
+    _recordAttempt(sfxCoin);
     await _backend.playSfx(sfxCoin, volume: 0.7);
   }
 
   /// Plays fumble / package damage sound.
   Future<void> playFumble() async {
     if (_sfxGated) return;
-    attemptedPlays.add(sfxFumble);
+    _recordAttempt(sfxFumble);
     await _backend.playSfx(sfxFumble, volume: 0.9);
   }
 
@@ -927,7 +937,7 @@ class GameAudioController {
     Duration duckDuration = const Duration(milliseconds: 1400),
   }) async {
     if (_sfxGated) return;
-    attemptedPlays.add(sfxMilestone);
+    _recordAttempt(sfxMilestone);
     duckForMilestone(duration: duckDuration);
     await _backend.playSfx(sfxMilestone, volume: 1.0);
   }
@@ -935,14 +945,14 @@ class GameAudioController {
   /// Plays the cast-iron manhole lid rattle as pressure builds.
   Future<void> playManholeRattle() async {
     if (_sfxGated) return;
-    attemptedPlays.add(sfxManholeRattle);
+    _recordAttempt(sfxManholeRattle);
     await _backend.playSfx(sfxManholeRattle, volume: 0.85);
   }
 
   /// Plays rolling thunderstorm rumble audio.
   Future<void> playThunder({double volume = 0.85}) async {
     if (_sfxGated) return;
-    attemptedPlays.add(sfxThunder);
+    _recordAttempt(sfxThunder);
     await _backend.playSfx(sfxThunder, volume: volume);
   }
 
@@ -1031,7 +1041,7 @@ class GameAudioController {
     if (_sfxGated) return true;
 
     final sfxPath = _courierBarkSfx(type);
-    attemptedPlays.add(sfxPath);
+    _recordAttempt(sfxPath);
     await _backend.playSfx(sfxPath, volume: 0.85);
     return true;
   }
@@ -1062,7 +1072,7 @@ class GameAudioController {
     if (_sfxGated) return true;
 
     final sfxPath = _customerReactionSfx(type);
-    attemptedPlays.add(sfxPath);
+    _recordAttempt(sfxPath);
     await _backend.playSfx(sfxPath, volume: 0.9);
     return true;
   }

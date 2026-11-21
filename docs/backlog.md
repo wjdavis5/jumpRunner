@@ -311,6 +311,31 @@ build below.
   27-30 fps mid-shift. Checked in tests, a phone-sized browser and an Android
   15 emulator. Not checked on a physical phone.
 
+## Performance baseline (measured 2026-11-20)
+
+The emulator cannot answer frame-rate questions: its virtual display
+composites at ~10 Hz for EVERY app - the system launcher's own swipe
+animations measured 7.5 fps with a bugreport recording, while the guest
+reports a 60 Hz vsync (via `dumpsys display`: renderFrameRate 60.0). Host-side
+throttling, not game cost. Methods that work: `screenrecord --bugreport` +
+ffprobe frame gaps (contaminated slightly by the recorder), and
+`dumpsys SurfaceFlinger --latency '<layer>'` on the app's SurfaceView layer
+from `dumpsys SurfaceFlinger --list` (broke after a guest reboot: zero-filled
+buffer). `dumpsys gfxinfo` never works on Flutter apps (no HWUI path).
+
+Findings from the hunt anyway:
+- The audio controller's `attemptedPlays` diagnostic list grew forever (a
+  coin every few seconds for 6,500 m) - now capped at 100 entries.
+- Guest memory is tight (61 lowmemorykiller kills in the history; the game
+  held 1.6 GB RSS after a two-hour immortal run) but a fresh run plateaus
+  at ~236 MB within two minutes. Long-horizon growth across many shifts is
+  unproven - worth re-checking after a long unattended session.
+- A mid-run return-to-title with old save values seen on 2026-11-20 was
+  almost certainly the guest low-memory killer, not a game crash (no
+  AndroidRuntime fatal in logcat).
+
+Real phones (issue #133) remain the only honest frame-rate measurement.
+
 ## QA build
 
 Late content can be reached without playing to it:
