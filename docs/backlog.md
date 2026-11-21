@@ -146,6 +146,13 @@ build below.
 
 ## Shipped
 
+- 2026-11-21: pause consistency locked for the moving-surface mechanics —
+  two integration tests prove a mid-slide (or mid-ride) pause freezes the
+  frame exactly (tube, bob, courier) and resuming carries the ride through
+  its payout: the chute pays at the bottom mouth, the cradle crosses its
+  apex. True by construction of the pause freeze; now true by test. Found
+  while hunting pause corruption - there was none, which is itself the
+  worth of the check.
 - 2026-11-21: the DAILY button badges today's unplayed shift — the title's
   retention core had no at-a-glance signal (the button showed only lifetime
   stars). A small amber badge now rides the button while today's shift is
