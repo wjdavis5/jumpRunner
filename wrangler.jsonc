@@ -8,8 +8,9 @@
   "name": "jump-runner-web",
   "compatibility_date": "2026-10-01",
   "assets": { "directory": "./build/web" },
-  // The one address the game is served at. workers.dev is off so there is no second one.
-  "routes": [{ "pattern": "imagine.wjd.io", "custom_domain": true }],
+  // No public address since 2026-10-26: imagine.wjd.io went back to imagine-feed (the
+  // image generator) through the home tunnel. Pick a new hostname, and put an Access app
+  // in front of it first, before adding a route here. workers.dev stays off.
   "workers_dev": false,
   "observability": { "enabled": true }
 }
