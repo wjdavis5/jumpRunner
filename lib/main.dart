@@ -671,6 +671,13 @@ class _CourierDashAppState extends State<CourierDashApp>
             onDismiss: _closeAchievements,
             child: AchievementsModal(
               unlockedAchievementIds: widget.storageService.unlockedAchievements,
+              careerTotals: CareerTotals(
+                bestDistanceMeters: widget.storageService.highDistance,
+                careerTips: widget.storageService.careerTips,
+                deliveries: widget.storageService.lifetimeDeliveries,
+                contractsCompleted: widget.storageService.completedContracts,
+                dailyStars: widget.storageService.dailyStars,
+              ),
               onClose: _closeAchievements,
             ),
           ),

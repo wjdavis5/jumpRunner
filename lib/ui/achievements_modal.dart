@@ -1,19 +1,45 @@
 import 'package:flutter/material.dart';
 
+import '../game/game_font.dart';
 import '../game/models/achievement.dart';
 import 'fit_to_screen.dart';
+import 'money.dart';
 import 'visible_scrollbar.dart';
 
 /// Modal dialog displaying career trophies, unlock progress, and requirements.
+/// The career's lifetime figures, shown as a footer strip on the trophies
+/// card: the screen a player opens to see what they have accomplished, so
+/// it is the natural place for what they have accomplished.
+class CareerTotals {
+  const CareerTotals({
+    required this.bestDistanceMeters,
+    required this.careerTips,
+    required this.deliveries,
+    required this.contractsCompleted,
+    required this.dailyStars,
+  });
+
+  final int bestDistanceMeters;
+  final int careerTips;
+  final int deliveries;
+  final int contractsCompleted;
+  final int dailyStars;
+}
+
 class AchievementsModal extends StatelessWidget {
   const AchievementsModal({
     super.key,
     required this.unlockedAchievementIds,
     required this.onClose,
+    this.careerTotals,
   });
 
   final List<String> unlockedAchievementIds;
   final VoidCallback onClose;
+
+  /// The lifetime figures for the footer strip. Omitted (older callers,
+  /// tests) the card shows trophies only.
+  final CareerTotals? careerTotals;
 
   /// Height of one trophy tile: room for a title and a two-line description
   /// beside the badge. The tiles used to take their height from their width
@@ -245,8 +271,90 @@ class AchievementsModal extends StatelessWidget {
               ),
               ),
             ),
+
+            // Career record footer: the lifetime figures, one strip under
+            // the trophies. Hidden on callers that pass none (older tests).
+            if (careerTotals != null) ...[
+              const SizedBox(height: 14),
+              Container(
+                key: const Key('trophies_career_footer'),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white12, width: 1),
+                ),
+                child: Row(
+                  children: [
+                    _careerStat(
+                        'BEST',
+                        Text('${careerTotals!.bestDistanceMeters} m'),
+                        Icons.straighten),
+                    _careerDivider(),
+                    _careerStat('TIPS', Text(dollars(careerTotals!.careerTips)),
+                        Icons.monetization_on),
+                    _careerDivider(),
+                    _careerStat('DROPS', Text('${careerTotals!.deliveries}'),
+                        Icons.inventory_2),
+                    _careerDivider(),
+                    _careerStat('DEALS', Text('${careerTotals!.contractsCompleted}'),
+                        Icons.checklist),
+                    _careerDivider(),
+                    _careerStat('DAILY', _dailyStarsText(careerTotals!.dailyStars),
+                        Icons.calendar_month),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _careerDivider() => Container(
+        width: 1,
+        height: 30,
+        margin: const EdgeInsets.symmetric(horizontal: 10),
+        color: Colors.white12,
+      );
+
+  Widget _careerStat(String label, Widget value, IconData icon) {
+    return Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: const Color(0xFFF1C40F), size: 16),
+          const SizedBox(height: 3),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: value,
+          ),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white54,
+              fontSize: 9,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dailyStarsText(int stars) {
+    return Text.rich(
+      withStars(
+        '$stars ★',
+        const TextStyle(
+          color: Colors.white,
+          fontSize: 13,
+          fontWeight: FontWeight.w800,
+        ),
+        starColor: const Color(0xFFF1C40F),
       ),
     );
   }

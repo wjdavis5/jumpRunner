@@ -112,5 +112,35 @@ void main() {
       expect(find.byIcon(Icons.close), findsNothing);
       expect(find.text('START SHIFT'), findsOneWidget);
     });
+
+    testWidgets('The trophies card shows the career record footer', (tester) async {
+      await bootApp(tester, prefs: {
+        'courier_high_distance': 4378,
+        'courier_career_tips': 14957,
+        'courier_lifetime_deliveries': 42,
+        'courier_completed_contracts': 7,
+        'courier_daily_stars': 3,
+      });
+
+      await tester.tap(find.byKey(const Key('open_trophies_button')));
+      await settle(tester);
+      final footer = find.byKey(const Key('trophies_career_footer'));
+      expect(footer, findsOneWidget);
+      // The title behind the card shows some of the same figures, so the
+      // expectations are scoped to the footer.
+      expect(find.descendant(of: footer, matching: find.text('4378 m')), findsOneWidget);
+      expect(find.descendant(of: footer, matching: find.text(r'$14,957')), findsOneWidget);
+      expect(find.descendant(of: footer, matching: find.text('42')), findsOneWidget);
+      expect(find.descendant(of: footer, matching: find.text('7')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: footer,
+          matching: find.byWidgetPredicate(
+            (w) => w is RichText && (w.text as TextSpan).toPlainText().startsWith('3 '),
+          ),
+        ),
+        findsOneWidget,
+      );
+    });
   });
 }

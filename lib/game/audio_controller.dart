@@ -588,6 +588,12 @@ class GameAudioController {
       'Slick!',
       'Easy money!',
       'Nailed it!',
+      'On the clock!',
+      'In stride!',
+      'Hustle!',
+      'Packed tight!',
+      'Smooth run!',
+      'Express pace!',
     ],
     CourierBarkType.nearMiss: [
       'Whoa!',
