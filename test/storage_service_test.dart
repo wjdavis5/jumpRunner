@@ -5,6 +5,47 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  group('QA blind storage (a QA build never writes the save)', () {
+    setUp(() {
+      SharedPreferences.setMockInitialValues({});
+    });
+
+    test('mutations are no-ops while blind', () async {
+      final storage = LocalStorageService(qaBlind: true);
+      await storage.init();
+
+      final record = await storage.recordRun(distance: 6500, tips: 22000);
+      expect(record, isFalse, reason: 'a blind build sets no records');
+      expect(storage.highDistance, equals(0));
+      expect(storage.careerTips, equals(0));
+
+      await storage.setSoundMuted(true);
+      expect(storage.isSoundMuted, isFalse);
+
+      await storage.setReduceShake(true);
+      expect(storage.isReduceShake, isFalse);
+
+      await storage.unlockAchievement('shift_veteran');
+      expect(storage.unlockedAchievements, isEmpty);
+
+      await storage.recordDeliveries(9);
+      expect(storage.lifetimeDeliveries, equals(0));
+    });
+
+    test('reads still work while blind', () async {
+      SharedPreferences.setMockInitialValues({
+        'courier_high_distance': 140,
+        'courier_career_tips': 103,
+      });
+      final storage = LocalStorageService(qaBlind: true);
+      await storage.init();
+
+      expect(storage.highDistance, equals(140),
+          reason: 'the game still boots with the real career');
+      expect(storage.careerTips, equals(103));
+    });
+  });
+
   group('LocalStorageService & Offline Persistence (U5, AE3)', () {
     setUp(() {
       SharedPreferences.setMockInitialValues({});

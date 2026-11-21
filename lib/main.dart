@@ -6,6 +6,7 @@ import 'game/audio_controller.dart';
 import 'game/courier_game.dart';
 import 'game/logic/achievement_manager.dart';
 import 'game/logic/game_state.dart';
+import 'game/logic/qa_flags.dart';
 import 'game/models/achievement.dart';
 import 'game/models/courier_skin.dart';
 import 'game/models/daily_shift.dart';
@@ -49,7 +50,9 @@ void main() async {
   await lockOrientation();
   await hideSystemBars();
 
-  final storageService = LocalStorageService();
+  // A QA build's runs are immortal, seeded content tours: blind the save so
+  // they never set records, spend career tips or unlock trophies.
+  final storageService = LocalStorageService(qaBlind: QaFlags.any);
   await storageService.init();
 
   final audioController = GameAudioController(storageService: storageService);

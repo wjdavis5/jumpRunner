@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///
 /// Guaranteed zero network calls, zero third-party telemetry, 100% offline.
 class LocalStorageService {
-  LocalStorageService();
+  LocalStorageService({this.qaBlind = false});
 
   static const String _keyHighDistance = 'courier_high_distance';
   static const String _keyCareerTips = 'courier_career_tips';
@@ -29,6 +29,12 @@ class LocalStorageService {
   static const String _keyPigeonCoachRuns = 'courier_coach_pigeons';
 
   SharedPreferences? _prefs;
+
+  /// A QA build (see QaFlags) constructs this blind: every mutation is a
+  /// no-op so its immortal, seeded runs look at content without ever
+  /// setting records, spending tips or unlocking trophies in the player's
+  /// save. Reads stay live, so the game still boots with the real career.
+  final bool qaBlind;
 
   /// Initializes SharedPreferences instance.
   Future<void> init([SharedPreferences? mockPrefs]) async {
@@ -90,6 +96,8 @@ class LocalStorageService {
 
   /// Saves photosensitive screen flash reduction preference.
   Future<void> setReduceFlash(bool reduce) async {
+    if (qaBlind) return;
+
     await _prefs?.setBool(_keyReduceFlash, reduce);
   }
 
@@ -98,6 +106,8 @@ class LocalStorageService {
 
   /// Saves the screen-shake reduction preference.
   Future<void> setReduceShake(bool reduce) async {
+    if (qaBlind) return;
+
     await _prefs?.setBool(_keyReduceShake, reduce);
   }
 
@@ -110,11 +120,15 @@ class LocalStorageService {
   int get pigeonCoachRuns => _read<int>(_keyPigeonCoachRuns, 0);
 
   Future<void> addPigeonCoachRun() async {
+    if (qaBlind) return;
+
     await _prefs?.setInt(_keyPigeonCoachRuns, pigeonCoachRuns + 1);
   }
 
   /// Saves the vibration preference.
   Future<void> setHapticsEnabled(bool enabled) async {
+    if (qaBlind) return;
+
     await _prefs?.setBool(_keyHaptics, enabled);
   }
 
@@ -136,6 +150,8 @@ class LocalStorageService {
 
   /// Records doorstep deliveries fulfilled, updating cumulative career deliveries.
   Future<void> recordDeliveries(int count) async {
+    if (qaBlind) return;
+
     final prefs = _prefs;
     if (prefs == null || count <= 0) return;
     await prefs.setInt(_keyLifetimeDeliveries, lifetimeDeliveries + count);
@@ -151,6 +167,8 @@ class LocalStorageService {
     required String dateString,
     required int bonusTips,
   }) async {
+    if (qaBlind) return false;
+
     final prefs = _prefs;
     if (prefs == null) return false;
     if (isDailyShiftCompleted(dateString)) return false;
@@ -168,6 +186,8 @@ class LocalStorageService {
   ///
   /// Returns `true` if a new personal best distance record was set.
   Future<bool> recordRun({required int distance, required int tips}) async {
+    if (qaBlind) return false;
+
     final prefs = _prefs;
     if (prefs == null) return false;
 
@@ -188,16 +208,22 @@ class LocalStorageService {
 
   /// Saves user audio mute preference.
   Future<void> setSoundMuted(bool muted) async {
+    if (qaBlind) return;
+
     await _prefs?.setBool(_keySoundMuted, muted);
   }
 
   /// Saves the music channel mute preference.
   Future<void> setMusicMuted(bool muted) async {
+    if (qaBlind) return;
+
     await _prefs?.setBool(_keyMusicMuted, muted);
   }
 
   /// Saves the sound-effects channel mute preference.
   Future<void> setSfxMuted(bool muted) async {
+    if (qaBlind) return;
+
     await _prefs?.setBool(_keySfxMuted, muted);
   }
 
@@ -205,6 +231,8 @@ class LocalStorageService {
   ///
   /// Returns `true` if skin was successfully purchased; `false` if insufficient funds or already owned.
   Future<bool> unlockSkin(String skinId, int cost) async {
+    if (qaBlind) return false;
+
     final prefs = _prefs;
     if (prefs == null) return false;
 
@@ -221,6 +249,8 @@ class LocalStorageService {
 
   /// Equips an unlocked vanity courier outfit.
   Future<bool> equipSkin(String skinId) async {
+    if (qaBlind) return false;
+
     final prefs = _prefs;
     if (prefs == null) return false;
 
@@ -233,6 +263,8 @@ class LocalStorageService {
 
   /// Increments total completed shift delivery contracts.
   Future<void> recordCompletedContracts(int count) async {
+    if (qaBlind) return;
+
     final prefs = _prefs;
     if (prefs == null || count <= 0) return;
     await prefs.setInt(_keyCompletedContracts, completedContracts + count);
@@ -242,6 +274,8 @@ class LocalStorageService {
   ///
   /// Returns `true` if newly unlocked; `false` if already unlocked.
   Future<bool> unlockAchievement(String achievementId) async {
+    if (qaBlind) return false;
+
     final prefs = _prefs;
     if (prefs == null) return false;
 
@@ -261,6 +295,8 @@ class LocalStorageService {
   ///
   /// Returns `true` if booster was successfully purchased; `false` if insufficient funds or inventory at max capacity.
   Future<bool> buyBooster(String boosterId, int cost, [int maxCapacity = 5]) async {
+    if (qaBlind) return false;
+
     final prefs = _prefs;
     if (prefs == null) return false;
     if (careerTips < cost) return false;
@@ -275,6 +311,8 @@ class LocalStorageService {
   ///
   /// Returns `true` if consumed; `false` if inventory was zero or storage unavailable.
   Future<bool> consumeBooster(String boosterId) async {
+    if (qaBlind) return false;
+
     final prefs = _prefs;
     if (prefs == null) return false;
     final current = getBoosterCount(boosterId);
