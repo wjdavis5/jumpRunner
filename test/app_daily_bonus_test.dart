@@ -1,10 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jump_runner/game/logic/game_state.dart';
+import 'package:jump_runner/game/models/daily_shift.dart';
 
 import 'support/app_harness.dart';
 
 void main() {
+  // The DAILY button wears a badge while today's shift is still unplayed,
+  // and loses it the moment the shift completes.
+  testWidgets('the DAILY button announces an unplayed daily shift', (tester) async {
+    final app = await bootApp(tester);
+    expect(app.storage.isDailyShiftCompleted(
+        DailyShift.forDate(DateTime.now().toUtc()).dateString), isFalse);
+    expect(find.byKey(const Key('title_daily_ready_dot')), findsOneWidget);
+
+    // Play today's shift to its goal; the completion is recorded at once.
+    await tester.tap(find.byKey(const Key('open_daily_shift_button')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('start_daily_shift_button')));
+    await settle(tester, frames: 12);
+    final game = gameOf(tester);
+    final shift = game.gameState.activeDailyShift!;
+    game.gameState.updateDistance(shift.targetDistanceMeters.toDouble());
+    await settle(tester, frames: 6);
+    expect(app.storage.isDailyShiftCompleted(shift.dateString), isTrue);
+
+    // Back at the depot the badge is gone.
+    while (game.gameState.status != GameStatus.gameOver) {
+      game.gameState.applyHazardDamage();
+    }
+    for (var i = 0; i < 80 && find.text('PACKAGES DROPPED!').evaluate().isEmpty; i++) {
+      await settle(tester, frames: 2);
+    }
+    await tester.tap(find.byKey(const Key('game_over_depot_button')));
+    await settle(tester, frames: 8);
+    expect(find.byKey(const Key('title_daily_ready_dot')), findsNothing);
+    // The depot's own timers must run out before the test ends.
+    await tester.pump(const Duration(seconds: 5));
+  });
+
   // Reaching the daily goal pays a completion bonus. The bonus goes into the
   // shift's own tips (the HUD shows it at once), and the shift's tips are
   // banked when the shift ends. The storage layer used to be handed the same

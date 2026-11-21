@@ -24,6 +24,7 @@ class TitleScreen extends StatelessWidget {
     this.unlockedAchievementsCount = 0,
     this.totalAchievementsCount = 6,
     this.dailyStars = 0,
+    this.dailyReady = false,
     this.equippedBoosters = const {},
     this.nextOutfit,
   });
@@ -40,6 +41,10 @@ class TitleScreen extends StatelessWidget {
   final int unlockedAchievementsCount;
   final int totalAchievementsCount;
   final int dailyStars;
+
+  /// Whether today's daily shift has not been played yet: the DAILY button
+  /// wears a small badge so the retention core is findable at a glance.
+  final bool dailyReady;
   final Set<RunBooster> equippedBoosters;
 
   /// The outfit the courier is saving for, if any is left to buy. Shown
@@ -390,7 +395,11 @@ class TitleScreen extends StatelessWidget {
                   Expanded(
                     child: SizedBox(
                       height: 44,
-                      child: OutlinedButton.icon(
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Positioned.fill(
+                            child: OutlinedButton.icon(
                         key: const Key('open_daily_shift_button'),
                         onPressed: onOpenDailyShift,
                         icon: const Icon(Icons.event_available, size: 18, color: Color(0xFF3498DB)),
@@ -416,6 +425,27 @@ class TitleScreen extends StatelessWidget {
                           ),
                           padding: const EdgeInsets.symmetric(horizontal: 4),
                         ),
+                      ),
+                          ),
+                          if (dailyReady)
+                            Positioned(
+                              key: const Key('title_daily_ready_dot'),
+                              top: -4,
+                              right: -4,
+                              child: Container(
+                                width: 11,
+                                height: 11,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF1C40F),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: const Color(0xFF101820),
+                                    width: 2,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ),

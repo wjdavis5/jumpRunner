@@ -628,6 +628,8 @@ class _CourierDashAppState extends State<CourierDashApp>
             unlockedAchievementsCount: _game.achievementManager.unlockedCount,
             totalAchievementsCount: _game.achievementManager.totalCount,
             dailyStars: widget.storageService.dailyStars,
+            dailyReady: !widget.storageService.isDailyShiftCompleted(
+                DailyShift.forDate(DateTime.now().toUtc()).dateString),
             equippedBoosters: _equippedBoosters,
             nextOutfit: CourierSkin.nextToUnlock(widget.storageService.unlockedSkins),
             onToggleMute: _toggleMute,
