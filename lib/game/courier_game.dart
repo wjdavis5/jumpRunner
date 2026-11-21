@@ -581,6 +581,19 @@ class CourierGame extends FlameGame
       spawnConfetti(Vector2(player.position.x + 40, groundY - 120), count: 20);
     };
 
+    gameState.onContractNearComplete = (contract) {
+      final percent =
+          ((contract.currentProgress / contract.targetValue) * 100).round();
+      audio.playCoin();
+      world.add(
+        FloatingTextComponent(
+          text: '${contract.title}: $percent% (+$contract.rewardTips)',
+          position: Vector2(player.position.x - 20, player.position.y - 40),
+          color: const Color(0xFF85C1E9),
+        ),
+      );
+    };
+
     achievementManager.onAchievementUnlocked = (achievement) {
       audio.playMilestone();
       world.add(

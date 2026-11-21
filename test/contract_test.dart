@@ -71,6 +71,82 @@ void main() {
       expect(manager.totalBonusTips, equals(150));
     });
 
+    test(r'a contract crossing 75% fires the near-complete heads-up once', () {
+      List<ShiftContract> near = [];
+      manager.onContractNearComplete = (c) => near.add(c);
+
+      // Daredevil Shift wants 20 stunts; the 15th crosses the 75% line.
+      for (var i = 0; i < 15; i++) {
+        manager.onStuntPerformed();
+      }
+      expect(near, hasLength(1));
+      expect(near.first.id, equals('stunts_20'));
+      expect(near.first.progressRatio, closeTo(0.75, 0.001));
+
+      // More progress never re-fires the heads-up.
+      for (var i = 0; i < 4; i++) {
+        manager.onStuntPerformed();
+      }
+      expect(near, hasLength(1), reason: 'one heads-up per contract');
+    });
+
+    test(r'a jump straight past completion skips the near-complete heads-up', () {
+      List<ShiftContract> near = [];
+      ShiftContract? completed;
+      manager.onContractNearComplete = (c) => near.add(c);
+      manager.onContractCompleted = (c) => completed = c;
+
+      // Rush Hour Tips wants $500; a $1,500 tips tick vaults the threshold.
+      manager.onTipCollected(1500);
+
+      expect(completed?.id, equals('tips_500'));
+      expect(near, isEmpty,
+          reason: 'the completed celebration says everything');
+    });
+
+    test('reset clears the near-complete announcements', () {
+      List<ShiftContract> near = [];
+      manager.onContractNearComplete = (c) => near.add(c);
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      expect(near, hasLength(1));
+
+      manager.reset();
+      // ignore: unnecessary_type_check
+      expect(manager.contracts.first.currentProgress, equals(0));
+
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      manager.onStuntPerformed();
+      expect(near, hasLength(2),
+          reason: 'a fresh shift announces its own near-complete again');
+    });
+
     test('fragile freight fails if courier sustains hazard damage before target distance', () {
       // 200m without damage -> still in progress
       manager.onDistanceProgress(200.0, damageCount: 0);

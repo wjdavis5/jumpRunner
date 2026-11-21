@@ -1142,6 +1142,9 @@ class GameState extends ChangeNotifier {
       onContractCompleted?.call(contract);
       notifyListeners();
     };
+    this.contractManager.onContractNearComplete = (contract) {
+      onContractNearComplete?.call(contract);
+    };
   }
 
   static const int defaultMaxPackages = 3;
@@ -1515,6 +1518,10 @@ class GameState extends ChangeNotifier {
   /// Fired when a street vendor cart vault is recorded.
   ValueChanged<StreetVendorEvent>? onStreetVendorVault;
   ValueChanged<ShiftContract>? onContractCompleted;
+
+  /// Fires once per contract, the first time its progress crosses the
+  /// near-complete threshold: the courier_game floats a mid-run hint.
+  ValueChanged<ShiftContract>? onContractNearComplete;
   VoidCallback? onGameOver;
   VoidCallback? onPackageRestored;
   VoidCallback? onDamageTaken;

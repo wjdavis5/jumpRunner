@@ -12,6 +12,14 @@ class ContractManager extends ChangeNotifier {
   /// Callback fired immediately when an objective is successfully completed during a shift.
   void Function(ShiftContract contract)? onContractCompleted;
 
+  /// Fires once per contract, the first time its progress crosses
+  /// [nearCompleteRatio]: the mid-run heads-up that a goal is nearly banked.
+  void Function(ShiftContract contract)? onContractNearComplete;
+
+  static const double nearCompleteRatio = 0.75;
+
+  final Set<String> _nearAnnouncedIds = {};
+
   /// Total number of contracts completed during the current shift.
   int get completedCount => contracts.where((c) => c.isCompleted).length;
 
@@ -29,10 +37,12 @@ class ContractManager extends ChangeNotifier {
           c.isFailed = true;
         } else {
           c.currentProgress = meters.toInt();
+          _checkNear(c);
           _checkCompletion(c);
         }
       } else if (c.type == ContractType.nightOwl) {
         c.currentProgress = meters.toInt();
+        _checkNear(c);
         _checkCompletion(c);
       }
     }
@@ -45,6 +55,7 @@ class ContractManager extends ChangeNotifier {
 
       if (c.type == ContractType.stuntSpecialist) {
         c.currentProgress++;
+        _checkNear(c);
         _checkCompletion(c);
       }
     }
@@ -57,6 +68,7 @@ class ContractManager extends ChangeNotifier {
 
       if (c.type == ContractType.tipCollector) {
         c.currentProgress += amount;
+        _checkNear(c);
         _checkCompletion(c);
       }
     }
@@ -69,6 +81,7 @@ class ContractManager extends ChangeNotifier {
 
       if (c.type == ContractType.speedDemon) {
         c.currentProgress++;
+        _checkNear(c);
         _checkCompletion(c);
       }
     }
@@ -92,11 +105,27 @@ class ContractManager extends ChangeNotifier {
     }
   }
 
+  /// Fires [onContractNearComplete] the first time an open contract's
+  /// progress crosses [nearCompleteRatio]. A tick that jumps clean past
+  /// completion never fires it: the completed celebration says everything.
+  void _checkNear(ShiftContract c) {
+    if (c.isCompleted ||
+        c.isFailed ||
+        c.currentProgress >= c.targetValue ||
+        c.progressRatio < nearCompleteRatio) {
+      return;
+    }
+    if (_nearAnnouncedIds.add(c.id)) {
+      onContractNearComplete?.call(c);
+    }
+  }
+
   /// Resets all contract objectives for a fresh shift.
   void reset() {
     for (final c in contracts) {
       c.reset();
     }
+    _nearAnnouncedIds.clear();
     notifyListeners();
   }
 }
