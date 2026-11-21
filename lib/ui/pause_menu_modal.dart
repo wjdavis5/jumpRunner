@@ -15,6 +15,8 @@ class PauseMenuModal extends StatelessWidget {
     required this.onQuit,
     this.isReduceFlash = false,
     this.onToggleReduceFlash,
+    this.isReduceShake = false,
+    this.onToggleReduceShake,
     this.isHapticsOn = true,
     this.onToggleHaptics,
   });
@@ -39,6 +41,10 @@ class PauseMenuModal extends StatelessWidget {
   final VoidCallback onQuit;
   final bool isReduceFlash;
   final ValueChanged<bool>? onToggleReduceFlash;
+
+  /// Whether impact screen shake is dimmed for vestibular accessibility.
+  final bool isReduceShake;
+  final ValueChanged<bool>? onToggleReduceShake;
 
   /// Whether the phone vibrates on hits and milestones.
   final bool isHapticsOn;
@@ -193,6 +199,52 @@ class PauseMenuModal extends StatelessWidget {
             ),
           ),
         ),
+
+        // Screen shake, dimmed for players who find the impacts nauseating.
+        if (onToggleReduceShake != null) ...[
+          const SizedBox(height: 8),
+          InkWell(
+            key: const Key('reduce_shake_toggle'),
+            onTap: () => onToggleReduceShake?.call(!isReduceShake),
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isReduceShake ? const Color(0xFF00E5FF) : Colors.white12,
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    isReduceShake ? Icons.screen_lock_rotation : Icons.screen_rotation,
+                    size: 18,
+                    color: isReduceShake ? const Color(0xFF00E5FF) : Colors.white70,
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Reduce Screen Shake',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  Switch(
+                    value: isReduceShake,
+                    activeThumbColor: const Color(0xFF00E5FF),
+                    onChanged: onToggleReduceShake,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
 
         // Vibration, on a phone or tablet. A computer has nothing to shake.
         if (onToggleHaptics != null && !expectsKeyboard) ...[

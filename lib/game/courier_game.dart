@@ -389,7 +389,12 @@ class CourierGame extends FlameGame
       overlays.isActive('TitleScreen');
 
   /// Triggers impact screen trauma shake.
+  ///
+  /// A player with the reduce-shake accessibility preference on still feels
+  /// every impact, but at a quarter of the trauma: enough to register the
+  /// hit, never enough to shake the whole street.
   void triggerScreenShake([double trauma = 0.65]) {
+    if (storage?.isReduceShake ?? false) trauma *= 0.25;
     cameraJuice.addTrauma(trauma);
   }
 

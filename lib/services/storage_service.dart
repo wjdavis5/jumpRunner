@@ -22,6 +22,7 @@ class LocalStorageService {
   static const String _keyBoosterPrefix = 'courier_booster_';
   static const String _keyLifetimeDeliveries = 'courier_lifetime_deliveries';
   static const String _keyReduceFlash = 'courier_reduce_flash';
+  static const String _keyReduceShake = 'courier_reduce_shake';
   static const String _keyHaptics = 'courier_haptics';
   static const String _keyPigeonCoachRuns = 'courier_coach_pigeons';
 
@@ -82,6 +83,14 @@ class LocalStorageService {
   /// Saves photosensitive screen flash reduction preference.
   Future<void> setReduceFlash(bool reduce) async {
     await _prefs?.setBool(_keyReduceFlash, reduce);
+  }
+
+  /// Whether impact screen shake is dimmed for vestibular accessibility.
+  bool get isReduceShake => _read<bool>(_keyReduceShake, false);
+
+  /// Saves the screen-shake reduction preference.
+  Future<void> setReduceShake(bool reduce) async {
+    await _prefs?.setBool(_keyReduceShake, reduce);
   }
 
   /// Whether the phone may vibrate on hits and milestones. On until the

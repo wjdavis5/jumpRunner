@@ -88,6 +88,7 @@ class _CourierDashAppState extends State<CourierDashApp>
   int _lastTips = 0;
   Set<RunBooster> _equippedBoosters = {};
   bool _isReduceFlash = false;
+  bool _isReduceShake = false;
   bool _isHapticsOn = true;
   bool _isStartingRun = false;
 
@@ -146,6 +147,7 @@ class _CourierDashAppState extends State<CourierDashApp>
     super.initState();
     _gameState = GameState();
     _isReduceFlash = widget.storageService.isReduceFlash;
+    _isReduceShake = widget.storageService.isReduceShake;
     _isHapticsOn = widget.storageService.isHapticsEnabled;
     final equippedSkin =
         CourierSkin.findById(widget.storageService.equippedSkin);
@@ -242,6 +244,13 @@ class _CourierDashAppState extends State<CourierDashApp>
     });
     await widget.storageService.setReduceFlash(reduce);
     _game.lightningComponent.reduceFlash = reduce;
+  }
+
+  void _handleToggleReduceShake(bool reduce) async {
+    setState(() {
+      _isReduceShake = reduce;
+    });
+    await widget.storageService.setReduceShake(reduce);
   }
 
   void _handleToggleHaptics(bool on) async {
@@ -657,6 +666,8 @@ class _CourierDashAppState extends State<CourierDashApp>
             gameState: _gameState,
             isReduceFlash: _isReduceFlash,
             onToggleReduceFlash: _handleToggleReduceFlash,
+            isReduceShake: _isReduceShake,
+            onToggleReduceShake: _handleToggleReduceShake,
             isHapticsOn: _isHapticsOn,
             onToggleHaptics: _handleToggleHaptics,
             onResume: _resumeGame,
