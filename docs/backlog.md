@@ -146,6 +146,14 @@ build below.
 
 ## Shipped
 
+- 2026-11-20: music and sound effects channel toggles — the pause menu gains
+  Music and Sound Effects switches (on = audible) beside the accessibility
+  toggles, backed by two storage keys and two GameAudioController channel
+  flags beside the master mute (which still overrides both). The music
+  channel gates the soundtrack machine, streak layer and rain ambience
+  (21 gate sites through _musicGated/_sfxGated helpers); setMusicMuted
+  applies live with the same stop/restart dance as the master mute.
+  7 tests in test/sound_channels_test.dart; verified on the emulator.
 - 2026-11-20: reduce screen shake toggle — the pause menu gains a third
   accessibility switch ('Reduce Screen Shake') beside the lightning flash
   one: with it on, every impact lands at a quarter of the trauma (all 59
