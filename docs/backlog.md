@@ -146,6 +146,12 @@ build below.
 
 ## Shipped
 
+- 2026-11-21: shift contract progress on the results screen — the pause
+  menu's contract panel is now the shared ShiftContractsPanel widget and the
+  results screen mounts it inside the badge scroll (first on a fresh run,
+  below the badges when the list is full; the record banner keeps its
+  see-it-without-scrolling guarantee on all three phone sizes). 4 tests in
+  test/results_contracts_test.dart; pause tests untouched.
 - 2026-11-20: music and sound effects channel toggles — the pause menu gains
   Music and Sound Effects switches (on = audible) beside the accessibility
   toggles, backed by two storage keys and two GameAudioController channel
