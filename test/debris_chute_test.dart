@@ -369,6 +369,46 @@ void main() {
           reason: 'the courier announces the ride the way every stunt does');
     });
 
+    test('pausing mid-slide freezes it, and resuming pays the ride', () async {
+      final game = CourierGame(
+        audioController: GameAudioController(backend: MockAudioBackend()),
+      );
+      await game.onLoad();
+      game.gameState.startRun();
+
+      final fx = footXOf(game);
+      final chute = _chuteAt(Vector2(fx - 12.0, deckY));
+      game.activeDebrisChutes.add(chute);
+      game.world.add(chute);
+
+      game.player.simulator.isGrounded = true;
+      game.player.simulator.currentY = deckY;
+      game.player.setTargetSurfaceY(deckY);
+      game.update(1 / 60);
+      expect(game.player.isGrinding, isTrue, reason: 'the slide has begun');
+
+      // Freeze mid-tube.
+      final frozenY = game.player.simulator.currentY;
+      game.gameState.pauseRun();
+      game.update(1 / 60);
+      game.update(1 / 60);
+      expect(game.gameState.status, GameStatus.paused);
+      expect(game.player.simulator.currentY, equals(frozenY),
+          reason: 'a paused shift is a frozen frame, tube and all');
+
+      // Resume: the ride continues and still pays out.
+      game.gameState.resumeRun();
+      final tipsBefore = game.gameState.tips;
+      var paid = false;
+      for (var i = 0; i < 120 && !paid; i++) {
+        game.update(1 / 60);
+        paid = game.gameState.chuteSlidesInRun > 0;
+      }
+      expect(paid, isTrue,
+          reason: 'the slide resumes through the bottom mouth');
+      expect(game.gameState.tips, greaterThanOrEqualTo(tipsBefore + 12));
+    });
+
     test('jumping bail out mid-slide earns nothing', () async {
       final game = CourierGame(
         audioController: GameAudioController(backend: MockAudioBackend()),

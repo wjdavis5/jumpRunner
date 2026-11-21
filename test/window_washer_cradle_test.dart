@@ -339,6 +339,50 @@ void main() {
           reason: 'the courier announces the ride the way every stunt does');
     });
 
+    test('pausing mid-ride freezes it, and resuming still pays the apex',
+        () async {
+      final game = await bareStreetGame(0);
+
+      final fx = footXOf(game);
+      // The platform rises through its apex mid-ride at street speed.
+      final cradle =
+          _cradleAt(Vector2(fx - 5.0, groundY - 300.0), phase: 2.284);
+      game.activeWasherCradles.add(cradle);
+      game.world.add(cradle);
+
+      game.player.simulator.isGrounded = false;
+      game.player.simulator.currentY = cradle.surfaceY - 24.0;
+      game.player.simulator.verticalVelocity = -60.0;
+      game.player.setTargetSurfaceY(groundY);
+      var riding = false;
+      for (var i = 0; i < 30 && !riding; i++) {
+        game.update(1 / 60);
+        riding = game.player.simulator.isGrounded &&
+            (game.player.simulator.currentY - cradle.surfaceY).abs() < 1.5;
+      }
+      expect(riding, isTrue, reason: 'the courier lands on the platform');
+
+      // Freeze mid-ride.
+      final frozenY = game.player.simulator.currentY;
+      game.gameState.pauseRun();
+      game.update(1 / 60);
+      game.update(1 / 60);
+      expect(game.gameState.status, GameStatus.paused);
+      expect(game.player.simulator.currentY, equals(frozenY),
+          reason: 'a paused shift is a frozen frame, bob and all');
+
+      // Resume: the ride continues across the apex and pays.
+      game.gameState.resumeRun();
+      final tipsBefore = game.gameState.tips;
+      var awarded = false;
+      for (var i = 0; i < 200 && !awarded; i++) {
+        game.update(1 / 60);
+        awarded = game.gameState.cradleRidesInRun > 0;
+      }
+      expect(awarded, isTrue, reason: 'the resumed ride crossed the apex');
+      expect(game.gameState.tips, greaterThanOrEqualTo(tipsBefore + 18));
+    });
+
     test('jumping off the platform ends the ride cleanly', () async {
       final game = await bareStreetGame(0);
 
