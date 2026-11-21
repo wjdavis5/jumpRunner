@@ -146,6 +146,15 @@ build below.
 
 ## Shipped
 
+- 2026-11-21: the DAILY button badges today's unplayed shift — the title's
+  retention core had no at-a-glance signal (the button showed only lifetime
+  stars). A small amber badge now rides the button while today's shift is
+  unplayed and disappears the moment it completes, computed fresh on every
+  title rebuild from DailyShift.forDate(now.utc) against the saved
+  completion. A widget test drives the real app through play-today, depot,
+  badge-gone; emulator-verified on a clean save. Also cycle 21 spotted and
+  left alone: a real Pixel 8 Pro appeared on adb (issue #133's playtest
+  device?) — not touched autonomously.
 - 2026-11-21: web playability verified for the first time — served
   build/web locally and drove a full loop with browser automation: the
   title renders with desktop key hints, Space starts the shift, canvas
