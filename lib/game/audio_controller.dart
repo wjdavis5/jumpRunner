@@ -248,6 +248,8 @@ class GameAudioController {
         _storage = storageService {
     if (_storage != null) {
       isMuted = _storage!.isSoundMuted;
+      isMusicMuted = _storage!.isMusicMuted;
+      isSfxMuted = _storage!.isSfxMuted;
     }
   }
 
@@ -259,6 +261,20 @@ class GameAudioController {
   static const double milestoneDuckedBgmVolume = 0.25;
 
   bool isMuted = false;
+
+  /// Whether the music and ambience channel is muted by player preference.
+  /// Independent of the HUD's master mute: a player who wants effects but
+  /// not music (or the reverse) sets these in the pause menu.
+  bool isMusicMuted = false;
+
+  /// Whether the one-shot sound-effect channel is muted by player preference.
+  bool isSfxMuted = false;
+
+  /// Whether anything on the music and ambience channel may sound.
+  bool get _musicGated => isMuted || isMusicMuted;
+
+  /// Whether anything on the sound-effect channel may sound.
+  bool get _sfxGated => isMuted || isSfxMuted;
   bool isMusicActive = false;
   bool isPaused = false;
   bool isMilestoneDucking = false;
@@ -346,7 +362,7 @@ class GameAudioController {
   /// Ducking (pause/milestone) remains authoritative: fades multiply the
   /// effective ducked volume and never overwrite the base.
   Future<void> updateMusicPhase({required bool isNight, required double dt}) async {
-    if (!isMusicActive || isMuted) return;
+    if (!isMusicActive || _musicGated) return;
 
     if (_swapState == _MusicSwapState.idle && isNight != isNightTrack) {
       _swapState = _MusicSwapState.fadingOut;
@@ -429,7 +445,7 @@ class GameAudioController {
     required double dt,
   }) async {
     _streakRequested = streakActive;
-    if (!isMusicActive || isMuted) return;
+    if (!isMusicActive || _musicGated) return;
     if (_layerRetryCooldown > 0) {
       _layerRetryCooldown =
           (_layerRetryCooldown - dt).clamp(0.0, layerRetryCooldownSeconds);
@@ -495,7 +511,7 @@ class GameAudioController {
       _effectiveBgmVolume * streakLayerVolumeRatio * _layerFade * _trackFadeMultiplier;
 
   Future<void> _pushLayerVolume() async {
-    if (_layerAudible && isMusicActive && !isMuted) {
+    if (_layerAudible && isMusicActive && !_musicGated) {
       await _backend.setLayerVolume(_effectiveLayerVolume);
     }
   }
@@ -522,7 +538,7 @@ class GameAudioController {
       _layerRetryCooldown = layerRetryCooldownSeconds;
       return;
     }
-    if (isMuted || !isMusicActive || isBackgrounded || _layerState == _LayerFadeState.silent) {
+    if (_musicGated || !isMusicActive || isBackgrounded || _layerState == _LayerFadeState.silent) {
       // The layer was stopped while the player was loading; a player that
       // lands after its stop must not keep playing.
       await _backend.stopLayer();
@@ -667,7 +683,7 @@ class GameAudioController {
   /// Sets the background music volume (0.0 to 1.0).
   Future<void> setBgmVolume(double volume) async {
     currentBgmVolume = volume.clamp(0.0, 1.0);
-    if (!isMuted && isMusicActive) {
+    if (!_musicGated && isMusicActive) {
       await _backend.setBgmVolume(currentBgmVolume);
       // Ducking goes through here, so the layer rides along: it scales by
       // the same factor the BGM just received.
@@ -678,7 +694,7 @@ class GameAudioController {
   /// Sets the background music playback rate (0.5 to 2.0).
   Future<void> setPlaybackRate(double rate) async {
     currentPlaybackRate = rate.clamp(0.5, 2.0);
-    if (!isMuted && isMusicActive) {
+    if (!_musicGated && isMusicActive) {
       await _backend.setPlaybackRate(currentPlaybackRate);
       // The layer rides the same tempo; without this the running track scales
       // up while the arp does not, and the two drift apart within a loop.
@@ -714,7 +730,7 @@ class GameAudioController {
   Future<void> duckForMilestone({
     Duration duration = const Duration(milliseconds: 1400),
   }) async {
-    if (isMuted || !isMusicActive) return;
+    if (_musicGated || !isMusicActive) return;
     isMilestoneDucking = true;
     await setBgmVolume(milestoneDuckedBgmVolume);
 
@@ -741,6 +757,43 @@ class GameAudioController {
         currentRainVolume = 0.0;
       }
     } else {
+      if (isMusicActive && !isMusicMuted) {
+        final vol = isPaused
+            ? duckedBgmVolume
+            : (isMilestoneDucking ? milestoneDuckedBgmVolume : currentBgmVolume);
+        await _backend.startBgm(_activeTrack, volume: vol);
+        if (currentPlaybackRate != 1.0) {
+          await _backend.setPlaybackRate(currentPlaybackRate);
+        }
+        await _restartLayerWithMusic();
+      }
+      if (currentRainIntensity > 0.01 && !isMusicMuted) {
+        final targetVolume = currentRainIntensity * maxRainAmbienceVolume;
+        isRainAudioActive = true;
+        currentRainVolume = targetVolume;
+        await _backend.startAmbience(sfxRainAmbience, volume: targetVolume);
+      }
+    }
+  }
+
+  /// Sets the music and ambience channel mute live: flipping it on stops
+  /// the loops the way the master mute does; flipping it off restarts
+  /// whatever the soundtrack machine currently wants audible.
+  Future<void> setMusicMuted(bool muted) async {
+    if (isMusicMuted == muted) return;
+    isMusicMuted = muted;
+    await _storage?.setMusicMuted(muted);
+
+    if (muted) {
+      await _backend.stopBgm();
+      await _backend.stopLayer();
+      _layerAudible = false;
+      if (isRainAudioActive) {
+        await _backend.stopAmbience();
+        isRainAudioActive = false;
+        currentRainVolume = 0.0;
+      }
+    } else if (!isMuted) {
       if (isMusicActive) {
         final vol = isPaused
             ? duckedBgmVolume
@@ -760,6 +813,13 @@ class GameAudioController {
     }
   }
 
+  /// Sets the sound-effects channel mute live. One-shot sounds need no
+  /// stop dance: the next trigger simply stays silent.
+  Future<void> setSfxMuted(bool muted) async {
+    isSfxMuted = muted;
+    await _storage?.setSfxMuted(muted);
+  }
+
   /// True while the app is in the background and all looping audio is held.
   bool isBackgrounded = false;
 
@@ -770,7 +830,7 @@ class GameAudioController {
   Future<void> suspendForBackground() async {
     if (isBackgrounded) return;
     isBackgrounded = true;
-    if (isMuted) return;
+    if (_musicGated) return;
     await _backend.stopBgm();
     await _backend.stopLayer();
     _layerAudible = false;
@@ -783,7 +843,7 @@ class GameAudioController {
   Future<void> resumeFromBackground() async {
     if (!isBackgrounded) return;
     isBackgrounded = false;
-    if (isMuted) return;
+    if (_musicGated) return;
     if (isMusicActive) {
       // Whichever of the day and night tracks was playing comes back.
       await _backend.startBgm(_activeTrack, volume: _effectiveBgmVolume);
@@ -805,7 +865,7 @@ class GameAudioController {
     currentRainIntensity = rainIntensity.clamp(0.0, 1.0);
     final targetVolume = currentRainIntensity * maxRainAmbienceVolume;
 
-    if (isMuted) {
+    if (_musicGated) {
       if (isRainAudioActive) {
         await _backend.stopAmbience();
         isRainAudioActive = false;
@@ -843,21 +903,21 @@ class GameAudioController {
 
   /// Plays jump sound effect.
   Future<void> playJump() async {
-    if (isMuted) return;
+    if (_sfxGated) return;
     attemptedPlays.add(sfxJump);
     await _backend.playSfx(sfxJump, volume: 0.8);
   }
 
   /// Plays coin collection chime.
   Future<void> playCoin() async {
-    if (isMuted) return;
+    if (_sfxGated) return;
     attemptedPlays.add(sfxCoin);
     await _backend.playSfx(sfxCoin, volume: 0.7);
   }
 
   /// Plays fumble / package damage sound.
   Future<void> playFumble() async {
-    if (isMuted) return;
+    if (_sfxGated) return;
     attemptedPlays.add(sfxFumble);
     await _backend.playSfx(sfxFumble, volume: 0.9);
   }
@@ -866,7 +926,7 @@ class GameAudioController {
   Future<void> playMilestone({
     Duration duckDuration = const Duration(milliseconds: 1400),
   }) async {
-    if (isMuted) return;
+    if (_sfxGated) return;
     attemptedPlays.add(sfxMilestone);
     duckForMilestone(duration: duckDuration);
     await _backend.playSfx(sfxMilestone, volume: 1.0);
@@ -874,14 +934,14 @@ class GameAudioController {
 
   /// Plays the cast-iron manhole lid rattle as pressure builds.
   Future<void> playManholeRattle() async {
-    if (isMuted) return;
+    if (_sfxGated) return;
     attemptedPlays.add(sfxManholeRattle);
     await _backend.playSfx(sfxManholeRattle, volume: 0.85);
   }
 
   /// Plays rolling thunderstorm rumble audio.
   Future<void> playThunder({double volume = 0.85}) async {
-    if (isMuted) return;
+    if (_sfxGated) return;
     attemptedPlays.add(sfxThunder);
     await _backend.playSfx(sfxThunder, volume: volume);
   }
@@ -904,7 +964,7 @@ class GameAudioController {
       _layerAudible = false;
     }
     currentBgmVolume = volume ?? (isPaused ? duckedBgmVolume : defaultBgmVolume);
-    if (isMuted) return;
+    if (_musicGated) return;
     await _backend.startBgm(_activeTrack, volume: currentBgmVolume);
     if (currentPlaybackRate != 1.0) {
       await _backend.setPlaybackRate(currentPlaybackRate);
@@ -968,7 +1028,7 @@ class GameAudioController {
       l(type, selectedLine);
     }
 
-    if (isMuted) return true;
+    if (_sfxGated) return true;
 
     final sfxPath = _courierBarkSfx(type);
     attemptedPlays.add(sfxPath);
@@ -999,7 +1059,7 @@ class GameAudioController {
       l(type, selectedLine);
     }
 
-    if (isMuted) return true;
+    if (_sfxGated) return true;
 
     final sfxPath = _customerReactionSfx(type);
     attemptedPlays.add(sfxPath);

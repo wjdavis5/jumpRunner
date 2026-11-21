@@ -17,6 +17,10 @@ class PauseMenuModal extends StatelessWidget {
     this.onToggleReduceFlash,
     this.isReduceShake = false,
     this.onToggleReduceShake,
+    this.isMusicOn = true,
+    this.onToggleMusic,
+    this.isSfxOn = true,
+    this.onToggleSfx,
     this.isHapticsOn = true,
     this.onToggleHaptics,
   });
@@ -45,6 +49,14 @@ class PauseMenuModal extends StatelessWidget {
   /// Whether impact screen shake is dimmed for vestibular accessibility.
   final bool isReduceShake;
   final ValueChanged<bool>? onToggleReduceShake;
+
+  /// Whether the music and ambience channel may sound.
+  final bool isMusicOn;
+  final ValueChanged<bool>? onToggleMusic;
+
+  /// Whether the one-shot sound-effect channel may sound.
+  final bool isSfxOn;
+  final ValueChanged<bool>? onToggleSfx;
 
   /// Whether the phone vibrates on hits and milestones.
   final bool isHapticsOn;
@@ -239,6 +251,98 @@ class PauseMenuModal extends StatelessWidget {
                     value: isReduceShake,
                     activeThumbColor: const Color(0xFF00E5FF),
                     onChanged: onToggleReduceShake,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+
+        // Music: the soundtrack and ambience channel, off leaves effects on.
+        if (onToggleMusic != null) ...[
+          const SizedBox(height: 8),
+          InkWell(
+            key: const Key('music_toggle'),
+            onTap: () => onToggleMusic?.call(!isMusicOn),
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isMusicOn ? const Color(0xFF00E5FF) : Colors.white12,
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    isMusicOn ? Icons.music_note : Icons.music_off,
+                    size: 18,
+                    color: isMusicOn ? const Color(0xFF00E5FF) : Colors.white70,
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Music',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  Switch(
+                    value: isMusicOn,
+                    activeThumbColor: const Color(0xFF00E5FF),
+                    onChanged: onToggleMusic,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+
+        // Sound effects: coins, barks and impacts, off leaves music on.
+        if (onToggleSfx != null) ...[
+          const SizedBox(height: 8),
+          InkWell(
+            key: const Key('sfx_toggle'),
+            onTap: () => onToggleSfx?.call(!isSfxOn),
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isSfxOn ? const Color(0xFF00E5FF) : Colors.white12,
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    isSfxOn ? Icons.graphic_eq : Icons.volume_off,
+                    size: 18,
+                    color: isSfxOn ? const Color(0xFF00E5FF) : Colors.white70,
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Sound Effects',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  Switch(
+                    value: isSfxOn,
+                    activeThumbColor: const Color(0xFF00E5FF),
+                    onChanged: onToggleSfx,
                   ),
                 ],
               ),

@@ -89,6 +89,8 @@ class _CourierDashAppState extends State<CourierDashApp>
   Set<RunBooster> _equippedBoosters = {};
   bool _isReduceFlash = false;
   bool _isReduceShake = false;
+  bool _isMusicOn = true;
+  bool _isSfxOn = true;
   bool _isHapticsOn = true;
   bool _isStartingRun = false;
 
@@ -148,6 +150,8 @@ class _CourierDashAppState extends State<CourierDashApp>
     _gameState = GameState();
     _isReduceFlash = widget.storageService.isReduceFlash;
     _isReduceShake = widget.storageService.isReduceShake;
+    _isMusicOn = !widget.storageService.isMusicMuted;
+    _isSfxOn = !widget.storageService.isSfxMuted;
     _isHapticsOn = widget.storageService.isHapticsEnabled;
     final equippedSkin =
         CourierSkin.findById(widget.storageService.equippedSkin);
@@ -251,6 +255,20 @@ class _CourierDashAppState extends State<CourierDashApp>
       _isReduceShake = reduce;
     });
     await widget.storageService.setReduceShake(reduce);
+  }
+
+  void _handleToggleMusic(bool on) async {
+    setState(() {
+      _isMusicOn = on;
+    });
+    await _game.audio.setMusicMuted(!on);
+  }
+
+  void _handleToggleSfx(bool on) async {
+    setState(() {
+      _isSfxOn = on;
+    });
+    await _game.audio.setSfxMuted(!on);
   }
 
   void _handleToggleHaptics(bool on) async {
@@ -668,6 +686,10 @@ class _CourierDashAppState extends State<CourierDashApp>
             onToggleReduceFlash: _handleToggleReduceFlash,
             isReduceShake: _isReduceShake,
             onToggleReduceShake: _handleToggleReduceShake,
+            isMusicOn: _isMusicOn,
+            onToggleMusic: _handleToggleMusic,
+            isSfxOn: _isSfxOn,
+            onToggleSfx: _handleToggleSfx,
             isHapticsOn: _isHapticsOn,
             onToggleHaptics: _handleToggleHaptics,
             onResume: _resumeGame,

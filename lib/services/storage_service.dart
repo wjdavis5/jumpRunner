@@ -12,6 +12,8 @@ class LocalStorageService {
   static const String _keyHighDistance = 'courier_high_distance';
   static const String _keyCareerTips = 'courier_career_tips';
   static const String _keySoundMuted = 'courier_sound_muted';
+  static const String _keyMusicMuted = 'courier_music_muted';
+  static const String _keySfxMuted = 'courier_sfx_muted';
   static const String _keyUnlockedSkins = 'courier_unlocked_skins';
   static const String _keyEquippedSkin = 'courier_equipped_skin';
   static const String _keyCompletedContracts = 'courier_completed_contracts';
@@ -76,6 +78,12 @@ class LocalStorageService {
 
   /// Whether audio is muted by player preference.
   bool get isSoundMuted => _read<bool>(_keySoundMuted, false);
+
+  /// Whether the music and ambience channel is muted by player preference.
+  bool get isMusicMuted => _read<bool>(_keyMusicMuted, false);
+
+  /// Whether the sound-effects channel is muted by player preference.
+  bool get isSfxMuted => _read<bool>(_keySfxMuted, false);
 
   /// Whether lightning and strobe flashes are dimmed for photosensitivity accessibility.
   bool get isReduceFlash => _read<bool>(_keyReduceFlash, false);
@@ -181,6 +189,16 @@ class LocalStorageService {
   /// Saves user audio mute preference.
   Future<void> setSoundMuted(bool muted) async {
     await _prefs?.setBool(_keySoundMuted, muted);
+  }
+
+  /// Saves the music channel mute preference.
+  Future<void> setMusicMuted(bool muted) async {
+    await _prefs?.setBool(_keyMusicMuted, muted);
+  }
+
+  /// Saves the sound-effects channel mute preference.
+  Future<void> setSfxMuted(bool muted) async {
+    await _prefs?.setBool(_keySfxMuted, muted);
   }
 
   /// Purchases and unlocks a cosmetic courier skin using accumulated career tips.
