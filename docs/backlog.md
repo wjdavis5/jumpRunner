@@ -402,10 +402,17 @@ buffer). `dumpsys gfxinfo` never works on Flutter apps (no HWUI path).
 Findings from the hunt anyway:
 - The audio controller's `attemptedPlays` diagnostic list grew forever (a
   coin every few seconds for 6,500 m) - now capped at 100 entries.
-- **2026-11-21 soak: the leak is real and fast.** A QA immortal run with
-  held-leap input grew RSS 406 MB -> 1,684 MB over 8 minutes of play
-  (~200 MB/min, roughly linear), then the process died and the guest
-  itself went down. The earlier '236 MB plateau' was a two-minute
+- **FIXED 2026-11-21: the leak was FlameAudio.play** - it creates a
+  brand-new AudioPlayer per call and audioplayers' low-latency Android
+  players have no completion callback, so the returned player was never
+  disposed; every coin, jump, bark and milestone leaked its platform
+  player and cached audio. The backend now keeps one AudioPool per
+  one-shot sound (created at preload, maxPlayers 4) and playSfx schedules
+  each player's return to its pool after the sound's measured duration.
+  Soak-verified: the identical replay holds a flat ~410-417 MB over the
+  same 8 minutes (was +1,278 MB). Original finding: a QA immortal run
+  grew RSS 406 MB -> 1,684 MB over 8 minutes of play, then the process
+  died and the guest itself went down. The earlier '236 MB plateau' was a two-minute
   window - too short to see the slope. This explains the 1.6 GB RSS the
   perf cycle found on a two-hour run, and most of the guest's
   low-memory-killer history (61 kills) including the mid-run
