@@ -146,6 +146,13 @@ build below.
 
 ## Shipped
 
+- 2026-11-20: reduce screen shake toggle — the pause menu gains a third
+  accessibility switch ('Reduce Screen Shake') beside the lightning flash
+  one: with it on, every impact lands at a quarter of the trauma (all 59
+  shake call sites funnel through one storage-backed gate), enough to
+  register the hit without lurching the street. Persists across sessions
+  like reduce-flash and haptics. 4 tests in test/reduce_shake_test.dart;
+  verified on the emulator through a force-stop and relaunch.
 - 2026-11-20: top-speed feel — the courier's run stride used to cycle at one
   fixed 0.12 s no matter how fast the street scrolled (moonwalking at 550
   px/s); it now ticks with the scroll speed (up to 2.4x at the cap), and a
