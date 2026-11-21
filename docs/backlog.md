@@ -146,6 +146,17 @@ build below.
 
 ## Shipped
 
+- 2026-11-21: QA builds go storage-blind — a QA run (immortal, seeded,
+  starting at 2,600 m) used to bank into the player save on quit: the
+  shared emulator's save had grown a 4,378 m personal best, $14,957 of
+  career tips and 8/10 trophies purely from unattended QA sessions. Every
+  StorageService mutation is now a no-op when the build is QA (qaBlind
+  flag; reads stay live), main.dart constructs it with QaFlags.any, and
+  the on-device proof cleared the save, ran 2,680 m with $1,301 banked,
+  quit and relaunch showed 0 m / $0 / 0-10 trophies. 2 tests in
+  test/storage_service_test.dart. Explains the mid-run return-to-title
+  mystery's sibling: the low-memory killer was killing a process whose
+  save kept being rewritten by QA.
 - 2026-11-21: shift contract progress on the results screen — the pause
   menu's contract panel is now the shared ShiftContractsPanel widget and the
   results screen mounts it inside the badge scroll (first on a fresh run,
