@@ -402,13 +402,18 @@ buffer). `dumpsys gfxinfo` never works on Flutter apps (no HWUI path).
 Findings from the hunt anyway:
 - The audio controller's `attemptedPlays` diagnostic list grew forever (a
   coin every few seconds for 6,500 m) - now capped at 100 entries.
-- Guest memory is tight (61 lowmemorykiller kills in the history; the game
-  held 1.6 GB RSS after a two-hour immortal run) but a fresh run plateaus
-  at ~236 MB within two minutes. Long-horizon growth across many shifts is
-  unproven - worth re-checking after a long unattended session.
-- A mid-run return-to-title with old save values seen on 2026-11-20 was
-  almost certainly the guest low-memory killer, not a game crash (no
-  AndroidRuntime fatal in logcat).
+- **2026-11-21 soak: the leak is real and fast.** A QA immortal run with
+  held-leap input grew RSS 406 MB -> 1,684 MB over 8 minutes of play
+  (~200 MB/min, roughly linear), then the process died and the guest
+  itself went down. The earlier '236 MB plateau' was a two-minute
+  window - too short to see the slope. This explains the 1.6 GB RSS the
+  perf cycle found on a two-hour run, and most of the guest's
+  low-memory-killer history (61 kills) including the mid-run
+  return-to-title mysteries. Ruled out: attemptedPlays (bounded). Not yet
+  ruled out: per-frame allocations retained in the play path, streak-layer
+  audio players across start/stop cycles, effect/particle accumulation.
+  Next step is a profile build under DevTools memory on a workstation, or
+  a real device (issue #133); the emulator itself cannot survive the soak.
 
 Real phones (issue #133) remain the only honest frame-rate measurement.
 
