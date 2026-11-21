@@ -146,6 +146,14 @@ build below.
 
 ## Shipped
 
+- 2026-11-21: pushed a month of work — 21 commits (wrecking balls through
+  the voice lines) had never left this machine: origin sat at the cement
+  mixers from 2026-10-27, so CI had validated none of it and the live web
+  build was a month stale. Local web release build verified, origin's
+  imagine-feed route-removal merged (wrangler.jsonc route gone: imagine.wjd.io
+  serves the lab's image generator now — a new hostname needs an Access app
+  first, an owner decision), pushed, and the Web Deploy workflow went green
+  in 1m56s. Every cycle now ends with a push.
 - 2026-11-21: courier voice lines complete the stunt set — the chute slide
   announces 'Special delivery, straight down!' and the cradle's apex earns
   'Squeaky clean!', the last two stunts without a line (geyser, dumpster,
