@@ -355,6 +355,8 @@ void main() {
       game.player.simulator.currentY = deckY;
       game.player.setTargetSurfaceY(deckY);
 
+      String? spoken;
+      game.audio.addCourierBarkListener((type, line) => spoken = line);
       final tipsBefore = game.gameState.tips;
       for (var i = 0; i < 120; i++) {
         game.update(1 / 60);
@@ -363,6 +365,8 @@ void main() {
 
       expect(game.gameState.chuteSlidesInRun, equals(1));
       expect(game.gameState.tips, equals(tipsBefore + 12));
+      expect(spoken, equals('Special delivery, straight down!'),
+          reason: 'the courier announces the ride the way every stunt does');
     });
 
     test('jumping bail out mid-slide earns nothing', () async {

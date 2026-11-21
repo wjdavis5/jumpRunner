@@ -322,6 +322,8 @@ void main() {
       game.player.simulator.verticalVelocity = -60.0;
       game.player.setTargetSurfaceY(groundY);
 
+      String? spoken;
+      game.audio.addCourierBarkListener((type, line) => spoken = line);
       final tipsBefore = game.gameState.tips;
       var awarded = false;
       for (var i = 0; i < 40 && !awarded; i++) {
@@ -333,6 +335,8 @@ void main() {
       expect(game.gameState.cradleRidesInRun, equals(1));
       expect(cradle.hasAwardedRide, isTrue);
       expect(game.gameState.tips, greaterThan(tipsBefore));
+      expect(spoken, equals('Squeaky clean!'),
+          reason: 'the courier announces the ride the way every stunt does');
     });
 
     test('jumping off the platform ends the ride cleanly', () async {

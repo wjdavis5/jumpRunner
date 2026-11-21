@@ -35,6 +35,9 @@ however far it slides in between.
   harmful. Using them well pays tips and builds a stunt multiplier.
 - Tips buy courier skins in the Locker and one-shot boosters in the Bodega.
   Daily Shifts and ten trophies give longer-term goals.
+- The pause menu's settings persist: Reduce Lightning Flash and Reduce
+  Screen Shake for accessibility, Music and Sound Effects as separate
+  channels, and Vibration on devices that have it.
 
 ## Build, run, test
 
@@ -55,8 +58,9 @@ from the icon font the app already carries (`withStars`), because a
 character the font lacks is otherwise fetched from a font server.
 
 To look at late-game scenes without playing to them, a QA build can start
-every shift part-way in and keep the courier alive. Both switches are
-compile-time (`lib/game/logic/qa_flags.dart`) and off in a normal build:
+every shift part-way in, keep the courier alive, force a set piece, or
+build the same street twice. The switches are compile-time
+(`lib/game/logic/qa_flags.dart`) and off in a normal build:
 
 ```sh
 flutter run -d chrome --dart-define=QA_START_METERS=2600 --dart-define=QA_IMMORTAL=true
@@ -66,7 +70,15 @@ In a QA build on the web, `?qa_start=1200` on the page address overrides the
 starting distance without a rebuild, and `&qa_subway=1` turns every chunk
 that can be a subway station into one (they are otherwise about 1.3 per
 1,000 m). `&qa_seed=7` builds the same street on every load, which is what
-makes two frame-rate measurements comparable.
+makes two frame-rate measurements comparable; off the web the same seed
+comes in as `--dart-define=QA_SEED=7`. `QA_FORCE_CHUTE=true` and
+`QA_FORCE_CRADLE=true` put that set piece on every chunk that can carry
+one, for recordings that do not wait on the dice.
+
+Whatever a QA build does, it never writes the save: reads stay live so the
+game boots with the real career, but every mutation (records, tips,
+trophies, preferences) is a no-op while `QaFlags.any` is on, so an
+unattended immortal run cannot set a personal best.
 
 ## Project layout
 

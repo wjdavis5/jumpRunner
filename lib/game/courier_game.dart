@@ -3634,6 +3634,7 @@ class CourierGame extends FlameGame
     final event = gameState.recordCradleRide(apexHeightMeters: apexMeters);
     if (event != null) {
       audio.playCoin();
+      audio.playCourierBark(CourierBarkType.stunt, line: 'Squeaky clean!');
       triggerScreenShake(0.14);
       addEffect(
         FloatingTextComponent(
@@ -3718,6 +3719,7 @@ class CourierGame extends FlameGame
     final event = gameState.recordChuteSlide(slideDistanceMeters: meters);
     if (event != null) {
       audio.playCoin();
+      audio.playCourierBark(CourierBarkType.stunt, line: 'Special delivery, straight down!');
       triggerScreenShake(0.12);
       addEffect(
         FloatingTextComponent(
