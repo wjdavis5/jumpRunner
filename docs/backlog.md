@@ -146,6 +146,14 @@ build below.
 
 ## Shipped
 
+- 2026-11-21: courier voice lines complete the stunt set — the chute slide
+  announces 'Special delivery, straight down!' and the cradle's apex earns
+  'Squeaky clean!', the last two stunts without a line (geyser, dumpster,
+  mixer, solar, hydro, turbine, turnstile and the rest all had one). Bark
+  assertions ride the existing integration tests. Also this cycle: the
+  README caught up with the QA build's five switches, the persisted pause
+  settings and save blindness, and nine merged feature worktrees and
+  branches were pruned.
 - 2026-11-21: QA builds go storage-blind — a QA run (immortal, seeded,
   starting at 2,600 m) used to bank into the player save on quit: the
   shared emulator's save had grown a 4,378 m personal best, $14,957 of
